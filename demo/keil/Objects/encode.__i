@@ -1,5 +1,0 @@
--xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c
--fno-rtti -funsigned-char -fshort-enums -fshort-wchar
--gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I E:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I E:/ti/mspm0_sdk_2_01_00_03/source -I ../Hardware -I ../../demo -I ../App
--D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__
--o ./objects/encode.o -MD "../Hardware/encode.c"
