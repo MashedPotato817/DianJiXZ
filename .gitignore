@@ -1,37 +1,37 @@
-# Keil MDK
-*.uvguix.*
-*.uvprojx
-*.uvoptx
-*.scvd
-*.crf
-*.d
-*.dep
-*.htm
+# Keil / ARM build output
+**/Objects/
+**/Listings/
+*.axf
+*.hex
+*.map
 *.lst
 *.lnp
-*.iex
-*.build_log.htm
-*.axf
-*.elf
 *.o
-*.obj
-*.out
-*.lib
-JLinkLog.txt
-JLinkSettings.ini
-*.ini
+*.d
+*.crf
+*.dep
+*.htm
+*.build_log.htm
+*.uvguix.*
+*.scvd
+*.bak
 
-# EIDE build output
-demo/EIDE/build/
+# Logs: keep curated documentation logs only
+*.log
+!docs/*.log
 
-# MSPM0 SysConfig backup
-*.syscfg.bak
-
-# IDE
+# Local editor / OS files
 .vscode/
-*.code-workspace
-
-# OS
-Thumbs.db
-Desktop.ini
+.idea/
+*.user
+*.tmp
+*.swp
 .DS_Store
+Thumbs.db
+
+# Large local packages or installers
+*.zip
+*.rar
+*.7z
+*.exe
+*.msi
