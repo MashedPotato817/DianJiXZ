@@ -80,6 +80,10 @@ demo/
 
 `demand.md` — 待填充的需求文档。
 
+## 编码规范
+
+编辑 `.c` / `.h` / `.js` / `.html` / `.py` 文件前，**必须先调用** `andrej-karpathy-skills:karpathy-guidelines`，遵循其简洁、手术式修改、不过度设计的原则。
+
 ## 项目记忆
 
 项目记忆存放于 `.claude/projects/` 下对应的 session 目录。

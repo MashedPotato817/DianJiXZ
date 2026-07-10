@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电赛控制类题目总结 2019-2025</title>
+<style>
+/* ====== Design Token System ====== */
+:root {
+  --bg:        #060B14;
+  --surface:   #0D1525;
+  --surface2:  #111C30;
+  --border:    #1A2A44;
+  --cyan:      #00C2FF;
+  --orange:    #FF6B3D;
+  --green:     #00E599;
+  --amber:     #F0A030;
+  --text:      #C4CFE0;
+  --text-dim:  #6B7FA0;
+  --text-bright: #E8EEF6;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-body: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Noto Sans SC', system-ui, sans-serif;
+}
+
+/* ====== Reset & Base ====== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ====== Circuit Trace Background ====== */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.03;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(0,194,255,0.3) 60px, rgba(0,194,255,0.3) 61px),
+    repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(0,194,255,0.2) 60px, rgba(0,194,255,0.2) 61px);
+}
+
+/* ====== Navigation ====== */
+nav {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 240px;
+  background: rgba(6,11,20,0.92);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--border);
+  z-index: 100;
+  padding: 2rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+nav .brand {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+nav a {
+  display: block;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+nav a:hover, nav a.active {
+  color: var(--cyan);
+  background: rgba(0,194,255,0.06);
+  border-left-color: var(--cyan);
+}
+
+/* ====== Main Layout ====== */
+main {
+  margin-left: 240px;
+  max-width: 960px;
+  padding: 3rem 3rem 6rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ====== Hero ====== */
+.hero {
+  padding: 3rem 0 2rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3rem;
+  position: relative;
+}
+.hero-tag {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--text-bright);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--cyan);
+}
+.hero .stats {
+  display: flex;
+  gap: 2.5rem;
+  margin-top: 2rem;
+}
+.hero .stat-num {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--cyan);
+  line-height: 1;
+}
+.hero .stat-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+}
+.hero .circuit-line {
+  position: absolute;
+  right: -3rem;
+  top: 2rem;
+  opacity: 0.12;
+}
+
+/* ====== Section Styles ====== */
+section {
+  margin-bottom: 4rem;
+}
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 2rem 0 0.75rem;
+}
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cyan);
+  margin: 1.5rem 0 0.5rem;
+}
+
+/* ====== Key Insight Blockquote ====== */
+.insight {
+  background: var(--surface);
+  border-left: 3px solid var(--cyan);
+  padding: 1.5rem 2rem;
+  margin: 2rem 0;
+  border-radius: 0 8px 8px 0;
+  position: relative;
+}
+.insight p {
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  line-height: 1.8;
+}
+.insight::before {
+  content: '▸';
+  position: absolute;
+  left: -1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--cyan);
+  font-size: 1.5rem;
+}
+
+/* ====== Timeline ====== */
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin: 2rem 0;
+  position: relative;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 2.5rem;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--border), var(--cyan), var(--cyan), var(--cyan), var(--border));
+}
+.timeline-node {
+  text-align: center;
+  position: relative;
+  padding: 1rem 0.5rem;
+  cursor: default;
+}
+.timeline-node::before {
+  content: '';
+  position: absolute;
+  top: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px; height: 10px;
+  background: var(--cyan);
+  border-radius: 50%;
+  z-index: 2;
+}
+.timeline-year {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--cyan);
+  margin-bottom: 0.75rem;
+}
+.timeline-topics {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-top: 2.5rem;
+}
+
+/* ====== Table Styles ====== */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+thead th {
+  background: var(--surface2);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgba(26,42,68,0.5);
+  vertical-align: top;
+}
+tbody tr:hover {
+  background: rgba(0,194,255,0.03);
+}
+.col-year {
+  font-family: var(--font-mono);
+  color: var(--cyan);
+  white-space: nowrap;
+  width: 6rem;
+}
+.col-level {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ====== Score Bars ====== */
+.score-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+.score-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+.score-card h4 {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+.score-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+}
+.score-item .label { flex: 0 0 8rem; color: var(--text-dim); }
+.score-item .bar-wrap { flex: 1; background: var(--bg); border-radius: 3px; height: 6px; overflow: hidden; }
+.score-item .bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+.bar-hi { background: var(--cyan); }
+.bar-md { background: var(--amber); }
+.bar-lo { background: var(--text-dim); }
+.score-item .pct {
+  flex: 0 0 3rem;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-bright);
+}
+
+/* ====== Capability Matrix ====== */
+.caps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.cap-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+.cap-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+}
+.cap-card.required::after { background: var(--orange); }
+.cap-card.advanced::after { background: var(--cyan); }
+.cap-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-bright);
+}
+.cap-card .tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  margin-bottom: 0.5rem;
+}
+.tag-must { background: rgba(255,107,61,0.15); color: var(--orange); }
+.tag-plus { background: rgba(0,194,255,0.12); color: var(--cyan); }
+.cap-card ul {
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.cap-card li { padding: 0.15rem 0; }
+.cap-card li::before { content: '→ '; color: var(--text-dim); }
+
+/* ====== Phase Roadmap ====== */
+.phases {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+.phase {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  position: relative;
+}
+.phase-num {
+  font-family: var(--font-mono);
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: rgba(0,194,255,0.1);
+  position: absolute;
+  top: 0.5rem; right: 1rem;
+  line-height: 1;
+}
+.phase h4 { margin: 0 0 0.5rem; font-size: 1rem; }
+.phase .goal { color: var(--cyan); font-size: 0.8rem; font-weight: 600; margin-bottom: 0.75rem; }
+.phase ul { list-style: none; font-size: 0.82rem; color: var(--text-dim); }
+.phase li { padding: 0.2rem 0; }
+.phase li::before { content: '✓ '; color: var(--green); font-size: 0.7rem; }
+
+/* ====== Checklist ====== */
+.checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+}
+.check-icon {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border: 2px solid var(--text-dim);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: transparent;
+  margin-top: 0.15rem;
+}
+.check-item .col { flex: 1; }
+.check-item .reason {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+}
+
+/* ====== Code Block ====== */
+.code-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+.code-block pre {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+.code-block .kw { color: var(--cyan); }
+.code-block .cm { color: var(--text-dim); font-style: italic; }
+.code-block .fn { color: var(--amber); }
+
+/* ====== Tag Cloud ====== */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+/* ====== Warning Box ====== */
+.warn-box {
+  background: rgba(255,107,61,0.08);
+  border: 1px solid rgba(255,107,61,0.25);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  color: var(--orange);
+}
+
+/* ====== Pitfall Matrix ====== */
+.pitfall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.pitfall {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+.pitfall .pf-issue {
+  font-weight: 600;
+  color: var(--orange);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+.pitfall .pf-cause { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.15rem; }
+.pitfall .pf-fix { font-size: 0.78rem; color: var(--green); }
+
+/* ====== Training List ====== */
+.train-list {
+  counter-reset: train;
+  list-style: none;
+  margin: 1.5rem 0;
+}
+.train-list li {
+  counter-increment: train;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(26,42,68,0.4);
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+.train-list li::before {
+  content: '0' counter(train);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  flex-shrink: 0;
+  width: 1.5rem;
+}
+
+/* ====== Back to Top ====== */
+.back-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 40px;
+  height: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--cyan);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 50;
+}
+.back-top.visible { opacity: 1; }
+
+/* ====== Footer ====== */
+footer {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ====== Responsive ====== */
+@media (max-width: 900px) {
+  nav {
+    position: relative;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  nav .brand { display: none; }
+  nav a { font-size: 0.72rem; padding: 0.3rem 0.5rem; border-left: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav a:hover, nav a.active { border-left-color: transparent; border-bottom-color: var(--cyan); }
+  main { margin-left: 0; padding: 1.5rem 1.25rem 4rem; }
+  .hero h1 { font-size: 2rem; }
+  .hero .stats { flex-wrap: wrap; gap: 1.5rem; }
+  .timeline { grid-template-columns: repeat(4, 1fr); gap: 0; }
+  .timeline-year { font-size: 0.9rem; }
+  .timeline-topics { font-size: 0.65rem; }
+  .score-grid, .phases { grid-template-columns: 1fr; }
+  .checklist, .pitfall-grid { grid-template-columns: 1fr; }
+  .caps { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 500px) {
+  .hero h1 { font-size: 1.5rem; }
+  .timeline { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="brand">NUEDC · Control</div>
+  <a href="#hero">概览</a>
+  <a href="#insight">趋势判断</a>
+  <a href="#timeline">年份总览</a>
+  <a href="#scoring">评分结构</a>
+  <a href="#analysis">题目分析</a>
+  <a href="#capability">技术拆解</a>
+  <a href="#roadmap">备赛路线</a>
+  <a href="#pitfalls">失分点</a>
+  <a href="#training">训练题单</a>
+  <a href="#framework">代码框架</a>
+</nav>
+
+<main>
+
+<!-- ====== Hero ====== -->
+<section id="hero" class="hero">
+  <div class="hero-tag">Intelligence Briefing</div>
+  <h1>电赛控制类题目<br><em>2019 – 2025</em> 总结</h1>
+  <div class="stats">
+    <div><div class="stat-num">17</div><div class="stat-label">道控制类题目</div></div>
+    <div><div class="stat-num">5</div><div class="stat-label">届比赛覆盖</div></div>
+    <div><div class="stat-num">4</div><div class="stat-label">大技术方向</div></div>
+  </div>
+  <svg class="circuit-line" width="240" height="80" viewBox="0 0 240 80" style="position:absolute;right:-2rem;top:1.5rem;opacity:0.08">
+    <polyline points="0,70 60,70 70,60 70,30 80,20 120,20 130,10 180,10 190,20 190,40 200,50 240,50"
+      fill="none" stroke="#00C2FF" stroke-width="1.5"/>
+    <circle cx="60" cy="70" r="3" fill="#00C2FF"/><circle cx="120" cy="20" r="4" fill="#00C2FF"/>
+    <circle cx="180" cy="10" r="3" fill="#00C2FF"/><circle cx="240" cy="50" r="3" fill="#00C2FF"/>
+  </svg>
+</section>
+
+<!-- ====== Key Insight ====== -->
+<section id="insight">
+  <span class="section-label">Key Insight</span>
+  <h2>一句话结论</h2>
+  <div class="insight">
+    <p>控制题已经从<strong style="color:var(--orange)">"让车跑起来、让电机转起来"</strong>发展为<strong style="color:var(--cyan)">"感知、定位、运动控制、任务状态机、通信和系统可靠性综合考核"</strong>。小车仍是高频载体，但越来越强调视觉、超声定位、自动瞄准、避障、巡查、协同作业和多传感器融合。</p>
+  </div>
+  <div class="tags">
+    <span class="tag" style="border-color:var(--cyan);color:var(--cyan)">MSPM0 + TB6612</span>
+    <span class="tag">灰度模块</span>
+    <span class="tag" style="border-color:var(--cyan);color:var(--cyan)">K210 视觉</span>
+    <span class="tag">热成像</span>
+    <span class="tag">超声定位</span>
+    <span class="tag">编码器闭环</span>
+    <span class="tag">PID 控制</span>
+    <span class="tag">状态机</span>
+    <span class="tag">多传感器融合</span>
+  </div>
+</section>
+
+<!-- ====== Evolution Timeline ====== -->
+<section id="timeline">
+  <span class="section-label">Evolution</span>
+  <h2>四年演进轨迹</h2>
+  <div class="timeline">
+    <div class="timeline-node">
+      <div class="timeline-year">2019</div>
+      <div class="timeline-topics">无线充电<br>巡线机器人<br>电磁曲射炮<br>液体容器</div>
+    </div>
+    <div class="timeline-node">
+      <div class="timeline-year">2021</div>
+      <div class="timeline-topics">智能送药<br>植保飞行器<br>储能小车<br>LED 台灯</div>
+    </div>
+    <div class="timeline-node">
+      <div class="timeline-year">2023</div>
+      <div class="timeline-topics">目标追踪<br>声学定位<br>空地协同<br>气垫悬浮车</div>
+    </div>
+    <div class="timeline-node">
+      <div class="timeline-year">2025</div>
+      <div class="timeline-topics">自动瞄准<br>野生动物巡查<br>超声信标<br>自动避障</div>
+    </div>
+  </div>
+  <p style="font-size:0.8rem;color:var(--text-dim);margin-top:0.5rem">
+    趋势：<span style="color:var(--cyan)">物理执行</span> → <span style="color:var(--cyan)">任务闭环</span> → <span style="color:var(--cyan)">感知定位+协同</span> → <span style="color:var(--cyan)">小型智能系统</span>
+  </p>
+</section>
+
+<!-- ====== Year & Problem Overview ====== -->
+<section>
+  <span class="section-label">Data</span>
+  <h2>年份与题目总览</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>年份</th><th>组别</th><th>题目</th><th>控制/系统关键词</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="col-year">2019</td><td class="col-level">本科</td><td><strong>A</strong> 电动小车动态无线充电系统</td><td>小车运动、轨迹跟随、动态供电</td></tr>
+        <tr><td class="col-year">2019</td><td class="col-level">本科</td><td><strong>B</strong> 巡线机器人</td><td>巡线、路径识别、速度控制</td></tr>
+        <tr><td class="col-year">2019</td><td class="col-level">本科</td><td><strong>H</strong> 模拟电磁曲射炮</td><td>发射机构、角度控制、目标命中</td></tr>
+        <tr><td class="col-year">2019</td><td class="col-level">高职</td><td><strong>K</strong> 简易多功能液体容器</td><td>液位/温度/执行机构控制</td></tr>
+        <tr><td class="col-year">2021</td><td class="col-level">本科</td><td><strong>F</strong> 智能送药小车</td><td>导航、任务点识别、路径规划</td></tr>
+        <tr><td class="col-year">2021</td><td class="col-level">本科</td><td><strong>G</strong> 植保飞行器</td><td>飞行控制、目标区域作业</td></tr>
+        <tr><td class="col-year">2021</td><td class="col-level">高职</td><td><strong>I</strong> 具有发电功能的储能小车</td><td>运动、能量采集/储能</td></tr>
+        <tr><td class="col-year">2021</td><td class="col-level">高职</td><td><strong>K</strong> 照度稳定可调 LED 台灯</td><td>光照闭环、调光控制</td></tr>
+        <tr><td class="col-year">2023</td><td class="col-level">本科</td><td><strong>E</strong> 运动目标控制与自动追踪</td><td>目标运动控制、自动追踪、视觉闭环</td></tr>
+        <tr><td class="col-year">2023</td><td class="col-level">本科</td><td><strong>F</strong> 基于声传播的智能定位</td><td>声学定位、时间测量、坐标解算</td></tr>
+        <tr><td class="col-year">2023</td><td class="col-level">本科</td><td><strong>G</strong> 空地协同智能消防</td><td>空地协同、识别定位</td></tr>
+        <tr><td class="col-year">2023</td><td class="col-level">高职</td><td><strong>I</strong> 气垫悬浮车</td><td>低摩擦运动、姿态/方向控制</td></tr>
+        <tr><td class="col-year">2025</td><td class="col-level">本科</td><td><strong>E</strong> 简易自行瞄准装置</td><td>自动瞄准、图像检测、云台闭环</td></tr>
+        <tr><td class="col-year">2025</td><td class="col-level">本科</td><td><strong>H</strong> 野生动物巡查系统</td><td>巡查运动、目标识别、图像分类</td></tr>
+        <tr><td class="col-year">2025</td><td class="col-level">高职</td><td><strong>J</strong> 超声信标定位系统</td><td>超声定位、坐标解算、误差控制</td></tr>
+        <tr><td class="col-year">2025</td><td class="col-level">高职</td><td><strong>K</strong> 自动避障小车</td><td>避障、路径规划、运动控制</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ====== Scoring Structure ====== -->
+<section id="scoring">
+  <span class="section-label">Scoring</span>
+  <h2>评分结构</h2>
+
+  <div class="score-grid">
+    <div class="score-card">
+      <h4>🔴 基本要求 <span style="color:var(--text-dim);font-weight:400">~50分</span></h4>
+      <div class="score-item">
+        <span class="label">硬件系统完整</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:95%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">基础运动/执行</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:90%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">基础感知</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:85%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">基础闭环控制</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:80%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">指定任务完成度</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:95%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">人机交互/显示</span>
+        <span class="bar-wrap"><span class="bar bar-md" style="width:50%"></span></span>
+        <span class="pct">中</span>
+      </div>
+    </div>
+
+    <div class="score-card">
+      <h4>🟡 发挥部分 <span style="color:var(--text-dim);font-weight:400">~50分</span></h4>
+      <div class="score-item">
+        <span class="label">精度提升</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:90%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">速度提升</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:85%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">稳定性提升</span>
+        <span class="bar-wrap"><span class="bar bar-hi" style="width:90%"></span></span>
+        <span class="pct">高</span>
+      </div>
+      <div class="score-item">
+        <span class="label">自动化程度</span>
+        <span class="bar-wrap"><span class="bar bar-md" style="width:65%"></span></span>
+        <span class="pct">中</span>
+      </div>
+      <div class="score-item">
+        <span class="label">复杂场景适应</span>
+        <span class="bar-wrap"><span class="bar bar-md" style="width:70%"></span></span>
+        <span class="pct">中</span>
+      </div>
+      <div class="score-item">
+        <span class="label">扩展功能</span>
+        <span class="bar-wrap"><span class="bar bar-lo" style="width:40%"></span></span>
+        <span class="pct">低</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    ⚠ 设计报告单独占分。报告不要只堆代码截图，重点说明"为什么这样设计，如何保证稳定"。
+  </div>
+</section>
+
+<!-- ====== Year Analysis ====== -->
+<section id="analysis">
+  <span class="section-label">Deep Dive</span>
+  <h2>各年份题目分析</h2>
+
+  <h3>2019 — 小车与基础控制</h3>
+  <p style="color:var(--text-dim);font-size:0.85rem">任务物理性强，机械结构、电源和基础闭环决定成败。</p>
+  <div class="caps">
+    <div class="cap-card required"><span class="tag tag-must">A题</span><h4>电动小车动态无线充电</h4><ul><li>小车沿指定路线稳定运行</li><li>接收端与发射端有效耦合</li><li>动态运动中供电稳定</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">B题</span><h4>巡线机器人</h4><ul><li>灰度/视觉循迹</li><li>弯道控制 + 停车定位</li><li>交叉口、标志点识别</li></ul></div>
+    <div class="cap-card"><span class="tag tag-must">H题</span><h4>模拟电磁曲射炮</h4><ul><li>角度控制精度</li><li>目标距离和角度估计</li><li>机械重复性 &gt; 算法复杂度</li></ul></div>
+  </div>
+
+  <h3>2021 — 任务型机器人和闭环增强</h3>
+  <p style="color:var(--text-dim);font-size:0.85rem">开始强调"任务流程"，不只是跑路线，还要完成配送、识别、能量管理。</p>
+  <div class="caps">
+    <div class="cap-card required"><span class="tag tag-must">F题</span><h4>智能送药小车</h4><ul><li>清晰状态机：待命→识别→寻路→到站→执行→返回</li><li>显示屏/串口日志判断当前状态</li></ul></div>
+    <div class="cap-card"><span class="tag tag-must">G题</span><h4>植保飞行器</h4><ul><li>飞行稳定性</li><li>传感器融合和保护逻辑</li></ul></div>
+  </div>
+
+  <h3>2023 — 感知定位和协同系统</h3>
+  <p style="color:var(--text-dim);font-size:0.85rem">明显提高系统综合度——目标跟踪、声学定位、空地协同、低摩擦平台。</p>
+  <div class="caps">
+    <div class="cap-card required"><span class="tag tag-must">E题</span><h4>运动目标控制与自动追踪</h4><ul><li>摄像头/K210/OpenMV + 云台</li><li>追踪要处理延迟，不能只靠简单阈值</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">F题</span><h4>声学智能定位</h4><ul><li>核心是标定和误差建模</li><li>定时器捕获、同步、滤波比花哨算法重要</li></ul></div>
+    <div class="cap-card"><span class="tag tag-must">G题</span><h4>空地协同消防</h4><ul><li>通信协议要简单可靠</li><li>多设备系统必须有主从状态和超时处理</li></ul></div>
+  </div>
+
+  <h3>2025 — 小型智能系统</h3>
+  <p style="color:var(--text-dim);font-size:0.85rem">更像"小型智能系统"，很多任务不再单独考电机，而是考"感知后如何动作"。</p>
+  <div class="caps">
+    <div class="cap-card required"><span class="tag tag-must">E题</span><h4>简易自行瞄准装置</h4><ul><li>云台PID + 图像坐标到角度映射</li><li>机械结构刚性直接影响得分</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">H题</span><h4>野生动物巡查</h4><ul><li>K210/视觉模块 + 数据记录</li><li>路线完成 + 识别准确 + 结果显示</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">K题</span><h4>自动避障小车</h4><ul><li>超声/红外/ToF/视觉检测障碍</li><li>高分关键："能稳定绕过去"，不是传感器越多越好</li></ul></div>
+  </div>
+</section>
+
+<!-- ====== Technical Capability ====== -->
+<section id="capability">
+  <span class="section-label">Capability Matrix</span>
+  <h2>技术能力拆解</h2>
+
+  <h3>底层硬件</h3>
+  <div class="caps">
+    <div class="cap-card required"><span class="tag tag-must">必须掌握</span><h4>电机驱动 + PWM</h4><ul><li>TB6612/DRV8833/L298N</li><li>频率、占空比、死区、方向控制</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">必须掌握</span><h4>编码器</h4><ul><li>测速、计数、定距、转角估算</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">必须掌握</span><h4>舵机/云台</h4><ul><li>角度控制、限位保护、回差处理</li></ul></div>
+    <div class="cap-card required"><span class="tag tag-must">必须掌握</span><h4>电源分层</h4><ul><li>主控3.3V、传感器5V、动力电源隔离</li></ul></div>
+  </div>
+
+  <div class="warn-box">
+    ⚡ 常见风险：电机启动电流导致主控复位 | 串口受电机干扰 | 传感器供电不稳导致阈值漂移 | 不共地导致通信异常
+  </div>
+
+  <h3>传感器</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>传感器</th><th>适合题型</th><th>注意点</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--cyan);font-weight:600">灰度模块</td><td>巡线、路径识别</td><td>光照变化、安装高度</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">编码器</td><td>定距、测速、转角</td><td>打滑造成累计误差</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">超声</td><td>避障、测距、定位</td><td>反射、多径、盲区</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">ToF</td><td>近距离避障、手势</td><td>视场角、强光干扰</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">IMU</td><td>姿态、角速度、转向辅助</td><td>零偏、漂移</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">K210 / OpenMV</td><td>目标识别、巡查、瞄准</td><td>光照、模型训练、串口协议</td></tr>
+        <tr><td style="color:var(--cyan);font-weight:600">热成像</td><td>人体/热源检测、巡查</td><td>帧率、串口带宽、阈值标定</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>控制算法</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0">
+    <div class="score-card">
+      <h4>最低要求</h4>
+      <ul style="list-style:none;font-size:0.85rem;color:var(--text-dim)">
+        <li style="padding:0.3rem 0">→ PWM 开环控制</li>
+        <li style="padding:0.3rem 0">→ 比例巡线</li>
+        <li style="padding:0.3rem 0">→ 简单 PID 调速</li>
+        <li style="padding:0.3rem 0">→ 阈值判断和消抖</li>
+        <li style="padding:0.3rem 0">→ 状态机任务流程</li>
+      </ul>
+    </div>
+    <div class="score-card" style="border-color:rgba(0,194,255,0.3)">
+      <h4 style="color:var(--cyan)">高分能力</h4>
+      <ul style="list-style:none;font-size:0.85rem;color:var(--text-dim)">
+        <li style="padding:0.3rem 0">→ 编码器闭环速度控制</li>
+        <li style="padding:0.3rem 0">→ 直行偏航修正</li>
+        <li style="padding:0.3rem 0">→ 路径分段速度规划</li>
+        <li style="padding:0.3rem 0">→ 目标追踪 PID</li>
+        <li style="padding:0.3rem 0">→ 多传感器融合 + 超时保护</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Preparation Roadmap ====== -->
+<section id="roadmap">
+  <span class="section-label">Roadmap</span>
+  <h2>备赛优先级</h2>
+
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-num">1</div>
+      <h4>第一阶段</h4>
+      <div class="goal">目标：保证基本分</div>
+      <ul>
+        <li>小车直行不明显跑偏</li>
+        <li>稳定低速巡线</li>
+        <li>定距停车</li>
+        <li>识别障碍并停车</li>
+        <li>串口或屏幕显示状态</li>
+        <li>每次上电行为一致</li>
+      </ul>
+      <p style="font-size:0.72rem;color:var(--amber);margin-top:0.75rem">验收：连续10次≥8次成功；电池降压后仍运行</p>
+    </div>
+
+    <div class="phase">
+      <div class="phase-num">2</div>
+      <h4>第二阶段</h4>
+      <div class="goal">目标：提高发挥分</div>
+      <ul>
+        <li>编码器速度闭环</li>
+        <li>弯道减速、直道加速</li>
+        <li>路口/任务点状态机</li>
+        <li>目标识别串口协议稳定</li>
+        <li>关键参数可现场调整</li>
+      </ul>
+      <p style="font-size:0.72rem;color:var(--amber);margin-top:0.75rem">验收：同路线耗时稳定；停车误差可调可测</p>
+    </div>
+
+    <div class="phase">
+      <div class="phase-num">3</div>
+      <h4>第三阶段</h4>
+      <div class="goal">目标：现场鲁棒性</div>
+      <ul>
+        <li>灰度阈值自动/半自动标定</li>
+        <li>摄像头曝光/阈值预案</li>
+        <li>电源抗干扰</li>
+        <li>所有线束固定</li>
+        <li>备份程序和参数</li>
+      </ul>
+      <p style="font-size:0.72rem;color:var(--amber);margin-top:0.75rem">验收：改变光照后仍完成基础任务；大电流不复位</p>
+    </div>
+  </div>
+
+  <h4>建议开发顺序</h4>
+  <ol style="color:var(--text-dim);font-size:0.85rem;padding-left:1.25rem;line-height:2">
+    <li><strong style="color:var(--cyan)">TB6612 + 编码器</strong> → 稳定底盘</li>
+    <li><strong style="color:var(--cyan)">灰度巡线 + 定点停车</strong></li>
+    <li><strong style="color:var(--cyan)">K210</strong> → 目标识别/标志识别</li>
+    <li><strong style="color:var(--cyan)">热成像/超声</strong> → 人体/热源/障碍检测</li>
+    <li><strong style="color:var(--cyan)">统一串口协议</strong> → 避免临场调不出来</li>
+  </ol>
+</section>
+
+<!-- ====== Common Pitfalls ====== -->
+<section id="pitfalls">
+  <span class="section-label">Watch Out</span>
+  <h2>常见失分点</h2>
+
+  <div class="pitfall-grid">
+    <div class="pitfall">
+      <div class="pf-issue">小车跑偏</div>
+      <div class="pf-cause">原因：左右电机差异、轮胎摩擦不同</div>
+      <div class="pf-fix">→ 编码器闭环、速度标定</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">弯道冲出</div>
+      <div class="pf-cause">原因：速度太高、控制滞后</div>
+      <div class="pf-fix">→ 弯道减速、偏差限幅</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">停车不准</div>
+      <div class="pf-cause">原因：只按延时停车</div>
+      <div class="pf-fix">→ 编码器定距、目标点二次校正</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">目标识别不稳</div>
+      <div class="pf-cause">原因：光照变化、阈值固定</div>
+      <div class="pf-fix">→ 自动曝光/阈值标定、增加补光</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">通信丢包</div>
+      <div class="pf-cause">原因：电机干扰、协议无校验</div>
+      <div class="pf-fix">→ 帧头、长度、校验、超时重传</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">现场复位</div>
+      <div class="pf-cause">原因：电源压降、地线布置差</div>
+      <div class="pf-fix">→ 动力和主控分供电、共地、滤波</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">调试困难</div>
+      <div class="pf-cause">原因：无显示、无日志</div>
+      <div class="pf-fix">→ OLED + 串口输出关键状态</div>
+    </div>
+    <div class="pitfall">
+      <div class="pf-issue">临场参数不合适</div>
+      <div class="pf-cause">原因：实验室和现场环境不同</div>
+      <div class="pf-fix">→ 参数可调、保存默认值</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== Training Exercises ====== -->
+<section id="training">
+  <span class="section-label">Training</span>
+  <h2>备赛训练题单</h2>
+  <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.5rem">按优先级排序</p>
+  <ol class="train-list">
+    <li>小车直行 1m、2m、3m 定距停车</li>
+    <li>原地左转/右转 90°、180°</li>
+    <li>灰度循迹跑直线、弯道、十字路口</li>
+    <li>路口计数并在指定路口停车</li>
+    <li>遇障停车、绕障、回到路线</li>
+    <li>K210 识别颜色块/二维码/数字，UART 发给主控</li>
+    <li>热成像识别热源方向，主控根据方向转向</li>
+    <li>完整状态机：“出发-识别-到点-执行-返回”</li>
+  </ol>
+</section>
+
+<!-- ====== Code Framework ====== -->
+<section id="framework">
+  <span class="section-label">Template</span>
+  <h2>推荐代码框架</h2>
+
+  <h4>主循环结构</h4>
+  <div class="code-block">
+    <pre><span class="kw">int</span> main(<span class="kw">void</span>)
+{
+    board_init();
+    motor_init();
+    encoder_init();
+    line_sensor_init();
+    vision_init();
+
+    task_state = TASK_WAIT_START;
+
+    <span class="kw">while</span> (<span class="fn">1</span>) {
+        sensor_update();
+        vision_update();
+        task_update();
+        control_update();
+        debug_update();
+    }
+}</pre>
+  </div>
+
+  <h4>中断里只做短任务</h4>
+  <div class="code-block">
+    <pre><span class="kw">void</span> timer_10ms_irq(<span class="kw">void</span>)
+{
+    encoder_sample();
+    control_tick = <span class="fn">1</span>;
+}
+
+<span class="kw">void</span> uart_rx_irq(<span class="kw">void</span>)
+{
+    push_byte_to_ring_buffer();
+}</pre>
+  </div>
+
+  <div class="warn-box">
+    🚫 中断里不要做：大量 printf | 长延时 | 图像解析 | 复杂路径规划 | 阻塞等待串口
+  </div>
+
+  <h4>推荐模块划分</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>模块</th><th>职责</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">motor</td><td>PWM、方向、电机限幅</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">encoder</td><td>计数、测速、定距</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">line_sensor</td><td>灰度采样、偏差计算</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">distance_sensor</td><td>超声/ToF 读取与滤波</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">vision</td><td>K210/热成像串口解析</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">control</td><td>PID、速度规划、转向控制</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">task</td><td>状态机和任务流程</td></tr>
+        <tr><td style="font-family:var(--font-mono);color:var(--cyan)">debug</td><td>串口打印、OLED 显示</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <span>NUEDC Control · 电赛控制类备赛</span>
+  <span>整理于 2026-07</span>
+</footer>
+
+</main>
+
+<a href="#hero" class="back-top" id="backTop" title="回到顶部">↑</a>
+
+<script>
+// Back to top visibility
+const btn = document.getElementById('backTop');
+window.addEventListener('scroll', () => {
+  btn.classList.toggle('visible', window.scrollY > 600);
+});
+
+// Active nav link tracking
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 100) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// Animate score bars on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.bar').forEach(b => {
+        const w = b.style.width;
+        b.style.width = '0';
+        requestAnimationFrame(() => { b.style.width = w; });
+      });
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.score-card').forEach(c => observer.observe(c));
+</script>
+
+</body>
+</html>
