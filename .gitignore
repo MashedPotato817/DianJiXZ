@@ -1,0 +1,37 @@
+# Keil / ARM build output
+**/Objects/
+**/Listings/
+*.axf
+*.hex
+*.map
+*.lst
+*.lnp
+*.o
+*.d
+*.crf
+*.dep
+*.htm
+*.build_log.htm
+*.uvguix.*
+*.scvd
+*.bak
+
+# Logs: keep curated documentation logs only
+*.log
+!docs/*.log
+
+# Local editor / OS files
+.vscode/
+.idea/
+*.user
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Large local packages or installers
+*.zip
+*.rar
+*.7z
+*.exe
+*.msi

@@ -1,0 +1,20 @@
+* text=auto
+
+# Keep documentation readable and Keil-related scripts/projects with Windows line endings.
+*.md text eol=lf
+*.c text
+*.C text
+*.h text
+*.H text
+*.s text eol=crlf
+*.bat text eol=crlf
+*.uvprojx text eol=crlf
+*.uvoptx text eol=crlf
+*.syscfg text
+*.log text
+
+*.a binary
+*.lib binary
+*.png binary
+*.jpg binary
+*.jpeg binary
