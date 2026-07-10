@@ -1,3 +1,6 @@
+---
+title: PWM电机驱动与PID速度控制
+---
 # PWM 电机驱动与 PID 速度控制 —— Q&A
 
 > 基于 WHEELTEC C07A / MSPM0G3507 实物代码分析

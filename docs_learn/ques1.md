@@ -1,3 +1,6 @@
+---
+title: 传感器信号类型与MCU接口
+---
 # 传感器信号类型与 MCU 接口 —— Q&A
 
 > 基于 WHEELTEC C07A / MSPM0G3507 实物代码分析

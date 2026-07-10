@@ -1,3 +1,6 @@
+---
+title: 8路灰度巡线算法详解
+---
 # 8路灰度巡线算法详解 —— Q&A
 
 > 基于 WHEELTEC C07A 当前固件 `control.c` 的 Gray_Mode()
