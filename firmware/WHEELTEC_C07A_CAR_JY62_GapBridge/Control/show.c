@@ -24,6 +24,8 @@ static void oled_show_jy62_diag(void)
     OLED_ShowNumber(66, 0, data.valid_frames % 10000U, 4, 12);
     OLED_ShowString(0, 10, "ER");
     OLED_ShowNumber(18, 10, data.checksum_errors % 10000U, 4, 12);
+    OLED_ShowString(54, 10, "B");
+    OLED_ShowSignedNumber(64, 10, Gray_GyroZBiasDpsX10 / 10, 2);
 
     OLED_ShowString(0, 20, "R");
     OLED_ShowSignedNumber(10, 20, (int)data.roll_deg, 3);
@@ -39,13 +41,13 @@ static void oled_show_jy62_diag(void)
 
     OLED_ShowString(0, 40, "GZ");
     OLED_ShowSignedNumber(14, 40, (int)data.wz_dps, 3);
-    OLED_ShowString(54, 40, "IY");
-    OLED_ShowSignedNumber(70, 40, (int)data.gyro_yaw_int_deg, 3);
+    OLED_ShowString(54, 40, "H");
+    OLED_ShowSignedNumber(64, 40, Gray_PoseHeadingDegX10 / 10, 3);
 
-    OLED_ShowString(0, 50, "IX");
-    OLED_ShowSignedNumber(14, 50, (int)data.gyro_roll_int_deg, 3);
-    OLED_ShowString(54, 50, "IP");
-    OLED_ShowSignedNumber(70, 50, (int)data.gyro_pitch_int_deg, 3);
+    OLED_ShowString(0, 50, "X");
+    OLED_ShowSignedNumber(10, 50, (int)Gray_PoseX_mm, 4);
+    OLED_ShowString(58, 50, "Y");
+    OLED_ShowSignedNumber(68, 50, (int)Gray_PoseY_mm, 4);
 
     OLED_Refresh_Gram();
 }
