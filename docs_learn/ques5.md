@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: DMA配置与使用
 ---
 # DMA 配置与使用 —— Q&A

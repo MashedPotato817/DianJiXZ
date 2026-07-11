@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: 概念速查
 ---
 # 概念速查

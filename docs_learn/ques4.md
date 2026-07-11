@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: 差速运动学、系统架构与调试
 ---
 # 差速运动学、系统架构与调试 —— Q&A

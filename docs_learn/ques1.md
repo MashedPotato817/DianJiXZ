@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: 传感器信号类型与MCU接口
 ---
 # 传感器信号类型与 MCU 接口 —— Q&A

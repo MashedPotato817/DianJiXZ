@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: 8路灰度巡线算法详解
 ---
 # 8路灰度巡线算法详解 —— Q&A

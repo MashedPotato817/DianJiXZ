@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: note
 title: PWM电机驱动与PID速度控制
 ---
 # PWM 电机驱动与 PID 速度控制 —— Q&A
