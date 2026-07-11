@@ -30,6 +30,11 @@ volatile int16_t Gray_YawDegX10 = 0;
 volatile int16_t Gray_BridgeErrDegX10 = 0;
 volatile uint16_t Gray_BridgeDistance_mm = 0;
 volatile uint8_t Gray_BlackCount_Debug = 0;
+volatile uint8_t Gray_Task_Mode = GRAY_TASK_2_CW_1LAP;
+volatile uint8_t Gray_Task_Lap = 0;
+volatile uint8_t Gray_Task_TargetLap = 1;
+volatile uint8_t Gray_Task_PointCount = 0;
+volatile uint8_t Gray_LastPointChar = 'A';
 
 Encoder OriginalEncoder; 					//编码器原始数据   
 Motor_parameter MotorA,MotorB;				//左右电机相关变量
@@ -63,6 +68,26 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_BRIDGE_HEADING_KP        0.075f
 #define GRAY_BRIDGE_GYRO_KD           0.010f
 #define GRAY_BRIDGE_MAX_TURN_SPEED    2.20f
+#define GRAY_NOTIFY_TOGGLE_TICKS      10U
+#define GRAY_NOTIFY_TOGGLE_TOTAL      6U
+
+typedef enum {
+    GRAY_ROUTE_IDLE = 0,
+    GRAY_ROUTE_BRIDGE_TOP_LR,
+    GRAY_ROUTE_ARC_RIGHT_DOWN,
+    GRAY_ROUTE_BRIDGE_BOTTOM_RL,
+    GRAY_ROUTE_ARC_LEFT_UP,
+    GRAY_ROUTE_ARC_LEFT_DOWN,
+    GRAY_ROUTE_BRIDGE_BOTTOM_LR,
+    GRAY_ROUTE_ARC_RIGHT_UP,
+    GRAY_ROUTE_BRIDGE_TOP_RL
+} GrayRouteSegment_t;
+
+static GrayRouteSegment_t g_grayRoute = GRAY_ROUTE_IDLE;
+static uint8_t g_grayMissionDone = 0;
+static uint8_t g_grayNotifyTicks = 0;
+static uint8_t g_grayNotifyToggleCount = 0;
+static uint8_t g_grayNeedReset = 1;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -104,6 +129,88 @@ static float Gray_NormalizeYawDeg(float yaw_deg)
     return yaw_deg;
 }
 
+static uint8_t Gray_TaskTargetLapGet(void)
+{
+    if (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) {
+        return 4U;
+    }
+    return 1U;
+}
+
+static GrayRouteSegment_t Gray_TaskStartRouteGet(void)
+{
+    if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+        (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
+        return GRAY_ROUTE_ARC_LEFT_DOWN;
+    }
+    return GRAY_ROUTE_BRIDGE_TOP_LR;
+}
+
+static void Gray_StartNotify(void)
+{
+    g_grayNotifyTicks = GRAY_NOTIFY_TOGGLE_TICKS;
+    g_grayNotifyToggleCount = GRAY_NOTIFY_TOGGLE_TOTAL;
+    LED_ON();
+}
+
+static void Gray_StopMission(void)
+{
+    g_grayMissionDone = 1;
+    Flag_Stop = 1;
+    Move_X = 0;
+    Move_Z = 0;
+    Get_Target_Encoder(0, 0);
+    Gray_Nav_Mode = GRAY_NAV_MODE_LINE;
+    Gray_BridgeDistance_mm = 0;
+    Gray_BridgeErrDegX10 = 0;
+    Gray_StartNotify();
+}
+
+static void Gray_RecordPoint(uint8_t point_char)
+{
+    Gray_LastPointChar = point_char;
+    if (Gray_Task_PointCount < 255U) {
+        Gray_Task_PointCount++;
+    }
+    Gray_StartNotify();
+}
+
+static void Gray_ResetTaskState(void)
+{
+    Gray_Task_TargetLap = Gray_TaskTargetLapGet();
+    Gray_Task_Lap = 0;
+    Gray_Task_PointCount = 0;
+    Gray_LastPointChar = 'A';
+    Gray_Nav_Mode = GRAY_NAV_MODE_LINE;
+    Gray_BridgeDistance_mm = 0;
+    Gray_BridgeErrDegX10 = 0;
+    g_grayMissionDone = 0;
+    g_grayRoute = Gray_TaskStartRouteGet();
+    g_grayNotifyTicks = 0;
+    g_grayNotifyToggleCount = 0;
+    g_grayNeedReset = 1;
+    LED_OFF();
+}
+
+void Gray_TaskTick(void)
+{
+    if (g_grayNotifyToggleCount == 0U) {
+        return;
+    }
+
+    if (g_grayNotifyTicks > 0U) {
+        g_grayNotifyTicks--;
+        return;
+    }
+
+    LED_Toggle();
+    g_grayNotifyTicks = GRAY_NOTIFY_TOGGLE_TICKS;
+    g_grayNotifyToggleCount--;
+    if (g_grayNotifyToggleCount == 0U) {
+        LED_OFF();
+    }
+}
+
 void Gray_Read_All(void)
 {
     uint8_t i;
@@ -113,6 +220,85 @@ void Gray_Read_All(void)
         Gray_Raw[i] = DL_GPIO_readPins(GRAY_OUT_PORT, GRAY_OUT_PIN) ? 1 : 0;
         Gray_Data[i] = Gray_ToBlack(Gray_Raw[i]);
     }
+}
+
+static uint8_t Gray_OnBridgeStart(void)
+{
+    switch (g_grayRoute) {
+    case GRAY_ROUTE_ARC_RIGHT_DOWN:
+        Gray_RecordPoint('C');
+        g_grayRoute = GRAY_ROUTE_BRIDGE_BOTTOM_RL;
+        break;
+    case GRAY_ROUTE_ARC_LEFT_UP:
+        Gray_RecordPoint('A');
+        if (Gray_Task_Lap < 255U) {
+            Gray_Task_Lap++;
+        }
+        if (Gray_Task_Mode == GRAY_TASK_2_CW_1LAP) {
+            Gray_StopMission();
+            return 1U;
+        }
+        g_grayRoute = GRAY_ROUTE_BRIDGE_TOP_LR;
+        break;
+    case GRAY_ROUTE_ARC_LEFT_DOWN:
+        Gray_RecordPoint('D');
+        g_grayRoute = GRAY_ROUTE_BRIDGE_BOTTOM_LR;
+        break;
+    case GRAY_ROUTE_ARC_RIGHT_UP:
+        Gray_RecordPoint('B');
+        g_grayRoute = GRAY_ROUTE_BRIDGE_TOP_RL;
+        break;
+    default:
+        break;
+    }
+
+    return 0U;
+}
+
+static uint8_t Gray_OnBridgeFinish(void)
+{
+    switch (g_grayRoute) {
+    case GRAY_ROUTE_BRIDGE_TOP_LR:
+        Gray_RecordPoint('B');
+        if (Gray_Task_Mode == GRAY_TASK_1_AB_STOP) {
+            Gray_StopMission();
+            return 1U;
+        }
+        g_grayRoute = GRAY_ROUTE_ARC_RIGHT_DOWN;
+        break;
+    case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
+        Gray_RecordPoint('D');
+        g_grayRoute = GRAY_ROUTE_ARC_LEFT_UP;
+        break;
+    case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
+        Gray_RecordPoint('C');
+        g_grayRoute = GRAY_ROUTE_ARC_RIGHT_UP;
+        break;
+    case GRAY_ROUTE_BRIDGE_TOP_RL:
+        Gray_RecordPoint('A');
+        if (Gray_Task_Lap < 255U) {
+            Gray_Task_Lap++;
+        }
+        if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+            ((Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) &&
+             (Gray_Task_Lap >= Gray_Task_TargetLap))) {
+            Gray_StopMission();
+            return 1U;
+        }
+        g_grayRoute = GRAY_ROUTE_ARC_LEFT_DOWN;
+        break;
+    default:
+        break;
+    }
+
+    if ((Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) &&
+        (Gray_Task_Lap >= Gray_Task_TargetLap) &&
+        (g_grayRoute == GRAY_ROUTE_ARC_LEFT_DOWN)) {
+        Gray_StopMission();
+        return 1U;
+    }
+
+    return 0U;
 }
 
 void Gray_Mode(void)
@@ -138,6 +324,32 @@ void Gray_Mode(void)
     float yaw_err_deg = 0;
     uint8_t i;
     JY62_Data jy62_data;
+
+    if (g_grayNeedReset) {
+        last_line_pos_mm = 0;
+        last_search_dir = 1;
+        cross_detect_count = 0;
+        cross_run_ticks = 0;
+        cross_cooldown_ticks = 0;
+        line_stable_ticks = 0;
+        bridge_active = 0;
+        bridge_reacquire_count = 0;
+        bridge_yaw_ref_deg = 0;
+        bridge_distance_mm = 0;
+        Gray_Line_Pos_mm = 0;
+        Gray_YawDegX10 = 0;
+        Gray_BridgeErrDegX10 = 0;
+        Gray_BridgeDistance_mm = 0;
+        Gray_BlackCount_Debug = 0;
+        g_grayNeedReset = 0;
+    }
+
+    if (g_grayMissionDone) {
+        Move_X = 0;
+        Move_Z = 0;
+        Get_Target_Encoder(0, 0);
+        return;
+    }
 
     Gray_Read_All();
     for (i = 0; i < 8; i++) {
@@ -220,6 +432,9 @@ void Gray_Mode(void)
         }
 
         if ((!bridge_active) && (line_stable_ticks >= GRAY_BRIDGE_MIN_STABLE_TICKS) && JY62_IsOnline()) {
+            if (Gray_OnBridgeStart()) {
+                return;
+            }
             bridge_active = 1;
             bridge_reacquire_count = 0;
             bridge_yaw_ref_deg = yaw_deg;
@@ -260,6 +475,9 @@ void Gray_Mode(void)
                 bridge_reacquire_count = 0;
                 bridge_distance_mm = 0;
                 Gray_BridgeDistance_mm = 0;
+                if (Gray_OnBridgeFinish()) {
+                    return;
+                }
             }
         } else {
             bridge_reacquire_count = 0;
@@ -308,7 +526,7 @@ void TIMER_0_INST_IRQHandler(void)
 				JY62_Tick10ms();
 			}
 			Key();
-			LED_Flash(100);
+			Gray_TaskTick();
 			Get_Velocity_From_Encoder(-Get_Encoder_countA,-Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
 			if(Run_Mode==0)
@@ -525,15 +743,35 @@ Output  : none
 **************************************************************************/
 void Key(void)
 {
-	u8 tmp,tmp2;
+	u8 tmp;
 	tmp=key_scan(200);//click_N_Double(50);
 	if(tmp==1)
 	{
 		Flag_Stop=!Flag_Stop;
+        if (!Flag_Stop) {
+            Gray_ResetTaskState();
+            Gray_StartNotify();
+        } else {
+            g_grayMissionDone = 0;
+            Move_X = 0;
+            Move_Z = 0;
+            Get_Target_Encoder(0, 0);
+        }
 	}		//单击控制小车的启停
 	else if(tmp==2)
 	{
-		Run_Mode++;
-		Run_Mode%=2;
+        if (Flag_Stop) {
+            Gray_Task_Mode++;
+            Gray_Task_Mode %= 4U;
+            Gray_ResetTaskState();
+            Gray_StartNotify();
+        } else {
+		    Run_Mode++;
+		    Run_Mode%=2;
+        }
 	}
+    else if ((tmp == 3) && Flag_Stop) {
+        Gray_ResetTaskState();
+        Gray_StartNotify();
+    }
 }

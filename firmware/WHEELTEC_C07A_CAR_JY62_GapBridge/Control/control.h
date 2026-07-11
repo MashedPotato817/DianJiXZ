@@ -30,9 +30,18 @@ extern volatile int16_t Gray_YawDegX10;
 extern volatile int16_t Gray_BridgeErrDegX10;
 extern volatile uint16_t Gray_BridgeDistance_mm;
 extern volatile uint8_t Gray_BlackCount_Debug;
+extern volatile uint8_t Gray_Task_Mode;
+extern volatile uint8_t Gray_Task_Lap;
+extern volatile uint8_t Gray_Task_TargetLap;
+extern volatile uint8_t Gray_Task_PointCount;
+extern volatile uint8_t Gray_LastPointChar;
 #define GRAY_NAV_MODE_LINE   0
 #define GRAY_NAV_MODE_BRIDGE 1
 #define GRAY_NAV_MODE_LOST   2
+#define GRAY_TASK_1_AB_STOP  0
+#define GRAY_TASK_2_CW_1LAP  1
+#define GRAY_TASK_3_CCW_1LAP 2
+#define GRAY_TASK_4_CCW_4LAP 3
 #define Frequency	200.0f			//每5ms读取一次编码器的值
 #define Perimeter	0.2104867	    //轮子周长(单位:m)=0.67*3.1415926
 #define Wheelspacing 0.1300f		//主动轮轮距(单位:m)
@@ -72,5 +81,6 @@ int myabs(int a);
 void Get_RC(void);
 void Gray_Read_All(void);
 void Gray_Mode(void);
+void Gray_TaskTick(void);
 void Key(void);
 #endif

@@ -10,8 +10,11 @@ void oled_show(void)
     int gray_pos_show;
     int yaw_show;
     int err_show;
+    char point_str[2];
 
     memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
+    point_str[0] = (char) Gray_LastPointChar;
+    point_str[1] = '\0';
 
     if (Car_Mode == 0) OLED_ShowString(0, 0, "Mec ");
     else if (Car_Mode == 1) OLED_ShowString(0, 0, "Omni");
@@ -20,8 +23,14 @@ void oled_show(void)
     else if (Car_Mode == 4) OLED_ShowString(0, 0, "4WD ");
     else if (Car_Mode == 5) OLED_ShowString(0, 0, "Tank");
 
-    if (Run_Mode == 0) OLED_ShowString(90, 0, "APP");
-    else if (Run_Mode == 1) OLED_ShowString(90, 0, "GRY");
+    OLED_ShowString(42, 0, "T");
+    OLED_ShowNumber(52, 0, Gray_Task_Mode + 1U, 1, 12);
+    OLED_ShowString(66, 0, "L");
+    OLED_ShowNumber(76, 0, Gray_Task_Lap, 1, 12);
+    OLED_ShowString(84, 0, "/");
+    OLED_ShowNumber(92, 0, Gray_Task_TargetLap, 1, 12);
+    if (Run_Mode == 0) OLED_ShowString(108, 0, "AP");
+    else if (Run_Mode == 1) OLED_ShowString(108, 0, "GY");
 
     OLED_ShowString(0, 10, "G");
     for (i = 0; i < 8; i++) {
@@ -44,6 +53,8 @@ void oled_show(void)
     OLED_ShowNumber(60, 30, Gray_BlackCount_Debug, 1, 12);
     OLED_ShowString(78, 30, "D");
     OLED_ShowNumber(90, 30, Gray_BridgeDistance_mm, 3, 12);
+    OLED_ShowString(108, 30, "P");
+    OLED_ShowString(118, 30, point_str);
 
     yaw_show = Gray_YawDegX10;
     err_show = Gray_BridgeErrDegX10;
