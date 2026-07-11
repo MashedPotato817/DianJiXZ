@@ -26,6 +26,8 @@ static void oled_show_jy62_diag(void)
     OLED_ShowNumber(18, 10, data.checksum_errors % 10000U, 4, 12);
     OLED_ShowString(54, 10, "B");
     OLED_ShowSignedNumber(64, 10, Gray_GyroZBiasDpsX10 / 10, 2);
+    OLED_ShowString(92, 10, "S");
+    OLED_ShowNumber(102, 10, (uint32_t)myabs((int)Gray_PoseDistance_mm) % 10000U, 4, 12);
 
     OLED_ShowString(0, 20, "R");
     OLED_ShowSignedNumber(10, 20, (int)data.roll_deg, 3);

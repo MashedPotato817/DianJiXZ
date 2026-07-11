@@ -79,7 +79,8 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_POSE_DT_S                0.005f
 #define GRAY_POSE_DEG_TO_RAD          0.0174532925f
 #define GRAY_GYRO_BIAS_ALPHA          0.002f
-#define GRAY_GYRO_BIAS_MAX_DPS        20.0f
+#define GRAY_GYRO_BIAS_LEARN_MAX_DPS  2.0f
+#define GRAY_GYRO_DEADBAND_DPS        0.5f
 
 typedef enum {
     GRAY_ROUTE_IDLE = 0,
@@ -199,21 +200,24 @@ static void Gray_PoseUpdate(void)
     }
 
     wz_dps = data.wz_dps;
-    if ((wz_dps > -GRAY_GYRO_BIAS_MAX_DPS) &&
-        (wz_dps < GRAY_GYRO_BIAS_MAX_DPS) &&
+    if ((wz_dps > -GRAY_GYRO_BIAS_LEARN_MAX_DPS) &&
+        (wz_dps < GRAY_GYRO_BIAS_LEARN_MAX_DPS) &&
         Flag_Stop) {
         g_grayGyroZBiasDps += GRAY_GYRO_BIAS_ALPHA * (wz_dps - g_grayGyroZBiasDps);
-        Gray_PosePublish();
-        return;
     }
+
+    wz_dps -= g_grayGyroZBiasDps;
+    if ((wz_dps > -GRAY_GYRO_DEADBAND_DPS) && (wz_dps < GRAY_GYRO_DEADBAND_DPS)) {
+        wz_dps = 0.0f;
+    }
+
+    g_grayPoseHeadingDeg += wz_dps * GRAY_POSE_DT_S;
+    g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(g_grayPoseHeadingDeg);
 
     if (Flag_Stop) {
         Gray_PosePublish();
         return;
     }
-
-    g_grayPoseHeadingDeg += (wz_dps - g_grayGyroZBiasDps) * GRAY_POSE_DT_S;
-    g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(g_grayPoseHeadingDeg);
 
     speed_mps = (MotorA.Current_Encoder + MotorB.Current_Encoder) * 0.5f;
     step_m = speed_mps * GRAY_POSE_DT_S;
