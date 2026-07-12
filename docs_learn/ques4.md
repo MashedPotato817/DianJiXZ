@@ -1,4 +1,5 @@
 ---
+layout: note
 title: 差速运动学、系统架构与调试
 ---
 # 差速运动学、系统架构与调试 —— Q&A
@@ -21,18 +22,18 @@ title: 差速运动学、系统架构与调试
         └─────────────┘
          ← 轮距 W=0.13m →
 
-线速度 Vx = (V_L + V_R) / 2         # 两轮平均速度 = 直线速度
-角速度 Vz = (V_R - V_L) / W         # 速度差/轮距 = 旋转速度
+线速度 $V_x = \dfrac{V_L + V_R}{2}$            # 两轮平均速度 = 直线速度
+角速度 $V_z = \dfrac{V_R - V_L}{W}$            # 速度差/轮距 = 旋转速度
 ```
 
 **直觉**：
-- V_L = V_R → 直行
-- V_L < V_R → 左转（右轮快）
-- V_L = -V_R → 原地旋转
+- $V_L = V_R$ → 直行
+- $V_L < V_R$ → 左转（右轮快）
+- $V_L = -V_R$ → 原地旋转
 
 ### 逆解：目标 → 轮速
 
-巡线算法算出的是 `(线速度Vx, 角速度Vz)`，需要转成左右轮分别的目标速度：
+巡线算法算出的是 $(\text{线速度 } V_x,\ \text{角速度 } V_z)$，需要转成左右轮分别的目标速度：
 
 ```c
 // control.c:232-242
@@ -47,14 +48,25 @@ void Get_Target_Encoder(float Vx, float Vz)
 
 这是**运动学逆解**（Inverse Kinematics）：从期望的运动反推每个电机该怎么转。
 
+公式形式：
+
+$$
+\begin{aligned}
+V_L &= V_x - V_z \times \frac{W}{2} \\
+V_R &= V_x + V_z \times \frac{W}{2}
+\end{aligned}
+$$
+
 ### 举例
 
 目标：向前 0.3 m/s，同时左转 2.0 rad/s：
 
-```
-左轮目标 = 0.3 - 2.0 × 0.13/2 = 0.3 - 0.13 = 0.17 m/s
-右轮目标 = 0.3 + 2.0 × 0.13/2 = 0.3 + 0.13 = 0.43 m/s
-```
+$$
+\begin{aligned}
+V_L &= 0.3 - 2.0 \times \frac{0.13}{2} = 0.3 - 0.13 = 0.17\ \text{m/s} \\
+V_R &= 0.3 + 2.0 \times \frac{0.13}{2} = 0.3 + 0.13 = 0.43\ \text{m/s}
+\end{aligned}
+$$
 
 右轮跑得比左轮快 → 车左转。
 
@@ -81,14 +93,20 @@ MotorA.Current_Encoder = Encoder_A_pr × Frequency × Perimeter / 780.0f;
 //                        脉冲数       200Hz      0.21m     13×2×30
 ```
 
-分母 `780 = 13 × 2 × 30`：
+分母 $780 = 13 \times 2 \times 30$：
 - 13 → 编码器线数
 - 2 → 倍频
 - 30 → 减速比
 
-**物理含义**：电机轴转一圈 → 30 圈轮子 → `13×30 = 390` 个脉冲（单路不倍频）。`×2` 后变成 780。
+**物理含义**：电机轴转一圈 → 30 圈轮子 → $13 \times 30 = 390$ 个脉冲（单路不倍频）。$\times 2$ 后变成 780。
 
 把 5ms 内收到的脉冲数直接除以 780 再乘频率和周长，就得到了 m/s。
+
+速度公式：
+
+$$
+v = \frac{\text{count} \times f_{\text{control}} \times \text{perimeter}}{\text{lines} \times \text{multiply} \times \text{ratio}}
+$$
 
 ---
 
