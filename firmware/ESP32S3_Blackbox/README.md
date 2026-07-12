@@ -15,8 +15,8 @@ ESP32-S3 telemetry blackbox for the MSPM0 line-following car.
 
 | ESP32-S3 | MSPM0 |
 | --- | --- |
-| GPIO18 RX | MSPM0 UART0 TX / PA10 |
-| GPIO17 TX | optional MSPM0 UART0 RX / PA11 |
+| GPIO18 RX | MSPM0 UART0 TX / PB0 |
+| GPIO17 TX | optional MSPM0 UART0 RX / PB1 |
 | GND | GND |
 
 Default UART baud rate: `115200`.

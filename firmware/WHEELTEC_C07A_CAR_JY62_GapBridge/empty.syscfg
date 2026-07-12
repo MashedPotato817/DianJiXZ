@@ -177,8 +177,8 @@ TIMER1.peripheral.$assign = "TIMG0";
 
 UART1.$name                    = "UART_0";
 UART1.profile                  = "CONFIG_PROFILE_1";
-UART1.peripheral.rxPin.$assign = "PA11";
-UART1.peripheral.txPin.$assign = "PA10";
+UART1.peripheral.rxPin.$assign = "PB1";
+UART1.peripheral.txPin.$assign = "PB0";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric2";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
 
