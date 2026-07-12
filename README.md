@@ -6,6 +6,7 @@
 
 - `firmware/WHEELTEC_C07A_CAR/`：Keil5 固件工程副本，包含应用层源码、硬件驱动、Keil 工程文件，以及本工程编译需要的最小 TI DriverLib/CMSIS 依赖子集。
 - `docs/巡线速度与逻辑评估_20260710.md`：几轮速度参数、处理逻辑和回退方案评估。
+- `docs/JY62定位融合调研_20260711.md`：JY62惯性传感器接入、案例调研、安装和定位融合预研方案。
 - `docs/build_20260710_高速三档当前版.log`：当前高速三档版在原工程中的增量构建记录。
 - `docs/build_20260710_github_upload.log`：本仓库整理副本的完整构建记录。
 - `archive/control_20260710_高速三档当前版.c`：当前实车测试推荐版 `control.c` 快照。
