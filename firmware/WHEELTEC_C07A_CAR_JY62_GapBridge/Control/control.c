@@ -104,6 +104,8 @@ static float g_grayPoseY_m = 0;
 static float g_grayPoseHeadingDeg = 0;
 static float g_grayPoseDistance_m = 0;
 static float g_grayGyroZBiasDps = 0;
+static float g_grayBridgeBaseYawDeg = 0;
+static uint8_t g_grayBridgeBaseYawValid = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -143,6 +145,27 @@ static float Gray_NormalizeYawDeg(float yaw_deg)
         yaw_deg += 360.0f;
     }
     return yaw_deg;
+}
+
+static float Gray_BridgeYawRefGet(float current_yaw_deg)
+{
+    if (!g_grayBridgeBaseYawValid) {
+        g_grayBridgeBaseYawDeg = current_yaw_deg;
+        g_grayBridgeBaseYawValid = 1;
+    }
+
+    switch (g_grayRoute) {
+    case GRAY_ROUTE_BRIDGE_TOP_LR:
+    case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
+        return g_grayBridgeBaseYawDeg;
+
+    case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
+    case GRAY_ROUTE_BRIDGE_TOP_RL:
+        return Gray_NormalizeYawDeg(g_grayBridgeBaseYawDeg + 180.0f);
+
+    default:
+        return current_yaw_deg;
+    }
 }
 
 static uint8_t Gray_TaskTargetLapGet(void)
@@ -270,6 +293,8 @@ static void Gray_ResetTaskState(void)
     g_grayNotifyTicks = 0;
     g_grayNotifyToggleCount = 0;
     g_grayNeedReset = 1;
+    g_grayBridgeBaseYawDeg = 0;
+    g_grayBridgeBaseYawValid = 0;
     Gray_PoseReset();
     LED_OFF();
 }
@@ -519,7 +544,7 @@ void Gray_Mode(void)
             }
             bridge_active = 1;
             bridge_reacquire_count = 0;
-            bridge_yaw_ref_deg = yaw_deg;
+            bridge_yaw_ref_deg = Gray_BridgeYawRefGet(yaw_deg);
             bridge_distance_mm = 0;
             Gray_BridgeDistance_mm = 0;
             Gray_BridgeErrDegX10 = 0;
