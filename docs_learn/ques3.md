@@ -2,6 +2,7 @@
 layout: note
 title: 8路灰度巡线算法详解
 ---
+[← 学习笔记](.) | 最后更新：2026-07-12
 # 8路灰度巡线算法详解 —— Q&A
 
 > 基于 WHEELTEC C07A 当前固件 `control.c` 的 Gray_Mode()
@@ -279,3 +280,7 @@ $$
 │
 └─ return → ISR继续执行PI → Set_PWM
 ```
+
+---
+
+> 最后更新：2026-07-12

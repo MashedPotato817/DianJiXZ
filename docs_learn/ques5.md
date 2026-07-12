@@ -2,6 +2,7 @@
 layout: note
 title: DMA配置与使用
 ---
+[← 学习笔记](.) | 最后更新：2026-07-12
 # DMA 配置与使用 —— Q&A
 
 > 基于 WHEELTEC C07A UART1 + DMA 蓝牙接收 实物代码分析
@@ -237,3 +238,7 @@ trigger = 外设的DMA触发源
 | **buffer 溢出** | DMA 只负责搬，不负责判断是否满了。必须像当前代码一样有"过半重置"或"环形 buffer"保护 |
 | **重新配置前先停** | `DL_DMA_disableChannel()` → 改参数 → `DL_DMA_enableChannel()`，否则参数可能不生效 |
 | **触发源要对** | UART 接收触发和 ADC 转换完成触发是不同的触发 ID，查 DriverLib 文档确认 |
+
+---
+
+> 最后更新：2026-07-12

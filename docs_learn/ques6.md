@@ -2,6 +2,7 @@
 layout: note
 title: JY62 IMU与任务状态机
 ---
+[← 学习笔记](.) | 最后更新：2026-07-12
 # JY62 IMU 与任务状态机 —— Q&A
 
 > 基于 WHEELTEC C07A JY62_GapBridge 固件代码分析
@@ -270,3 +271,7 @@ void TIMER_0_INST_IRQHandler(void)
 `JY62_Tick10ms()` 维护一个毫秒计数器，用来判断 JY62 是否超时离线（500ms 无有效帧）。
 
 `JY62_Process()` 在**主循环**调用（`empty.c` 里），从 UART FIFO 读字节喂给解析器——不在中断里做耗时操作。
+
+---
+
+> 最后更新：2026-07-12
