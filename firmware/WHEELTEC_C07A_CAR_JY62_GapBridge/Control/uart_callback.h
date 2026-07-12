@@ -5,7 +5,6 @@
 void BT_DAMConfig(void);
 
 void BTBufferHandler(void);
-void BlackboxTelemetry_Process(void);
 
 extern int Flag_Left, Flag_Right, Flag_Direction, Turn_Flag;
 

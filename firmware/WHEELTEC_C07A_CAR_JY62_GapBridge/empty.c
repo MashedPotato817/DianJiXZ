@@ -39,7 +39,6 @@ int main(void)
     while (1) {
         Voltage = Get_battery_volt();
         BTBufferHandler();
-        BlackboxTelemetry_Process();
         if ((u16) (show_cnt - last_show_cnt) >= 8U) {
             oled_show();
             last_show_cnt = show_cnt;
