@@ -97,9 +97,9 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_GYRO_DEADBAND_DPS        0.5f
 #define GRAY_TASK4_START_HEADING_DEG   180.0f
 #define GRAY_TASK4_D_TANGENT_DEG       0.0f
-#define GRAY_TASK4_D_TO_B_DEG          38.7f
+#define GRAY_TASK4_D_TO_B_DEG          35.0f
 #define GRAY_TASK4_C_TANGENT_DEG       180.0f
-#define GRAY_TASK4_C_TO_A_DEG          141.3f
+#define GRAY_TASK4_C_TO_A_DEG          145.0f
 #define GRAY_TASK4_POINT_TOL_M         0.25f
 #define GRAY_TASK4_WHITE_TICKS         3U
 #define GRAY_TASK4_ALIGN_TICKS_MAX     500U
