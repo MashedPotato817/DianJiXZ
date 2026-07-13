@@ -86,8 +86,7 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_LINE_YAW_ALPHA           0.18f
 #define GRAY_LINE_YAW_CENTER_MM       14.0f
 #define GRAY_ARC_MIN_TURN_DEG         135.0f
-#define GRAY_ARC_EXIT_TURN_DEG        180.0f
-#define GRAY_A_TO_C_HEADING_OFFSET_DEG 149.0f
+#define GRAY_A_TO_C_HEADING_OFFSET_DEG -31.0f
 #define GRAY_B_TO_D_HEADING_OFFSET_DEG 31.0f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
 #define GRAY_NOTIFY_TOGGLE_TOTAL      6U
@@ -670,7 +669,8 @@ void Gray_Mode(void)
                 Gray_RouteIsArc(g_grayRoute) && arc_yaw_valid) {
                 arc_turn_deg = Gray_NormalizeYawDeg(yaw_deg - arc_entry_yaw_deg);
                 abs_arc_turn_deg = Gray_AbsDeg(arc_turn_deg);
-                if (abs_arc_turn_deg < GRAY_ARC_MIN_TURN_DEG) {
+                if ((!g_grayPrepArcToA) &&
+                    (abs_arc_turn_deg < GRAY_ARC_MIN_TURN_DEG)) {
                     line_stable_ticks = 0;
                     Gray_Nav_Mode = GRAY_NAV_MODE_LOST;
                     Move_X = GRAY_LOST_SEARCH_SPEED_MM_S / 1000.0f;
@@ -679,9 +679,7 @@ void Gray_Mode(void)
                     return;
                 }
 
-                g_grayLineYawRefDeg = Gray_NormalizeYawDeg(
-                    arc_entry_yaw_deg + ((arc_turn_deg >= 0.0f) ?
-                    GRAY_ARC_EXIT_TURN_DEG : -GRAY_ARC_EXIT_TURN_DEG));
+                g_grayLineYawRefDeg = yaw_deg;
                 g_grayLineYawRefValid = 1;
             }
 
