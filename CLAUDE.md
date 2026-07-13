@@ -49,6 +49,26 @@ firmware/WHEELTEC_C07A_CAR/
 
 `demand.md` — 待填充的需求文档。
 
+## 协作仓库
+
+队友：`yangran` [https://github.com/yangran12/DianJiXZ](https://github.com/yangran12/DianJiXZ)
+
+```bash
+git remote add yangran https://github.com/yangran12/DianJiXZ.git
+git fetch yangran
+git merge yangran/main
+```
+
+队友贡献了 **K210 通信链路**（`k210_link.c/h`）、**ESP32-S3 黑匣子遥测**、陀螺仪里程计、H 题任务状态机等。关键文件：
+
+| 文件 | 内容 |
+|------|------|
+| `firmware/K210/k210_uart_test.py` | K210 端 UART 测试脚本 |
+| `firmware/.../Hardware/k210_link.c/h` | MSPM0 端 K210 通信——**二进制协议**（0xAA 头+8字节）和**ASCII 握手**（$CAR,HELLO# / $K210,OK#）双模 |
+| `firmware/ESP32S3_Blackbox/` | ESP32-S3 遥测黑匣子 |
+
+K210 用 **UART_0**（和 JY62/蓝牙的 UART_1 分开），协议已定义 `K210_VisionFrame {x, y, area, sequence, timestamp_ms}`。
+
 ## 编码规范
 
 编辑 `.c` / `.h` / `.js` / `.html` / `.py` 文件前，**必须先调用** `andrej-karpathy-skills:karpathy-guidelines`，遵循其简洁、手术式修改、不过度设计的原则。
