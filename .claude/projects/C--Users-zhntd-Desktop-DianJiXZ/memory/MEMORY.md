@@ -1,2 +1,0 @@
-- [严禁向队友仓库推送](never-push-teammate.md) — 只能 fetch+merge 拉取，不推送
-- [文档更新时间戳规范](doc-timestamp-convention.md) — 每次编辑 md 必须同步更新顶部+底部时间戳
