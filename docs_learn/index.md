@@ -20,3 +20,5 @@ title: 学习笔记
 | [ques4](ques4) | 差速运动学、系统架构与调试 | 后读 |
 | [ques5](ques5) | DMA 配置与使用 | 后读 |
 | [ques6](ques6) | JY62 IMU 与任务状态机 | 后读 |
+| [ques7](ques7) | 陀螺里程计 | 后读 |
+| [ques8](ques8) | K230 Link 通信 & ESP32 黑匣子 | 后读 |
