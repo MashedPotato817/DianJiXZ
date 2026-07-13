@@ -79,15 +79,15 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_BRIDGE_GYRO_KD           0.010f
 #define GRAY_BRIDGE_MAX_TURN_SPEED    2.20f
 #define GRAY_BRIDGE_SEARCH_TURN_SPEED 0.42f
-#define GRAY_BRIDGE_ALIGN_TICKS       80U
+#define GRAY_BRIDGE_ALIGN_TICKS       110U
 #define GRAY_BRIDGE_ALIGN_ERR_DEG     5.0f
-#define GRAY_BRIDGE_ALIGN_SPEED_MM_S  80.0f
+#define GRAY_BRIDGE_ALIGN_SPEED_MM_S  60.0f
 #define GRAY_LINE_GYRO_KD             0.006f
 #define GRAY_LINE_YAW_ALPHA           0.18f
 #define GRAY_LINE_YAW_CENTER_MM       14.0f
 #define GRAY_ARC_MIN_TURN_DEG         135.0f
-#define GRAY_A_TO_C_HEADING_OFFSET_DEG -31.0f
-#define GRAY_B_TO_D_HEADING_OFFSET_DEG 31.0f
+#define GRAY_ARC_TURN_MIN_DPS         8.0f
+#define GRAY_DIAGONAL_EXIT_TURN_DEG   42.0f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
 #define GRAY_NOTIFY_TOGGLE_TOTAL      6U
 #define GRAY_POSE_DT_S                0.005f
@@ -123,6 +123,7 @@ static float g_grayBridgeBaseYawDeg = 0;
 static uint8_t g_grayBridgeBaseYawValid = 0;
 static float g_grayLineYawRefDeg = 0;
 static uint8_t g_grayLineYawRefValid = 0;
+static int8_t g_grayArcTurnDir = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -196,13 +197,18 @@ static float Gray_BridgeYawRefGet(float current_yaw_deg)
     if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
         (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
         float exit_yaw_deg = g_grayLineYawRefValid ? g_grayLineYawRefDeg : current_yaw_deg;
+        float turn_dir;
 
         switch (g_grayRoute) {
         case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
-            return Gray_NormalizeYawDeg(exit_yaw_deg + GRAY_A_TO_C_HEADING_OFFSET_DEG);
-
         case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
-            return Gray_NormalizeYawDeg(exit_yaw_deg + GRAY_B_TO_D_HEADING_OFFSET_DEG);
+            if (g_grayArcTurnDir != 0) {
+                turn_dir = (float)g_grayArcTurnDir;
+            } else {
+                turn_dir = (g_grayRoute == GRAY_ROUTE_BRIDGE_BOTTOM_LR) ? -1.0f : 1.0f;
+            }
+            return Gray_NormalizeYawDeg(exit_yaw_deg +
+                                        turn_dir * GRAY_DIAGONAL_EXIT_TURN_DEG);
 
         default:
             return exit_yaw_deg;
@@ -359,6 +365,7 @@ static void Gray_ResetTaskState(void)
     g_grayBridgeBaseYawValid = 0;
     g_grayLineYawRefDeg = 0;
     g_grayLineYawRefValid = 0;
+    g_grayArcTurnDir = 0;
     Gray_PoseReset();
     LED_OFF();
 }
@@ -724,6 +731,11 @@ void Gray_Mode(void)
     if (JY62_IsOnline() && Gray_RouteIsArc(g_grayRoute) && (!arc_yaw_valid)) {
         arc_entry_yaw_deg = yaw_deg;
         arc_yaw_valid = 1;
+    }
+
+    if (JY62_IsOnline() && Gray_RouteIsArc(g_grayRoute) &&
+        (Gray_AbsDeg(wz_dps) >= GRAY_ARC_TURN_MIN_DPS)) {
+        g_grayArcTurnDir = (wz_dps >= 0.0f) ? 1 : -1;
     }
 
     if (JY62_IsOnline() && (abs_line_pos_mm <= GRAY_LINE_YAW_CENTER_MM) &&
