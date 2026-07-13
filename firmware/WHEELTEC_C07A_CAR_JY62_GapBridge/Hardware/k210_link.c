@@ -6,7 +6,7 @@
 #define K210_ASCII_BUF_SIZE       24U
 #define K210_HELLO_PERIOD_MS      500U
 #define K210_ONLINE_TIMEOUT_MS    1500U
-#define K210_UART_INST            UART_1_INST
+#define K210_UART_INST            UART_0_INST
 
 static uint8_t g_k210BinBuf[K210_BINARY_LEN];
 static uint8_t g_k210BinIndex;
