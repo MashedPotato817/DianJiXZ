@@ -52,7 +52,7 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_BLACK_LEVEL              1
 #define GRAY_BASE_SPEED_MM_S          300.0f
 #define GRAY_MID_SPEED_MM_S           240.0f
-#define GRAY_CURVE_SPEED_MM_S         185.0f
+#define GRAY_CURVE_SPEED_MM_S         205.0f
 #define GRAY_CROSS_SPEED_MM_S         310.0f
 #define GRAY_LOST_SEARCH_SPEED_MM_S   0.0f
 #define GRAY_SENSOR_PITCH_MM          10.0f
@@ -68,14 +68,20 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_CROSS_DETECT_COUNT       2
 #define GRAY_CROSS_RUN_TICKS          32
 #define GRAY_CROSS_COOLDOWN_TICKS     60
-#define GRAY_BRIDGE_ENTRY_SPEED_MM_S  220.0f
-#define GRAY_BRIDGE_MAX_DISTANCE_MM   1500.0f
+#define GRAY_BRIDGE_ENTRY_SPEED_MM_S  280.0f
+#define GRAY_BRIDGE_RECOVER_SPEED_MM_S 160.0f
+#define GRAY_BRIDGE_EXPECT_DISTANCE_MM 1050.0f
+#define GRAY_BRIDGE_SEARCH_DISTANCE_MM 1180.0f
+#define GRAY_BRIDGE_MAX_DISTANCE_MM   1700.0f
 #define GRAY_BRIDGE_MIN_STABLE_TICKS  8U
-#define GRAY_BRIDGE_REACQUIRE_TICKS   2U
+#define GRAY_BRIDGE_REACQUIRE_TICKS   1U
 #define GRAY_BRIDGE_HEADING_KP        0.075f
 #define GRAY_BRIDGE_GYRO_KD           0.010f
 #define GRAY_BRIDGE_MAX_TURN_SPEED    2.20f
+#define GRAY_BRIDGE_SEARCH_TURN_SPEED 0.42f
 #define GRAY_LINE_GYRO_KD             0.006f
+#define GRAY_LINE_YAW_ALPHA           0.18f
+#define GRAY_LINE_YAW_CENTER_MM       14.0f
 #define GRAY_DIAG_HEADING_OFFSET_DEG  31.0f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
 #define GRAY_NOTIFY_TOGGLE_TOTAL      6U
@@ -110,6 +116,8 @@ static float g_grayPoseDistance_m = 0;
 static float g_grayGyroZBiasDps = 0;
 static float g_grayBridgeBaseYawDeg = 0;
 static uint8_t g_grayBridgeBaseYawValid = 0;
+static float g_grayLineYawRefDeg = 0;
+static uint8_t g_grayLineYawRefValid = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -151,19 +159,35 @@ static float Gray_NormalizeYawDeg(float yaw_deg)
     return yaw_deg;
 }
 
+static void Gray_LineYawRefUpdate(float yaw_deg)
+{
+    float err_deg;
+
+    if (!g_grayLineYawRefValid) {
+        g_grayLineYawRefDeg = yaw_deg;
+        g_grayLineYawRefValid = 1;
+        return;
+    }
+
+    err_deg = Gray_NormalizeYawDeg(yaw_deg - g_grayLineYawRefDeg);
+    g_grayLineYawRefDeg = Gray_NormalizeYawDeg(g_grayLineYawRefDeg + GRAY_LINE_YAW_ALPHA * err_deg);
+}
+
 static float Gray_BridgeYawRefGet(float current_yaw_deg)
 {
     if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
         (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
+        float exit_yaw_deg = g_grayLineYawRefValid ? g_grayLineYawRefDeg : current_yaw_deg;
+
         switch (g_grayRoute) {
         case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
-            return Gray_NormalizeYawDeg(current_yaw_deg - GRAY_DIAG_HEADING_OFFSET_DEG);
+            return Gray_NormalizeYawDeg(exit_yaw_deg - GRAY_DIAG_HEADING_OFFSET_DEG);
 
         case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
-            return Gray_NormalizeYawDeg(current_yaw_deg + GRAY_DIAG_HEADING_OFFSET_DEG);
+            return Gray_NormalizeYawDeg(exit_yaw_deg + GRAY_DIAG_HEADING_OFFSET_DEG);
 
         default:
-            return current_yaw_deg;
+            return exit_yaw_deg;
         }
     }
 
@@ -315,6 +339,8 @@ static void Gray_ResetTaskState(void)
     g_grayNeedReset = 1;
     g_grayBridgeBaseYawDeg = 0;
     g_grayBridgeBaseYawValid = 0;
+    g_grayLineYawRefDeg = 0;
+    g_grayLineYawRefValid = 0;
     Gray_PoseReset();
     LED_OFF();
 }
@@ -567,8 +593,15 @@ void Gray_Mode(void)
 
             if ((bridge_distance_mm < GRAY_BRIDGE_MAX_DISTANCE_MM) && JY62_IsOnline()) {
                 yaw_err_deg = Gray_NormalizeYawDeg(bridge_yaw_ref_deg - yaw_deg);
-                Move_X = GRAY_BRIDGE_ENTRY_SPEED_MM_S / 1000.0f;
+                Move_X = (bridge_distance_mm >= GRAY_BRIDGE_EXPECT_DISTANCE_MM) ?
+                         (GRAY_BRIDGE_RECOVER_SPEED_MM_S / 1000.0f) :
+                         (GRAY_BRIDGE_ENTRY_SPEED_MM_S / 1000.0f);
                 Move_Z = GRAY_BRIDGE_HEADING_KP * yaw_err_deg - GRAY_BRIDGE_GYRO_KD * wz_dps;
+                if (bridge_distance_mm >= GRAY_BRIDGE_SEARCH_DISTANCE_MM) {
+                    Move_Z += (g_grayRoute == GRAY_ROUTE_BRIDGE_BOTTOM_LR) ?
+                              GRAY_BRIDGE_SEARCH_TURN_SPEED :
+                              -GRAY_BRIDGE_SEARCH_TURN_SPEED;
+                }
 
                 if (Move_Z > GRAY_BRIDGE_MAX_TURN_SPEED) Move_Z = GRAY_BRIDGE_MAX_TURN_SPEED;
                 if (Move_Z < -GRAY_BRIDGE_MAX_TURN_SPEED) Move_Z = -GRAY_BRIDGE_MAX_TURN_SPEED;
@@ -612,13 +645,20 @@ void Gray_Mode(void)
     Gray_Line_Pos_mm = pos_sum / black_count;
     last_line_pos_mm = Gray_Line_Pos_mm;
     Gray_BridgeErrDegX10 = 0;
+    abs_line_pos_mm = (Gray_Line_Pos_mm >= 0) ? Gray_Line_Pos_mm : -Gray_Line_Pos_mm;
 
     if (line_stable_ticks < 255U) {
         line_stable_ticks++;
     }
 
+    if (JY62_IsOnline() && (abs_line_pos_mm <= GRAY_LINE_YAW_CENTER_MM) &&
+        (black_count > 0) && (black_count <= 4)) {
+        Gray_LineYawRefUpdate(yaw_deg);
+    }
+
     if (bridge_active) {
-        if (black_count >= 2) {
+        uint8_t reacquire_black_count = (bridge_distance_mm >= GRAY_BRIDGE_EXPECT_DISTANCE_MM) ? 1U : 2U;
+        if (black_count >= reacquire_black_count) {
             if (bridge_reacquire_count < GRAY_BRIDGE_REACQUIRE_TICKS) {
                 bridge_reacquire_count++;
             }
@@ -646,7 +686,6 @@ void Gray_Mode(void)
         last_search_dir = 1;
     }
 
-    abs_line_pos_mm = (Gray_Line_Pos_mm >= 0) ? Gray_Line_Pos_mm : -Gray_Line_Pos_mm;
     if ((black_count >= 5) || (abs_line_pos_mm >= GRAY_CURVE_POS_MM)) {
         Move_X = GRAY_CURVE_SPEED_MM_S / 1000.0f;
     } else if (abs_line_pos_mm >= GRAY_MID_POS_MM) {
