@@ -32,7 +32,7 @@ volatile int16_t Gray_YawDegX10 = 0;
 volatile int16_t Gray_BridgeErrDegX10 = 0;
 volatile uint16_t Gray_BridgeDistance_mm = 0;
 volatile uint8_t Gray_BlackCount_Debug = 0;
-volatile uint8_t Gray_Task_Mode = GRAY_TASK_2_CW_1LAP;
+volatile uint8_t Gray_Task_Mode = GRAY_TASK_4_CCW_4LAP;
 volatile uint8_t Gray_Task_Lap = 0;
 volatile uint8_t Gray_Task_TargetLap = 1;
 volatile uint8_t Gray_Task_PointCount = 0;
@@ -69,12 +69,14 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_CROSS_RUN_TICKS          32
 #define GRAY_CROSS_COOLDOWN_TICKS     60
 #define GRAY_BRIDGE_ENTRY_SPEED_MM_S  220.0f
-#define GRAY_BRIDGE_MAX_DISTANCE_MM   280.0f
+#define GRAY_BRIDGE_MAX_DISTANCE_MM   1500.0f
 #define GRAY_BRIDGE_MIN_STABLE_TICKS  8U
 #define GRAY_BRIDGE_REACQUIRE_TICKS   2U
 #define GRAY_BRIDGE_HEADING_KP        0.075f
 #define GRAY_BRIDGE_GYRO_KD           0.010f
 #define GRAY_BRIDGE_MAX_TURN_SPEED    2.20f
+#define GRAY_LINE_GYRO_KD             0.006f
+#define GRAY_DIAG_HEADING_OFFSET_DEG  31.0f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
 #define GRAY_NOTIFY_TOGGLE_TOTAL      6U
 #define GRAY_POSE_DT_S                0.005f
@@ -100,6 +102,7 @@ static uint8_t g_grayMissionDone = 0;
 static uint8_t g_grayNotifyTicks = 0;
 static uint8_t g_grayNotifyToggleCount = 0;
 static uint8_t g_grayNeedReset = 1;
+static uint8_t g_grayPrepArcToA = 0;
 static float g_grayPoseX_m = 0;
 static float g_grayPoseY_m = 0;
 static float g_grayPoseHeadingDeg = 0;
@@ -150,6 +153,20 @@ static float Gray_NormalizeYawDeg(float yaw_deg)
 
 static float Gray_BridgeYawRefGet(float current_yaw_deg)
 {
+    if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+        (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
+        switch (g_grayRoute) {
+        case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
+            return Gray_NormalizeYawDeg(current_yaw_deg - GRAY_DIAG_HEADING_OFFSET_DEG);
+
+        case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
+            return Gray_NormalizeYawDeg(current_yaw_deg + GRAY_DIAG_HEADING_OFFSET_DEG);
+
+        default:
+            return current_yaw_deg;
+        }
+    }
+
     if (!g_grayBridgeBaseYawValid) {
         g_grayBridgeBaseYawDeg = current_yaw_deg;
         g_grayBridgeBaseYawValid = 1;
@@ -181,7 +198,7 @@ static GrayRouteSegment_t Gray_TaskStartRouteGet(void)
 {
     if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
         (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
-        return GRAY_ROUTE_ARC_LEFT_DOWN;
+        return GRAY_ROUTE_ARC_LEFT_UP;
     }
     return GRAY_ROUTE_BRIDGE_TOP_LR;
 }
@@ -291,6 +308,8 @@ static void Gray_ResetTaskState(void)
     Gray_BridgeErrDegX10 = 0;
     g_grayMissionDone = 0;
     g_grayRoute = Gray_TaskStartRouteGet();
+    g_grayPrepArcToA = ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+                        (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) ? 1U : 0U;
     g_grayNotifyTicks = 0;
     g_grayNotifyToggleCount = 0;
     g_grayNeedReset = 1;
@@ -339,6 +358,25 @@ static uint8_t Gray_OnBridgeStart(void)
         break;
     case GRAY_ROUTE_ARC_LEFT_UP:
         Gray_RecordPoint('A');
+        if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+            (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
+            uint8_t was_prep_arc = g_grayPrepArcToA;
+            if (g_grayPrepArcToA) {
+                g_grayPrepArcToA = 0;
+            } else if (Gray_Task_Lap < 255U) {
+                Gray_Task_Lap++;
+            }
+
+            if ((!was_prep_arc) &&
+                ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+                 (Gray_Task_Lap >= Gray_Task_TargetLap))) {
+                Gray_StopMission();
+                return 1U;
+            }
+            g_grayRoute = GRAY_ROUTE_BRIDGE_BOTTOM_LR;
+            g_grayBridgeBaseYawValid = 0;
+            break;
+        }
         if (Gray_Task_Lap < 255U) {
             Gray_Task_Lap++;
         }
@@ -354,7 +392,13 @@ static uint8_t Gray_OnBridgeStart(void)
         break;
     case GRAY_ROUTE_ARC_RIGHT_UP:
         Gray_RecordPoint('B');
-        g_grayRoute = GRAY_ROUTE_BRIDGE_TOP_RL;
+        if ((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+            (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) {
+            g_grayRoute = GRAY_ROUTE_BRIDGE_BOTTOM_RL;
+        } else {
+            g_grayRoute = GRAY_ROUTE_BRIDGE_TOP_RL;
+        }
+        g_grayBridgeBaseYawValid = 0;
         break;
     default:
         break;
@@ -613,6 +657,9 @@ void Gray_Mode(void)
     lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;
     curvature = (2.0f * y_m) / (lookahead_m * lookahead_m + y_m * y_m);
     Move_Z = -GRAY_STEER_GAIN * Move_X * curvature;
+    if (JY62_IsOnline()) {
+        Move_Z -= GRAY_LINE_GYRO_KD * wz_dps;
+    }
 
     if (Move_Z > GRAY_MAX_ANGULAR_SPEED) Move_Z = GRAY_MAX_ANGULAR_SPEED;
     if (Move_Z < -GRAY_MAX_ANGULAR_SPEED) Move_Z = -GRAY_MAX_ANGULAR_SPEED;
