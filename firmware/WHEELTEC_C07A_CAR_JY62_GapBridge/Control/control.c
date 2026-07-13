@@ -108,6 +108,8 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_TASK4_BRIDGE_SPEED_MM_S   280.0f
 #define GRAY_TASK4_BRIDGE_MAX_MM       1600.0f
 #define GRAY_TASK4_LOST_CREEP_MM_S     80.0f
+#define GRAY_TASK4_C_ADVANCE_MM         200.0f
+#define GRAY_TASK4_C_ADVANCE_SPEED_MM_S 140.0f
 
 typedef enum {
     GRAY_ROUTE_IDLE = 0,
@@ -128,6 +130,7 @@ typedef enum {
     GRAY_TASK4_BRIDGE_D_TO_B,
     GRAY_TASK4_LINE_BC,
     GRAY_TASK4_ALIGN_C_TANGENT,
+    GRAY_TASK4_ADVANCE_C,
     GRAY_TASK4_ALIGN_C_TO_A,
     GRAY_TASK4_BRIDGE_C_TO_A,
     GRAY_TASK4_ALIGN_A_TANGENT
@@ -159,6 +162,7 @@ static uint16_t g_grayTask4AlignTicks = 0;
 static uint8_t g_grayTask4AlignStableTicks = 0;
 static float g_grayTask4BridgeDistance_mm = 0;
 static uint8_t g_grayTask4ReacquireTicks = 0;
+static float g_grayTask4AdvanceStartDistance_m = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -422,6 +426,7 @@ static void Gray_ResetTaskState(void)
     g_grayTask4AlignStableTicks = 0;
     g_grayTask4BridgeDistance_mm = 0;
     g_grayTask4ReacquireTicks = 0;
+    g_grayTask4AdvanceStartDistance_m = 0;
     Gray_PoseReset();
     LED_OFF();
 }
@@ -706,6 +711,8 @@ static void Gray_Task4Mode(void)
     int black_count = 0;
     float pos_sum = 0;
     float wz_dps = 0;
+    float heading_err_deg;
+    float turn_speed;
     JY62_Data jy62_data;
 
     if (g_grayMissionDone) {
@@ -790,8 +797,25 @@ static void Gray_Task4Mode(void)
 
     case GRAY_TASK4_ALIGN_C_TANGENT:
         if (Gray_Task4AlignHeading(GRAY_TASK4_C_TANGENT_DEG, wz_dps)) {
-            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_C_TO_A);
+            g_grayTask4State = GRAY_TASK4_ADVANCE_C;
+            g_grayTask4AdvanceStartDistance_m = g_grayPoseDistance_m;
         }
+        return;
+
+    case GRAY_TASK4_ADVANCE_C:
+        if ((g_grayPoseDistance_m - g_grayTask4AdvanceStartDistance_m) >=
+            (GRAY_TASK4_C_ADVANCE_MM / 1000.0f)) {
+            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_C_TO_A);
+            Gray_Task4Command(0, 0, GRAY_NAV_MODE_BRIDGE);
+            return;
+        }
+        heading_err_deg = Gray_NormalizeYawDeg(GRAY_TASK4_C_TANGENT_DEG -
+                                                g_grayPoseHeadingDeg);
+        turn_speed = GRAY_BRIDGE_HEADING_KP * heading_err_deg -
+                     GRAY_BRIDGE_GYRO_KD * wz_dps;
+        Gray_BridgeErrDegX10 = (int16_t)(heading_err_deg * 10.0f);
+        Gray_Task4Command(GRAY_TASK4_C_ADVANCE_SPEED_MM_S / 1000.0f,
+                          turn_speed, GRAY_NAV_MODE_BRIDGE);
         return;
 
     case GRAY_TASK4_ALIGN_C_TO_A:
