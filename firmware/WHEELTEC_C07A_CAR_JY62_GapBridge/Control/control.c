@@ -19,6 +19,7 @@ All rights reserved
 ***********************************************/
 #include "control.h"
 #include "jy62.h"
+#include "k210_link.h"
 #include <math.h>
 
 u8 CCD_count,ELE_count;
@@ -631,6 +632,7 @@ void TIMER_0_INST_IRQHandler(void)
 			if (jy62_tick_div >= 2U) {
 				jy62_tick_div = 0;
 				JY62_Tick10ms();
+				K210_Link_Tick10ms();
 			}
 			Key();
 			Gray_TaskTick();

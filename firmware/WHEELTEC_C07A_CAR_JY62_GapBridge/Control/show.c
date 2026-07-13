@@ -4,6 +4,7 @@ Brand: WHEELTEC
 #include "show.h"
 #include "control.h"
 #include "jy62.h"
+#include "k210_link.h"
 
 static void OLED_ShowSignedNumber(uint8_t x, uint8_t y, int value, uint8_t len)
 {
@@ -14,9 +15,12 @@ static void OLED_ShowSignedNumber(uint8_t x, uint8_t y, int value, uint8_t len)
 static void oled_show_jy62_diag(void)
 {
     JY62_Data data;
+    K210_VisionFrame vision;
+    uint8_t has_vision;
 
     memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
     JY62_GetData(&data);
+    has_vision = K210_Link_GetLatestVision(&vision);
 
     OLED_ShowString(0, 0, "JY");
     OLED_ShowString(18, 0, data.online ? "ON " : "OFF");
@@ -46,10 +50,13 @@ static void oled_show_jy62_diag(void)
     OLED_ShowString(54, 40, "H");
     OLED_ShowSignedNumber(64, 40, Gray_PoseHeadingDegX10 / 10, 3);
 
-    OLED_ShowString(0, 50, "X");
-    OLED_ShowSignedNumber(10, 50, (int)Gray_PoseX_mm, 4);
-    OLED_ShowString(58, 50, "Y");
-    OLED_ShowSignedNumber(68, 50, (int)Gray_PoseY_mm, 4);
+    OLED_ShowString(0, 50, "K");
+    OLED_ShowString(10, 50, K210_Link_IsOnline() ? "ON " : "OFF");
+    OLED_ShowString(38, 50, K210_Link_IsHandshakeOk() ? "H" : "-");
+    OLED_ShowString(50, 50, "VF");
+    OLED_ShowNumber(68, 50, K210_Link_VisionFrames() % 1000U, 3, 12);
+    OLED_ShowString(92, 50, "A");
+    OLED_ShowNumber(104, 50, has_vision ? (vision.area % 1000U) : 0U, 3, 12);
 
     OLED_Refresh_Gram();
 }
@@ -124,8 +131,10 @@ void oled_show(void)
     OLED_ShowNumber(12, 50, (int) Voltage, 2, 12);
     OLED_ShowString(28, 50, ".");
     OLED_ShowNumber(38, 50, (u16) (Voltage * 10) % 10, 1, 12);
-    if (Flag_Stop) OLED_ShowString(90, 50, "OFF");
-    else OLED_ShowString(90, 50, "ON ");
+    OLED_ShowString(58, 50, "K");
+    OLED_ShowString(68, 50, K210_Link_IsOnline() ? "ON" : "--");
+    if (Flag_Stop) OLED_ShowString(94, 50, "OFF");
+    else OLED_ShowString(94, 50, "ON ");
 
     OLED_Refresh_Gram();
 }

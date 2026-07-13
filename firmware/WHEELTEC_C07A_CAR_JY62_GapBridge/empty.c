@@ -4,6 +4,7 @@
  */
 #include "board.h"
 #include "jy62.h"
+#include "k210_link.h"
 
 u8 Car_Mode = Diff_Car;
 int Motor_Left, Motor_Right;
@@ -35,10 +36,12 @@ int main(void)
 
     OLED_Init();
     JY62_Init();
+    K210_Link_Init();
 
     while (1) {
         Voltage = Get_battery_volt();
         BTBufferHandler();
+        K210_Link_Process();
         if ((u16) (show_cnt - last_show_cnt) >= 8U) {
             oled_show();
             last_show_cnt = show_cnt;
