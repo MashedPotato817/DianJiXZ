@@ -85,6 +85,8 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_LINE_GYRO_KD             0.006f
 #define GRAY_LINE_YAW_ALPHA           0.18f
 #define GRAY_LINE_YAW_CENTER_MM       14.0f
+#define GRAY_ARC_MIN_TURN_DEG         135.0f
+#define GRAY_ARC_EXIT_TURN_DEG        180.0f
 #define GRAY_A_TO_C_HEADING_OFFSET_DEG 149.0f
 #define GRAY_B_TO_D_HEADING_OFFSET_DEG 31.0f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
@@ -175,6 +177,19 @@ static void Gray_LineYawRefUpdate(float yaw_deg)
 
     err_deg = Gray_NormalizeYawDeg(yaw_deg - g_grayLineYawRefDeg);
     g_grayLineYawRefDeg = Gray_NormalizeYawDeg(g_grayLineYawRefDeg + GRAY_LINE_YAW_ALPHA * err_deg);
+}
+
+static uint8_t Gray_RouteIsArc(GrayRouteSegment_t route)
+{
+    return ((route == GRAY_ROUTE_ARC_RIGHT_DOWN) ||
+            (route == GRAY_ROUTE_ARC_LEFT_UP) ||
+            (route == GRAY_ROUTE_ARC_LEFT_DOWN) ||
+            (route == GRAY_ROUTE_ARC_RIGHT_UP)) ? 1U : 0U;
+}
+
+static float Gray_AbsDeg(float deg)
+{
+    return (deg >= 0.0f) ? deg : -deg;
 }
 
 static float Gray_BridgeYawRefGet(float current_yaw_deg)
@@ -494,6 +509,8 @@ void Gray_Mode(void)
     static uint8_t bridge_active = 0;
     static uint8_t bridge_reacquire_count = 0;
     static uint8_t bridge_align_ticks = 0;
+    static uint8_t arc_yaw_valid = 0;
+    static float arc_entry_yaw_deg = 0;
     static float bridge_yaw_ref_deg = 0;
     static float bridge_distance_mm = 0;
     float pos_sum = 0;
@@ -505,6 +522,8 @@ void Gray_Mode(void)
     float yaw_deg = 0;
     float wz_dps = 0;
     float yaw_err_deg = 0;
+    float arc_turn_deg = 0;
+    float abs_arc_turn_deg = 0;
     uint8_t i;
     JY62_Data jy62_data;
 
@@ -518,6 +537,8 @@ void Gray_Mode(void)
         bridge_active = 0;
         bridge_reacquire_count = 0;
         bridge_align_ticks = 0;
+        arc_yaw_valid = 0;
+        arc_entry_yaw_deg = 0;
         bridge_yaw_ref_deg = 0;
         bridge_distance_mm = 0;
         Gray_Line_Pos_mm = 0;
@@ -644,6 +665,26 @@ void Gray_Mode(void)
         }
 
         if ((!bridge_active) && (line_stable_ticks >= GRAY_BRIDGE_MIN_STABLE_TICKS) && JY62_IsOnline()) {
+            if (((Gray_Task_Mode == GRAY_TASK_3_CCW_1LAP) ||
+                 (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP)) &&
+                Gray_RouteIsArc(g_grayRoute) && arc_yaw_valid) {
+                arc_turn_deg = Gray_NormalizeYawDeg(yaw_deg - arc_entry_yaw_deg);
+                abs_arc_turn_deg = Gray_AbsDeg(arc_turn_deg);
+                if (abs_arc_turn_deg < GRAY_ARC_MIN_TURN_DEG) {
+                    line_stable_ticks = 0;
+                    Gray_Nav_Mode = GRAY_NAV_MODE_LOST;
+                    Move_X = GRAY_LOST_SEARCH_SPEED_MM_S / 1000.0f;
+                    Move_Z = last_search_dir * GRAY_LOST_TURN_SPEED;
+                    Get_Target_Encoder(Move_X, Move_Z);
+                    return;
+                }
+
+                g_grayLineYawRefDeg = Gray_NormalizeYawDeg(
+                    arc_entry_yaw_deg + ((arc_turn_deg >= 0.0f) ?
+                    GRAY_ARC_EXIT_TURN_DEG : -GRAY_ARC_EXIT_TURN_DEG));
+                g_grayLineYawRefValid = 1;
+            }
+
             if (Gray_OnBridgeStart()) {
                 return;
             }
@@ -656,6 +697,7 @@ void Gray_Mode(void)
             bridge_distance_mm = 0;
             Gray_BridgeDistance_mm = 0;
             Gray_BridgeErrDegX10 = 0;
+            arc_yaw_valid = 0;
             Gray_Nav_Mode = GRAY_NAV_MODE_BRIDGE;
             Move_X = GRAY_BRIDGE_ENTRY_SPEED_MM_S / 1000.0f;
             Move_Z = 0;
@@ -679,6 +721,11 @@ void Gray_Mode(void)
 
     if (line_stable_ticks < 255U) {
         line_stable_ticks++;
+    }
+
+    if (JY62_IsOnline() && Gray_RouteIsArc(g_grayRoute) && (!arc_yaw_valid)) {
+        arc_entry_yaw_deg = yaw_deg;
+        arc_yaw_valid = 1;
     }
 
     if (JY62_IsOnline() && (abs_line_pos_mm <= GRAY_LINE_YAW_CENTER_MM) &&
