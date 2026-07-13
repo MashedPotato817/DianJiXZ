@@ -1,0 +1,21 @@
+#ifndef BLACKBOX_CONFIG_H
+#define BLACKBOX_CONFIG_H
+
+#define BLACKBOX_WIFI_SSID        "EDC2026_BLACKBOX"
+#define BLACKBOX_WIFI_PASSWORD    "edc2026car"
+#define BLACKBOX_WIFI_CHANNEL     6
+#define BLACKBOX_WIFI_MAX_STA     4
+
+#define BLACKBOX_UART_PORT        UART_NUM_1
+#define BLACKBOX_UART_BAUD        115200
+#define BLACKBOX_UART_TX_PIN      17
+#define BLACKBOX_UART_RX_PIN      18
+#define BLACKBOX_UART_BUF_SIZE    1024
+#define BLACKBOX_LINE_MAX         256
+
+#define BLACKBOX_LOG_PATH         "/spiffs/telemetry.log"
+#define BLACKBOX_LOG_MAX_BYTES    (512 * 1024)
+
+#define BLACKBOX_UDP_PORT         3333
+
+#endif

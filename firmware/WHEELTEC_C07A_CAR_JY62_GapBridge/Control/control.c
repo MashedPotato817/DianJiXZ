@@ -19,6 +19,8 @@ All rights reserved
 ***********************************************/
 #include "control.h"
 #include "jy62.h"
+#include "k210_link.h"
+#include <math.h>
 
 u8 CCD_count,ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
@@ -35,6 +37,11 @@ volatile uint8_t Gray_Task_Lap = 0;
 volatile uint8_t Gray_Task_TargetLap = 1;
 volatile uint8_t Gray_Task_PointCount = 0;
 volatile uint8_t Gray_LastPointChar = 'A';
+volatile int32_t Gray_PoseX_mm = 0;
+volatile int32_t Gray_PoseY_mm = 0;
+volatile int32_t Gray_PoseDistance_mm = 0;
+volatile int16_t Gray_PoseHeadingDegX10 = 0;
+volatile int16_t Gray_GyroZBiasDpsX10 = 0;
 
 Encoder OriginalEncoder; 					//编码器原始数据   
 Motor_parameter MotorA,MotorB;				//左右电机相关变量
@@ -70,6 +77,11 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_BRIDGE_MAX_TURN_SPEED    2.20f
 #define GRAY_NOTIFY_TOGGLE_TICKS      10U
 #define GRAY_NOTIFY_TOGGLE_TOTAL      6U
+#define GRAY_POSE_DT_S                0.005f
+#define GRAY_POSE_DEG_TO_RAD          0.0174532925f
+#define GRAY_GYRO_BIAS_ALPHA          0.002f
+#define GRAY_GYRO_BIAS_LEARN_MAX_DPS  2.0f
+#define GRAY_GYRO_DEADBAND_DPS        0.5f
 
 typedef enum {
     GRAY_ROUTE_IDLE = 0,
@@ -88,6 +100,13 @@ static uint8_t g_grayMissionDone = 0;
 static uint8_t g_grayNotifyTicks = 0;
 static uint8_t g_grayNotifyToggleCount = 0;
 static uint8_t g_grayNeedReset = 1;
+static float g_grayPoseX_m = 0;
+static float g_grayPoseY_m = 0;
+static float g_grayPoseHeadingDeg = 0;
+static float g_grayPoseDistance_m = 0;
+static float g_grayGyroZBiasDps = 0;
+static float g_grayBridgeBaseYawDeg = 0;
+static uint8_t g_grayBridgeBaseYawValid = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -129,6 +148,27 @@ static float Gray_NormalizeYawDeg(float yaw_deg)
     return yaw_deg;
 }
 
+static float Gray_BridgeYawRefGet(float current_yaw_deg)
+{
+    if (!g_grayBridgeBaseYawValid) {
+        g_grayBridgeBaseYawDeg = current_yaw_deg;
+        g_grayBridgeBaseYawValid = 1;
+    }
+
+    switch (g_grayRoute) {
+    case GRAY_ROUTE_BRIDGE_TOP_LR:
+    case GRAY_ROUTE_BRIDGE_BOTTOM_LR:
+        return g_grayBridgeBaseYawDeg;
+
+    case GRAY_ROUTE_BRIDGE_BOTTOM_RL:
+    case GRAY_ROUTE_BRIDGE_TOP_RL:
+        return Gray_NormalizeYawDeg(g_grayBridgeBaseYawDeg + 180.0f);
+
+    default:
+        return current_yaw_deg;
+    }
+}
+
 static uint8_t Gray_TaskTargetLapGet(void)
 {
     if (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) {
@@ -151,6 +191,71 @@ static void Gray_StartNotify(void)
     g_grayNotifyTicks = GRAY_NOTIFY_TOGGLE_TICKS;
     g_grayNotifyToggleCount = GRAY_NOTIFY_TOGGLE_TOTAL;
     LED_ON();
+}
+
+static void Gray_PosePublish(void)
+{
+    Gray_PoseX_mm = (int32_t)(g_grayPoseX_m * 1000.0f);
+    Gray_PoseY_mm = (int32_t)(g_grayPoseY_m * 1000.0f);
+    Gray_PoseDistance_mm = (int32_t)(g_grayPoseDistance_m * 1000.0f);
+    Gray_PoseHeadingDegX10 = (int16_t)(Gray_NormalizeYawDeg(g_grayPoseHeadingDeg) * 10.0f);
+    Gray_GyroZBiasDpsX10 = (int16_t)(g_grayGyroZBiasDps * 10.0f);
+}
+
+static void Gray_PoseReset(void)
+{
+    g_grayPoseX_m = 0;
+    g_grayPoseY_m = 0;
+    g_grayPoseHeadingDeg = 0;
+    g_grayPoseDistance_m = 0;
+    Gray_PosePublish();
+}
+
+static void Gray_PoseUpdate(void)
+{
+    JY62_Data data;
+    float wz_dps;
+    float speed_mps;
+    float step_m;
+    float heading_rad;
+
+    if (!JY62_GetData(&data)) {
+        return;
+    }
+
+    wz_dps = data.wz_dps;
+    if ((wz_dps > -GRAY_GYRO_BIAS_LEARN_MAX_DPS) &&
+        (wz_dps < GRAY_GYRO_BIAS_LEARN_MAX_DPS) &&
+        Flag_Stop) {
+        g_grayGyroZBiasDps += GRAY_GYRO_BIAS_ALPHA * (wz_dps - g_grayGyroZBiasDps);
+    }
+
+    wz_dps -= g_grayGyroZBiasDps;
+    if ((wz_dps > -GRAY_GYRO_DEADBAND_DPS) && (wz_dps < GRAY_GYRO_DEADBAND_DPS)) {
+        wz_dps = 0.0f;
+    }
+
+    g_grayPoseHeadingDeg += wz_dps * GRAY_POSE_DT_S;
+    g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(g_grayPoseHeadingDeg);
+
+    if (Flag_Stop) {
+        Gray_PosePublish();
+        return;
+    }
+
+    speed_mps = (MotorA.Current_Encoder + MotorB.Current_Encoder) * 0.5f;
+    step_m = speed_mps * GRAY_POSE_DT_S;
+    heading_rad = g_grayPoseHeadingDeg * GRAY_POSE_DEG_TO_RAD;
+
+    g_grayPoseX_m += step_m * cosf(heading_rad);
+    g_grayPoseY_m += step_m * sinf(heading_rad);
+    if (step_m >= 0.0f) {
+        g_grayPoseDistance_m += step_m;
+    } else {
+        g_grayPoseDistance_m -= step_m;
+    }
+
+    Gray_PosePublish();
 }
 
 static void Gray_StopMission(void)
@@ -189,6 +294,9 @@ static void Gray_ResetTaskState(void)
     g_grayNotifyTicks = 0;
     g_grayNotifyToggleCount = 0;
     g_grayNeedReset = 1;
+    g_grayBridgeBaseYawDeg = 0;
+    g_grayBridgeBaseYawValid = 0;
+    Gray_PoseReset();
     LED_OFF();
 }
 
@@ -437,7 +545,7 @@ void Gray_Mode(void)
             }
             bridge_active = 1;
             bridge_reacquire_count = 0;
-            bridge_yaw_ref_deg = yaw_deg;
+            bridge_yaw_ref_deg = Gray_BridgeYawRefGet(yaw_deg);
             bridge_distance_mm = 0;
             Gray_BridgeDistance_mm = 0;
             Gray_BridgeErrDegX10 = 0;
@@ -524,11 +632,13 @@ void TIMER_0_INST_IRQHandler(void)
 			if (jy62_tick_div >= 2U) {
 				jy62_tick_div = 0;
 				JY62_Tick10ms();
+				K210_Link_Tick10ms();
 			}
 			Key();
 			Gray_TaskTick();
 			Get_Velocity_From_Encoder(-Get_Encoder_countA,-Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
+			Gray_PoseUpdate();
 			if(Run_Mode==0)
 			{
 				Get_RC();         //Handle the APP remote commands //处理APP遥控命令

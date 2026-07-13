@@ -35,6 +35,11 @@ extern volatile uint8_t Gray_Task_Lap;
 extern volatile uint8_t Gray_Task_TargetLap;
 extern volatile uint8_t Gray_Task_PointCount;
 extern volatile uint8_t Gray_LastPointChar;
+extern volatile int32_t Gray_PoseX_mm;
+extern volatile int32_t Gray_PoseY_mm;
+extern volatile int32_t Gray_PoseDistance_mm;
+extern volatile int16_t Gray_PoseHeadingDegX10;
+extern volatile int16_t Gray_GyroZBiasDpsX10;
 #define GRAY_NAV_MODE_LINE   0
 #define GRAY_NAV_MODE_BRIDGE 1
 #define GRAY_NAV_MODE_LOST   2

@@ -13,6 +13,7 @@ static uint8_t g_jy62Frame[JY62_FRAME_LEN];
 static uint8_t g_jy62Index;
 static uint32_t g_jy62NowMs;
 static uint32_t g_jy62LastFrameMs;
+static uint32_t g_jy62LastGyroMs;
 static JY62_Data g_jy62Data;
 
 static void JY62_ClearRxFifo(void)
@@ -77,6 +78,15 @@ static void JY62_HandleFrame(const uint8_t *frame)
         g_jy62Data.wx_dps = (float)x / 32768.0f * 2000.0f;
         g_jy62Data.wy_dps = (float)y / 32768.0f * 2000.0f;
         g_jy62Data.wz_dps = (float)z / 32768.0f * 2000.0f;
+        if (g_jy62LastGyroMs != 0U) {
+            float dt_s = (float)((uint32_t)(g_jy62NowMs - g_jy62LastGyroMs)) / 1000.0f;
+            if ((dt_s > 0.0f) && (dt_s < 0.2f)) {
+                g_jy62Data.gyro_roll_int_deg += g_jy62Data.wx_dps * dt_s;
+                g_jy62Data.gyro_pitch_int_deg += g_jy62Data.wy_dps * dt_s;
+                g_jy62Data.gyro_yaw_int_deg += g_jy62Data.wz_dps * dt_s;
+            }
+        }
+        g_jy62LastGyroMs = g_jy62NowMs;
         break;
     case JY62_FRAME_ANGLE:
         g_jy62Data.roll_deg = (float)x / 32768.0f * 180.0f;
@@ -136,6 +146,7 @@ void JY62_Init(void)
     g_jy62Index = 0;
     g_jy62NowMs = 0;
     g_jy62LastFrameMs = 0;
+    g_jy62LastGyroMs = 0;
     JY62_ClearRxFifo();
     JY62_ResetParser();
 }

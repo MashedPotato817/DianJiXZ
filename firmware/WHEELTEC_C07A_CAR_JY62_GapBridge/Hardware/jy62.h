@@ -13,6 +13,9 @@ typedef struct {
     float roll_deg;
     float pitch_deg;
     float yaw_deg;
+    float gyro_roll_int_deg;
+    float gyro_pitch_int_deg;
+    float gyro_yaw_int_deg;
     uint32_t rx_bytes;
     uint32_t valid_frames;
     uint32_t checksum_errors;

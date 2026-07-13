@@ -3,6 +3,63 @@ Brand: WHEELTEC
 ***********************************************/
 #include "show.h"
 #include "control.h"
+#include "jy62.h"
+#include "k210_link.h"
+
+static void OLED_ShowSignedNumber(uint8_t x, uint8_t y, int value, uint8_t len)
+{
+    OLED_ShowString(x, y, (value < 0) ? "-" : "+");
+    OLED_ShowNumber(x + 8U, y, myabs(value), len, 12);
+}
+
+static void oled_show_jy62_diag(void)
+{
+    JY62_Data data;
+    K210_VisionFrame vision;
+    uint8_t has_vision;
+
+    memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
+    JY62_GetData(&data);
+    has_vision = K210_Link_GetLatestVision(&vision);
+
+    OLED_ShowString(0, 0, "JY");
+    OLED_ShowString(18, 0, data.online ? "ON " : "OFF");
+    OLED_ShowString(48, 0, "VF");
+    OLED_ShowNumber(66, 0, data.valid_frames % 10000U, 4, 12);
+    OLED_ShowString(0, 10, "ER");
+    OLED_ShowNumber(18, 10, data.checksum_errors % 10000U, 4, 12);
+    OLED_ShowString(54, 10, "B");
+    OLED_ShowSignedNumber(64, 10, Gray_GyroZBiasDpsX10 / 10, 2);
+    OLED_ShowString(92, 10, "S");
+    OLED_ShowNumber(102, 10, (uint32_t)myabs((int)Gray_PoseDistance_mm) % 10000U, 4, 12);
+
+    OLED_ShowString(0, 20, "R");
+    OLED_ShowSignedNumber(10, 20, (int)data.roll_deg, 3);
+    OLED_ShowString(46, 20, "P");
+    OLED_ShowSignedNumber(56, 20, (int)data.pitch_deg, 3);
+    OLED_ShowString(92, 20, "Y");
+    OLED_ShowSignedNumber(102, 20, (int)data.yaw_deg, 3);
+
+    OLED_ShowString(0, 30, "GX");
+    OLED_ShowSignedNumber(14, 30, (int)data.wx_dps, 3);
+    OLED_ShowString(50, 30, "GY");
+    OLED_ShowSignedNumber(64, 30, (int)data.wy_dps, 3);
+
+    OLED_ShowString(0, 40, "GZ");
+    OLED_ShowSignedNumber(14, 40, (int)data.wz_dps, 3);
+    OLED_ShowString(54, 40, "H");
+    OLED_ShowSignedNumber(64, 40, Gray_PoseHeadingDegX10 / 10, 3);
+
+    OLED_ShowString(0, 50, "K");
+    OLED_ShowString(10, 50, K210_Link_IsOnline() ? "ON " : "OFF");
+    OLED_ShowString(38, 50, K210_Link_IsHandshakeOk() ? "H" : "-");
+    OLED_ShowString(50, 50, "VF");
+    OLED_ShowNumber(68, 50, K210_Link_VisionFrames() % 1000U, 3, 12);
+    OLED_ShowString(92, 50, "A");
+    OLED_ShowNumber(104, 50, has_vision ? (vision.area % 1000U) : 0U, 3, 12);
+
+    OLED_Refresh_Gram();
+}
 
 void oled_show(void)
 {
@@ -11,6 +68,11 @@ void oled_show(void)
     int yaw_show;
     int err_show;
     char point_str[2];
+
+    if (Flag_Stop) {
+        oled_show_jy62_diag();
+        return;
+    }
 
     memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
     point_str[0] = (char) Gray_LastPointChar;
@@ -69,8 +131,10 @@ void oled_show(void)
     OLED_ShowNumber(12, 50, (int) Voltage, 2, 12);
     OLED_ShowString(28, 50, ".");
     OLED_ShowNumber(38, 50, (u16) (Voltage * 10) % 10, 1, 12);
-    if (Flag_Stop) OLED_ShowString(90, 50, "OFF");
-    else OLED_ShowString(90, 50, "ON ");
+    OLED_ShowString(58, 50, "K");
+    OLED_ShowString(68, 50, K210_Link_IsOnline() ? "ON" : "--");
+    if (Flag_Stop) OLED_ShowString(94, 50, "OFF");
+    else OLED_ShowString(94, 50, "ON ");
 
     OLED_Refresh_Gram();
 }
