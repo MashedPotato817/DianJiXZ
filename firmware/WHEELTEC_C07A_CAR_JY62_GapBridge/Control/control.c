@@ -95,6 +95,19 @@ u8 Flag_Stop=1;//小车启动标志位
 #define GRAY_GYRO_BIAS_ALPHA          0.002f
 #define GRAY_GYRO_BIAS_LEARN_MAX_DPS  2.0f
 #define GRAY_GYRO_DEADBAND_DPS        0.5f
+#define GRAY_TASK4_START_HEADING_DEG   180.0f
+#define GRAY_TASK4_D_TANGENT_DEG       0.0f
+#define GRAY_TASK4_D_TO_B_DEG          38.7f
+#define GRAY_TASK4_C_TANGENT_DEG       180.0f
+#define GRAY_TASK4_C_TO_A_DEG          141.3f
+#define GRAY_TASK4_POINT_TOL_M         0.25f
+#define GRAY_TASK4_WHITE_TICKS         3U
+#define GRAY_TASK4_ALIGN_TICKS_MAX     500U
+#define GRAY_TASK4_ALIGN_STABLE_TICKS  5U
+#define GRAY_TASK4_ALIGN_ERR_DEG       4.0f
+#define GRAY_TASK4_BRIDGE_SPEED_MM_S   280.0f
+#define GRAY_TASK4_BRIDGE_MAX_MM       1600.0f
+#define GRAY_TASK4_LOST_CREEP_MM_S     80.0f
 
 typedef enum {
     GRAY_ROUTE_IDLE = 0,
@@ -108,6 +121,18 @@ typedef enum {
     GRAY_ROUTE_BRIDGE_TOP_RL
 } GrayRouteSegment_t;
 
+typedef enum {
+    GRAY_TASK4_LINE_AD = 0,
+    GRAY_TASK4_ALIGN_D_TANGENT,
+    GRAY_TASK4_ALIGN_D_TO_B,
+    GRAY_TASK4_BRIDGE_D_TO_B,
+    GRAY_TASK4_LINE_BC,
+    GRAY_TASK4_ALIGN_C_TANGENT,
+    GRAY_TASK4_ALIGN_C_TO_A,
+    GRAY_TASK4_BRIDGE_C_TO_A,
+    GRAY_TASK4_ALIGN_A_TANGENT
+} GrayTask4State_t;
+
 static GrayRouteSegment_t g_grayRoute = GRAY_ROUTE_IDLE;
 static uint8_t g_grayMissionDone = 0;
 static uint8_t g_grayNotifyTicks = 0;
@@ -119,11 +144,21 @@ static float g_grayPoseY_m = 0;
 static float g_grayPoseHeadingDeg = 0;
 static float g_grayPoseDistance_m = 0;
 static float g_grayGyroZBiasDps = 0;
+static float g_grayPoseYawOriginDeg = 0;
+static uint8_t g_grayPoseYawOriginValid = 0;
 static float g_grayBridgeBaseYawDeg = 0;
 static uint8_t g_grayBridgeBaseYawValid = 0;
 static float g_grayLineYawRefDeg = 0;
 static uint8_t g_grayLineYawRefValid = 0;
 static int8_t g_grayArcTurnDir = 0;
+static GrayTask4State_t g_grayTask4State = GRAY_TASK4_LINE_AD;
+static float g_grayTask4LastLinePos_mm = 0;
+static int8_t g_grayTask4LastSearchDir = -1;
+static uint8_t g_grayTask4WhiteTicks = 0;
+static uint16_t g_grayTask4AlignTicks = 0;
+static uint8_t g_grayTask4AlignStableTicks = 0;
+static float g_grayTask4BridgeDistance_mm = 0;
+static uint8_t g_grayTask4ReacquireTicks = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -271,8 +306,11 @@ static void Gray_PoseReset(void)
 {
     g_grayPoseX_m = 0;
     g_grayPoseY_m = 0;
-    g_grayPoseHeadingDeg = 0;
+    g_grayPoseHeadingDeg = (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) ?
+                          GRAY_TASK4_START_HEADING_DEG : 0;
     g_grayPoseDistance_m = 0;
+    g_grayPoseYawOriginDeg = 0;
+    g_grayPoseYawOriginValid = 0;
     Gray_PosePublish();
 }
 
@@ -300,8 +338,18 @@ static void Gray_PoseUpdate(void)
         wz_dps = 0.0f;
     }
 
-    g_grayPoseHeadingDeg += wz_dps * GRAY_POSE_DT_S;
-    g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(g_grayPoseHeadingDeg);
+    if (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) {
+        if (!g_grayPoseYawOriginValid) {
+            g_grayPoseYawOriginDeg = data.yaw_deg;
+            g_grayPoseYawOriginValid = 1;
+        }
+        g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(
+            GRAY_TASK4_START_HEADING_DEG +
+            Gray_NormalizeYawDeg(data.yaw_deg - g_grayPoseYawOriginDeg));
+    } else {
+        g_grayPoseHeadingDeg += wz_dps * GRAY_POSE_DT_S;
+        g_grayPoseHeadingDeg = Gray_NormalizeYawDeg(g_grayPoseHeadingDeg);
+    }
 
     if (Flag_Stop) {
         Gray_PosePublish();
@@ -366,6 +414,14 @@ static void Gray_ResetTaskState(void)
     g_grayLineYawRefDeg = 0;
     g_grayLineYawRefValid = 0;
     g_grayArcTurnDir = 0;
+    g_grayTask4State = GRAY_TASK4_LINE_AD;
+    g_grayTask4LastLinePos_mm = 0;
+    g_grayTask4LastSearchDir = -1;
+    g_grayTask4WhiteTicks = 0;
+    g_grayTask4AlignTicks = 0;
+    g_grayTask4AlignStableTicks = 0;
+    g_grayTask4BridgeDistance_mm = 0;
+    g_grayTask4ReacquireTicks = 0;
     Gray_PoseReset();
     LED_OFF();
 }
@@ -504,8 +560,294 @@ static uint8_t Gray_OnBridgeFinish(void)
     return 0U;
 }
 
+static uint8_t Gray_Task4PoseNear(float x_m, float y_m)
+{
+    return ((Gray_AbsDeg(g_grayPoseX_m - x_m) <= GRAY_TASK4_POINT_TOL_M) &&
+            (Gray_AbsDeg(g_grayPoseY_m - y_m) <= GRAY_TASK4_POINT_TOL_M)) ? 1U : 0U;
+}
+
+static void Gray_Task4PoseSnap(float x_m, float y_m)
+{
+    g_grayPoseX_m = x_m;
+    g_grayPoseY_m = y_m;
+    Gray_PosePublish();
+}
+
+static void Gray_Task4Command(float speed_mps, float turn_speed, uint8_t nav_mode)
+{
+    float turn_limit = (nav_mode == GRAY_NAV_MODE_LINE) ?
+                       GRAY_MAX_ANGULAR_SPEED : GRAY_BRIDGE_MAX_TURN_SPEED;
+
+    if (turn_speed > turn_limit) turn_speed = turn_limit;
+    if (turn_speed < -turn_limit) turn_speed = -turn_limit;
+
+    Move_X = speed_mps;
+    Move_Z = turn_speed;
+    Gray_Nav_Mode = nav_mode;
+    Get_Target_Encoder(Move_X, Move_Z);
+}
+
+static void Gray_Task4FollowLine(int black_count, float pos_sum, float wz_dps)
+{
+    float abs_line_pos_mm;
+    float y_m;
+    float lookahead_m;
+    float curvature;
+    float speed_mps;
+    float turn_speed;
+
+    if (black_count == 0) {
+        Gray_Line_Pos_mm = g_grayTask4LastLinePos_mm;
+        Gray_BridgeErrDegX10 = 0;
+        Gray_Task4Command(GRAY_TASK4_LOST_CREEP_MM_S / 1000.0f,
+                          g_grayTask4LastSearchDir * GRAY_LOST_TURN_SPEED,
+                          GRAY_NAV_MODE_LOST);
+        return;
+    }
+
+    Gray_Line_Pos_mm = pos_sum / black_count;
+    g_grayTask4LastLinePos_mm = Gray_Line_Pos_mm;
+    abs_line_pos_mm = Gray_AbsDeg(Gray_Line_Pos_mm);
+
+    if (Gray_Line_Pos_mm > GRAY_LOST_POS_DEADBAND_MM) {
+        g_grayTask4LastSearchDir = -1;
+    } else if (Gray_Line_Pos_mm < -GRAY_LOST_POS_DEADBAND_MM) {
+        g_grayTask4LastSearchDir = 1;
+    }
+
+    speed_mps = GRAY_BASE_SPEED_MM_S / 1000.0f;
+    if ((black_count >= 5) || (abs_line_pos_mm >= GRAY_CURVE_POS_MM)) {
+        speed_mps = GRAY_CURVE_SPEED_MM_S / 1000.0f;
+    } else if (abs_line_pos_mm >= GRAY_MID_POS_MM) {
+        speed_mps = GRAY_MID_SPEED_MM_S / 1000.0f;
+    }
+
+    y_m = Gray_Line_Pos_mm / 1000.0f;
+    lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;
+    curvature = (2.0f * y_m) / (lookahead_m * lookahead_m + y_m * y_m);
+    turn_speed = -GRAY_STEER_GAIN * speed_mps * curvature - GRAY_LINE_GYRO_KD * wz_dps;
+    if (turn_speed > GRAY_MAX_ANGULAR_SPEED) turn_speed = GRAY_MAX_ANGULAR_SPEED;
+    if (turn_speed < -GRAY_MAX_ANGULAR_SPEED) turn_speed = -GRAY_MAX_ANGULAR_SPEED;
+
+    Gray_BridgeErrDegX10 = 0;
+    Gray_Task4Command(speed_mps, turn_speed, GRAY_NAV_MODE_LINE);
+}
+
+static uint8_t Gray_Task4AlignHeading(float target_heading_deg, float wz_dps)
+{
+    float heading_err_deg = Gray_NormalizeYawDeg(target_heading_deg - g_grayPoseHeadingDeg);
+    float turn_speed = GRAY_BRIDGE_HEADING_KP * heading_err_deg - GRAY_BRIDGE_GYRO_KD * wz_dps;
+
+    Gray_BridgeErrDegX10 = (int16_t)(heading_err_deg * 10.0f);
+    if (Gray_AbsDeg(heading_err_deg) <= GRAY_TASK4_ALIGN_ERR_DEG) {
+        if (g_grayTask4AlignStableTicks < 255U) {
+            g_grayTask4AlignStableTicks++;
+        }
+        if (g_grayTask4AlignStableTicks >= GRAY_TASK4_ALIGN_STABLE_TICKS) {
+            Gray_Task4Command(0, 0, GRAY_NAV_MODE_BRIDGE);
+            return 1U;
+        }
+    } else {
+        g_grayTask4AlignStableTicks = 0;
+    }
+
+    if (g_grayTask4AlignTicks >= GRAY_TASK4_ALIGN_TICKS_MAX) {
+        Gray_StopMission();
+        return 0U;
+    }
+    g_grayTask4AlignTicks++;
+    Gray_Task4Command(0, turn_speed, GRAY_NAV_MODE_BRIDGE);
+    return 0U;
+}
+
+static void Gray_Task4BeginAlign(GrayTask4State_t state)
+{
+    g_grayTask4State = state;
+    g_grayTask4AlignTicks = 0;
+    g_grayTask4AlignStableTicks = 0;
+    g_grayTask4ReacquireTicks = 0;
+    Gray_BridgeDistance_mm = 0;
+}
+
+static void Gray_Task4BridgeCommand(float target_heading_deg, float wz_dps)
+{
+    float heading_err_deg = Gray_NormalizeYawDeg(target_heading_deg - g_grayPoseHeadingDeg);
+    float turn_speed = GRAY_BRIDGE_HEADING_KP * heading_err_deg - GRAY_BRIDGE_GYRO_KD * wz_dps;
+
+    g_grayTask4BridgeDistance_mm += GRAY_TASK4_BRIDGE_SPEED_MM_S * GRAY_POSE_DT_S;
+    Gray_BridgeDistance_mm = (uint16_t)g_grayTask4BridgeDistance_mm;
+    Gray_BridgeErrDegX10 = (int16_t)(heading_err_deg * 10.0f);
+
+    if (g_grayTask4BridgeDistance_mm >= GRAY_TASK4_BRIDGE_MAX_MM) {
+        Gray_StopMission();
+        return;
+    }
+
+    Gray_Task4Command(GRAY_TASK4_BRIDGE_SPEED_MM_S / 1000.0f,
+                      turn_speed, GRAY_NAV_MODE_BRIDGE);
+}
+
+static uint8_t Gray_Task4WhitePointReached(float x_m, float y_m)
+{
+    if (Gray_Task4PoseNear(x_m, y_m)) {
+        if (g_grayTask4WhiteTicks < 255U) {
+            g_grayTask4WhiteTicks++;
+        }
+    } else {
+        g_grayTask4WhiteTicks = 0;
+    }
+
+    return (g_grayTask4WhiteTicks >= GRAY_TASK4_WHITE_TICKS) ? 1U : 0U;
+}
+
+static void Gray_Task4Mode(void)
+{
+    uint8_t i;
+    int black_count = 0;
+    float pos_sum = 0;
+    float wz_dps = 0;
+    JY62_Data jy62_data;
+
+    if (g_grayMissionDone) {
+        Gray_Task4Command(0, 0, GRAY_NAV_MODE_LINE);
+        return;
+    }
+
+    Gray_Read_All();
+    for (i = 0; i < 8; i++) {
+        if (Gray_Data[i]) {
+            pos_sum += Gray_Pos_mm[i];
+            black_count++;
+        }
+    }
+    Gray_BlackCount_Debug = (uint8_t)black_count;
+
+    if (!JY62_IsOnline() || !JY62_GetData(&jy62_data) || !g_grayPoseYawOriginValid) {
+        Gray_Task4Command(0, 0, GRAY_NAV_MODE_LOST);
+        return;
+    }
+    wz_dps = jy62_data.wz_dps;
+    Gray_YawDegX10 = (int16_t)(jy62_data.yaw_deg * 10.0f);
+
+    switch (g_grayTask4State) {
+    case GRAY_TASK4_LINE_AD:
+        if ((black_count == 0) && Gray_Task4WhitePointReached(0.0f, -0.80f)) {
+            Gray_Task4PoseSnap(0.0f, -0.80f);
+            Gray_RecordPoint('D');
+            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_D_TANGENT);
+            Gray_Task4Command(0, 0, GRAY_NAV_MODE_BRIDGE);
+            return;
+        }
+        if (black_count != 0) g_grayTask4WhiteTicks = 0;
+        Gray_Task4FollowLine(black_count, pos_sum, wz_dps);
+        return;
+
+    case GRAY_TASK4_ALIGN_D_TANGENT:
+        if (Gray_Task4AlignHeading(GRAY_TASK4_D_TANGENT_DEG, wz_dps)) {
+            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_D_TO_B);
+        }
+        return;
+
+    case GRAY_TASK4_ALIGN_D_TO_B:
+        if (Gray_Task4AlignHeading(GRAY_TASK4_D_TO_B_DEG, wz_dps)) {
+            g_grayTask4State = GRAY_TASK4_BRIDGE_D_TO_B;
+            g_grayTask4BridgeDistance_mm = 0;
+            g_grayTask4ReacquireTicks = 0;
+        }
+        return;
+
+    case GRAY_TASK4_BRIDGE_D_TO_B:
+        if (black_count > 0) {
+            if (g_grayTask4ReacquireTicks < 255U) {
+                g_grayTask4ReacquireTicks++;
+            }
+            if (g_grayTask4ReacquireTicks >= 2U) {
+                Gray_RecordPoint('B');
+                g_grayTask4State = GRAY_TASK4_LINE_BC;
+                g_grayTask4WhiteTicks = 0;
+                g_grayTask4BridgeDistance_mm = 0;
+                Gray_BridgeDistance_mm = 0;
+                Gray_Task4FollowLine(black_count, pos_sum, wz_dps);
+                return;
+            }
+        } else {
+            g_grayTask4ReacquireTicks = 0;
+        }
+        Gray_Task4BridgeCommand(GRAY_TASK4_D_TO_B_DEG, wz_dps);
+        return;
+
+    case GRAY_TASK4_LINE_BC:
+        if ((black_count == 0) && Gray_Task4WhitePointReached(1.00f, -0.80f)) {
+            Gray_Task4PoseSnap(1.00f, -0.80f);
+            Gray_RecordPoint('C');
+            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_C_TANGENT);
+            Gray_Task4Command(0, 0, GRAY_NAV_MODE_BRIDGE);
+            return;
+        }
+        if (black_count != 0) g_grayTask4WhiteTicks = 0;
+        Gray_Task4FollowLine(black_count, pos_sum, wz_dps);
+        return;
+
+    case GRAY_TASK4_ALIGN_C_TANGENT:
+        if (Gray_Task4AlignHeading(GRAY_TASK4_C_TANGENT_DEG, wz_dps)) {
+            Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_C_TO_A);
+        }
+        return;
+
+    case GRAY_TASK4_ALIGN_C_TO_A:
+        if (Gray_Task4AlignHeading(GRAY_TASK4_C_TO_A_DEG, wz_dps)) {
+            g_grayTask4State = GRAY_TASK4_BRIDGE_C_TO_A;
+            g_grayTask4BridgeDistance_mm = 0;
+            g_grayTask4ReacquireTicks = 0;
+        }
+        return;
+
+    case GRAY_TASK4_BRIDGE_C_TO_A:
+        if ((black_count > 0) && Gray_Task4PoseNear(0.0f, 0.0f)) {
+            if (g_grayTask4ReacquireTicks < 255U) {
+                g_grayTask4ReacquireTicks++;
+            }
+            if (g_grayTask4ReacquireTicks >= 2U) {
+                Gray_Task4PoseSnap(0.0f, 0.0f);
+                Gray_RecordPoint('A');
+                if (Gray_Task_Lap < 255U) {
+                    Gray_Task_Lap++;
+                }
+                if (Gray_Task_Lap >= Gray_Task_TargetLap) {
+                    Gray_StopMission();
+                    return;
+                }
+                Gray_Task4BeginAlign(GRAY_TASK4_ALIGN_A_TANGENT);
+                Gray_Task4Command(0, 0, GRAY_NAV_MODE_BRIDGE);
+                return;
+            }
+        } else {
+            g_grayTask4ReacquireTicks = 0;
+        }
+        Gray_Task4BridgeCommand(GRAY_TASK4_C_TO_A_DEG, wz_dps);
+        return;
+
+    case GRAY_TASK4_ALIGN_A_TANGENT:
+        if (Gray_Task4AlignHeading(GRAY_TASK4_START_HEADING_DEG, wz_dps)) {
+            g_grayTask4State = GRAY_TASK4_LINE_AD;
+            g_grayTask4WhiteTicks = 0;
+            Gray_Task4Command(0, 0, GRAY_NAV_MODE_LINE);
+        }
+        return;
+
+    default:
+        Gray_StopMission();
+        return;
+    }
+}
+
 void Gray_Mode(void)
 {
+    if (Gray_Task_Mode == GRAY_TASK_4_CCW_4LAP) {
+        Gray_Task4Mode();
+        return;
+    }
+
     static float last_line_pos_mm = 0;
     static int8_t last_search_dir = 1;
     static uint8_t cross_detect_count = 0;
