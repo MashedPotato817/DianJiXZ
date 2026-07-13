@@ -12,7 +12,6 @@ void BT_DAMConfig(void)
 
 void BTBufferHandler(void)
 {
-    JY62_Process();
 }
 
 void UART_1_INST_IRQHandler(void)
@@ -20,7 +19,7 @@ void UART_1_INST_IRQHandler(void)
     uint8_t data;
 
     while (DL_UART_Main_receiveDataCheck(UART_1_INST, &data)) {
-        JY62_InputByteFromISR(data);
+        K210_Link_InputByteFromISR(data);
     }
 }
 
@@ -29,6 +28,5 @@ void UART_0_INST_IRQHandler(void)
     uint8_t data;
 
     while (DL_UART_Main_receiveDataCheck(UART_0_INST, &data)) {
-        K210_Link_InputByteFromISR(data);
     }
 }

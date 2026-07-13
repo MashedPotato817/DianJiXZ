@@ -6,6 +6,7 @@
 #define K210_ASCII_BUF_SIZE       24U
 #define K210_HELLO_PERIOD_MS      500U
 #define K210_ONLINE_TIMEOUT_MS    1500U
+#define K210_UART_INST            UART_1_INST
 
 static uint8_t g_k210BinBuf[K210_BINARY_LEN];
 static uint8_t g_k210BinIndex;
@@ -37,7 +38,7 @@ static void K210_SetOnline(void)
 static void K210_UART_SendString(const char *str)
 {
     while (*str != '\0') {
-        DL_UART_Main_transmitDataBlocking(UART_0_INST, (uint8_t)*str++);
+        DL_UART_Main_transmitDataBlocking(K210_UART_INST, (uint8_t)*str++);
     }
 }
 
@@ -145,9 +146,9 @@ void K210_Link_Init(void)
     g_k210ChecksumErrors = 0;
     memset(&g_k210LatestVision, 0, sizeof(g_k210LatestVision));
 
-    while (DL_UART_Main_receiveDataCheck(UART_0_INST, &data)) {
+    while (DL_UART_Main_receiveDataCheck(K210_UART_INST, &data)) {
     }
-    DL_UART_Main_enableInterrupt(UART_0_INST, DL_UART_MAIN_INTERRUPT_RX);
+    DL_UART_Main_enableInterrupt(K210_UART_INST, DL_UART_MAIN_INTERRUPT_RX);
 }
 
 void K210_Link_Tick10ms(void)
@@ -160,7 +161,7 @@ void K210_Link_Process(void)
     uint8_t data;
     uint32_t now = g_k210NowMs;
 
-    while (DL_UART_Main_receiveDataCheck(UART_0_INST, &data)) {
+    while (DL_UART_Main_receiveDataCheck(K210_UART_INST, &data)) {
         K210_Link_InputByteFromISR(data);
     }
 
