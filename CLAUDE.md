@@ -59,15 +59,19 @@ git fetch yangran
 git merge yangran/main
 ```
 
-队友贡献了 **K210 通信链路**（`k210_link.c/h`）、**ESP32-S3 黑匣子遥测**、陀螺仪里程计、H 题任务状态机等。关键文件：
+队友贡献了 `k210_link.c/h`（K210/K230 通信链路）、**ESP32-S3 黑匣子遥测**、陀螺仪里程计、H 题任务状态机等。关键文件：
 
 | 文件 | 内容 |
 |------|------|
-| `firmware/K210/k210_uart_test.py` | K210 端 UART 测试脚本 |
-| `firmware/.../Hardware/k210_link.c/h` | MSPM0 端 K210 通信——**二进制协议**（0xAA 头+8字节）和**ASCII 握手**（$CAR,HELLO# / $K210,OK#）双模 |
+| `firmware/K210/k210_uart_test.py` | 视觉芯片端 UART 测试脚本 |
+| `firmware/.../Hardware/k210_link.c/h` | MSPM0 端通信——**二进制协议**（0xAA 头+8字节 XOR）和**ASCII 握手**（$CAR,HELLO# / $K210,OK#）。K230 可复用此协议框架 |
 | `firmware/ESP32S3_Blackbox/` | ESP32-S3 遥测黑匣子 |
 
-K210 用 **UART_0**（和 JY62/蓝牙的 UART_1 分开），协议已定义 `K210_VisionFrame {x, y, area, sequence, timestamp_ms}`。
+视觉芯片用 **UART_0**（和 JY62/蓝牙的 UART_1 分开）。
+
+## 视觉芯片选型
+
+**已选定 K230（CanMV），放弃 K210。** K210 工具链老旧、MicroPython 支持差、通信未调通。K230 CanMV 固件兼容 OpenMV API（`find_blobs()` 等函数直接可用），¥188~249，淘宝搜"立创庐山派 K230"或"CanMV K230"。详见 `workflow/`。
 
 ## 编码规范
 
