@@ -18,7 +18,7 @@ static const DL_TimerA_ClockConfig g_gimbalClockConfig = {
 static const DL_TimerA_PWMConfig g_gimbalPwmConfig = {
     .pwmMode = DL_TIMER_PWM_MODE_EDGE_ALIGN_UP,
     .period = GIMBAL_PWM_PERIOD_TICKS,
-    .isTimerWithFourCC = true,
+    .isTimerWithFourCC = false,
     .startTimer = DL_TIMER_START
 };
 
@@ -82,6 +82,7 @@ void Gimbal_Init(void)
 {
     DL_TimerA_reset(TIMA0);
     DL_TimerA_enablePower(TIMA0);
+    delay_cycles(POWER_STARTUP_DELAY);
 
     DL_GPIO_initPeripheralOutputFunction(IOMUX_PINCM1, IOMUX_PINCM1_PF_TIMA0_CCP0);
     DL_GPIO_enableOutput(GPIOA, DL_GPIO_PIN_0);
