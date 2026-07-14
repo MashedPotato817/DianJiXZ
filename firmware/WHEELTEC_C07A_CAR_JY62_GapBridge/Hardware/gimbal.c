@@ -7,6 +7,7 @@
 #define GIMBAL_PULSE_MIN_US          1000U
 #define GIMBAL_PULSE_CENTER_US       1500U
 #define GIMBAL_PULSE_MAX_US          2000U
+#define GIMBAL_BOOT_TEST_ENABLE      1
 
 static const DL_TimerA_ClockConfig g_gimbalClockConfig = {
     .clockSel = DL_TIMER_CLOCK_BUSCLK,
@@ -102,8 +103,20 @@ void Gimbal_Init(void)
     DL_TimerA_setCaptCompUpdateMethod(TIMA0, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE,
                                       DL_TIMERA_CAPTURE_COMPARE_1_INDEX);
 
-    Gimbal_StopYaw();
-    Gimbal_SetPitchDeg(90);
     DL_TimerA_enableClock(TIMA0);
     DL_TimerA_setCCPDirection(TIMA0, DL_TIMER_CC0_OUTPUT | DL_TIMER_CC1_OUTPUT);
+
+    Gimbal_StopYaw();
+    Gimbal_SetPitchDeg(90);
+
+#if GIMBAL_BOOT_TEST_ENABLE
+    delay_ms(300);
+    Gimbal_SetYawSpeed(35);
+    delay_ms(800);
+    Gimbal_StopYaw();
+    delay_ms(300);
+    Gimbal_SetYawSpeed(-35);
+    delay_ms(800);
+    Gimbal_StopYaw();
+#endif
 }
