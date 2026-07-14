@@ -90,19 +90,19 @@ void Gimbal_SetPitchDeg(int16_t degree)
 void Gimbal_Init(void)
 {
 #if GIMBAL_GPIO_DEBUG_ENABLE
-    uint8_t i;
-
     DL_GPIO_initDigitalOutput(GIMBAL_YAW_IOMUX);
-    DL_GPIO_clearPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
     DL_GPIO_enableOutput(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
-
-    for (i = 0; i < 20U; ++i) {
-        DL_GPIO_togglePins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
-        delay_ms(200);
-    }
-
     DL_GPIO_clearPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
-    return;
+
+    while (1) {
+        DL_GPIO_setPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
+        LED_ON();
+        delay_ms(1000);
+
+        DL_GPIO_clearPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
+        LED_OFF();
+        delay_ms(1000);
+    }
 #endif
 
     DL_TimerA_reset(TIMA0);
