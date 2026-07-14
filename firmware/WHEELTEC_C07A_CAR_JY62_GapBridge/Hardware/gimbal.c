@@ -9,6 +9,14 @@
 #define GIMBAL_PULSE_MAX_US          2000U
 #define GIMBAL_BOOT_TEST_ENABLE      1
 #define GIMBAL_GPIO_DEBUG_ENABLE     1
+#define GIMBAL_YAW_PORT              GPIOA
+#define GIMBAL_YAW_PIN               DL_GPIO_PIN_8
+#define GIMBAL_YAW_IOMUX             IOMUX_PINCM19
+#define GIMBAL_YAW_IOMUX_FUNC        IOMUX_PINCM19_PF_TIMA0_CCP0
+#define GIMBAL_PITCH_PORT            GPIOA
+#define GIMBAL_PITCH_PIN             DL_GPIO_PIN_1
+#define GIMBAL_PITCH_IOMUX           IOMUX_PINCM2
+#define GIMBAL_PITCH_IOMUX_FUNC      IOMUX_PINCM2_PF_TIMA0_CCP1
 
 static const DL_TimerA_ClockConfig g_gimbalClockConfig = {
     .clockSel = DL_TIMER_CLOCK_BUSCLK,
@@ -84,16 +92,16 @@ void Gimbal_Init(void)
 #if GIMBAL_GPIO_DEBUG_ENABLE
     uint8_t i;
 
-    DL_GPIO_initDigitalOutput(IOMUX_PINCM1);
-    DL_GPIO_clearPins(GPIOA, DL_GPIO_PIN_0);
-    DL_GPIO_enableOutput(GPIOA, DL_GPIO_PIN_0);
+    DL_GPIO_initDigitalOutput(GIMBAL_YAW_IOMUX);
+    DL_GPIO_clearPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
+    DL_GPIO_enableOutput(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
 
     for (i = 0; i < 20U; ++i) {
-        DL_GPIO_togglePins(GPIOA, DL_GPIO_PIN_0);
+        DL_GPIO_togglePins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
         delay_ms(200);
     }
 
-    DL_GPIO_clearPins(GPIOA, DL_GPIO_PIN_0);
+    DL_GPIO_clearPins(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
     return;
 #endif
 
@@ -101,10 +109,10 @@ void Gimbal_Init(void)
     DL_TimerA_enablePower(TIMA0);
     delay_cycles(POWER_STARTUP_DELAY);
 
-    DL_GPIO_initPeripheralOutputFunction(IOMUX_PINCM1, IOMUX_PINCM1_PF_TIMA0_CCP0);
-    DL_GPIO_enableOutput(GPIOA, DL_GPIO_PIN_0);
-    DL_GPIO_initPeripheralOutputFunction(IOMUX_PINCM2, IOMUX_PINCM2_PF_TIMA0_CCP1);
-    DL_GPIO_enableOutput(GPIOA, DL_GPIO_PIN_1);
+    DL_GPIO_initPeripheralOutputFunction(GIMBAL_YAW_IOMUX, GIMBAL_YAW_IOMUX_FUNC);
+    DL_GPIO_enableOutput(GIMBAL_YAW_PORT, GIMBAL_YAW_PIN);
+    DL_GPIO_initPeripheralOutputFunction(GIMBAL_PITCH_IOMUX, GIMBAL_PITCH_IOMUX_FUNC);
+    DL_GPIO_enableOutput(GIMBAL_PITCH_PORT, GIMBAL_PITCH_PIN);
 
     DL_TimerA_setClockConfig(TIMA0, (DL_TimerA_ClockConfig *)&g_gimbalClockConfig);
     DL_TimerA_initPWMMode(TIMA0, (DL_TimerA_PWMConfig *)&g_gimbalPwmConfig);
