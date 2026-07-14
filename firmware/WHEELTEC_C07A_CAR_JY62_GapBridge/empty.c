@@ -35,6 +35,7 @@ int main(void)
     NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
 
     OLED_Init();
+    Gimbal_Init();
     JY62_Init();
     K210_Link_Init();
 

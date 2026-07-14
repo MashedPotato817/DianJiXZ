@@ -588,6 +588,11 @@
           <FileType>1</FileType>
           <FilePath>..\Hardware\k210_link.c</FilePath>
         </File>
+        <File>
+          <FileName>gimbal.c</FileName>
+          <FileType>1</FileType>
+          <FilePath>..\Hardware\gimbal.c</FilePath>
+        </File>
       </Files>
     </Group>
         <Group>
@@ -641,4 +646,3 @@
   </LayerInfo>
 
 </Project>
-
