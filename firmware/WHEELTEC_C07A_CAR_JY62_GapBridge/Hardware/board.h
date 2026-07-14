@@ -7,6 +7,7 @@
 #include "led.h"
 #include "key.h"
 #include "motor.h"
+#include "gimbal.h"
 #include "oled.h"
 #include "encoder.h"
 #include "show.h"
