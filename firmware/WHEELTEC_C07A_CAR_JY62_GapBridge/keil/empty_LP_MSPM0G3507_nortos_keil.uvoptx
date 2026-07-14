@@ -73,11 +73,11 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>0</tvExp>
+        <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
-      <CpuCode>0</CpuCode>
+      <CpuCode>4</CpuCode>
       <DebugOpt>
         <uSim>0</uSim>
         <uTrg>1</uTrg>
@@ -117,6 +117,11 @@
         <pMon>BIN\CMSIS_AGDI.dll</pMon>
       </DebugOpt>
       <TargetDriverDllRegistry>
+        <SetRegEntry>
+          <Number>0</Number>
+          <Key>CMSIS_AGDI</Key>
+          <Name>-X"Any" -UAny -O206 -S9 -C0 -P00000000 -N00("") -D00(00000000) -L00(0) -TO65554 -TC10000000 -TT10000000 -TP20 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -FO7 -FD20200000 -FC8000 -FN1 -FF0MSPM0G1X0X_G3X0X_MAIN_128KB.FLM -FS00 -FL020000 -FP0($$Device:MSPM0G3507$02_Flash_Programming\FlashARM\MSPM0G1X0X_G3X0X_MAIN_128KB.FLM)</Name>
+        </SetRegEntry>
         <SetRegEntry>
           <Number>0</Number>
           <Key>UL2CM3</Key>
@@ -167,7 +172,7 @@
       <pSingCmdsp></pSingCmdsp>
       <pMultCmdsp></pMultCmdsp>
       <DebugDescription>
-        <Enable>1</Enable>
+        <Enable>0</Enable>
         <EnableFlashSeq>1</EnableFlashSeq>
         <EnableLog>0</EnableLog>
         <Protocol>2</Protocol>
@@ -269,7 +274,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_vref.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_vref.c</PathWithFileName>
       <FilenameWithoutPath>dl_vref.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -281,7 +286,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_uart.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_uart.c</PathWithFileName>
       <FilenameWithoutPath>dl_uart.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -293,7 +298,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_trng.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_trng.c</PathWithFileName>
       <FilenameWithoutPath>dl_trng.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -305,7 +310,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_timer.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_timer.c</PathWithFileName>
       <FilenameWithoutPath>dl_timer.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -317,7 +322,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_spi.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_spi.c</PathWithFileName>
       <FilenameWithoutPath>dl_spi.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -329,7 +334,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_rtc_common.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_rtc_common.c</PathWithFileName>
       <FilenameWithoutPath>dl_rtc_common.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -341,7 +346,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_opa.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_opa.c</PathWithFileName>
       <FilenameWithoutPath>dl_opa.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -353,7 +358,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_mcan.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_mcan.c</PathWithFileName>
       <FilenameWithoutPath>dl_mcan.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -365,7 +370,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_mathacl.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_mathacl.c</PathWithFileName>
       <FilenameWithoutPath>dl_mathacl.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -377,7 +382,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_lfss.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_lfss.c</PathWithFileName>
       <FilenameWithoutPath>dl_lfss.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -389,7 +394,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_lcd.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_lcd.c</PathWithFileName>
       <FilenameWithoutPath>dl_lcd.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -401,7 +406,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_keystorectl.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_keystorectl.c</PathWithFileName>
       <FilenameWithoutPath>dl_keystorectl.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -413,7 +418,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_i2c.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_i2c.c</PathWithFileName>
       <FilenameWithoutPath>dl_i2c.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -425,7 +430,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_flashctl.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_flashctl.c</PathWithFileName>
       <FilenameWithoutPath>dl_flashctl.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -437,7 +442,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_dma.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_dma.c</PathWithFileName>
       <FilenameWithoutPath>dl_dma.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -449,7 +454,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_dac12.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_dac12.c</PathWithFileName>
       <FilenameWithoutPath>dl_dac12.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -461,7 +466,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_crcp.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_crcp.c</PathWithFileName>
       <FilenameWithoutPath>dl_crcp.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -473,7 +478,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_crc.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_crc.c</PathWithFileName>
       <FilenameWithoutPath>dl_crc.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -485,7 +490,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_common.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_common.c</PathWithFileName>
       <FilenameWithoutPath>dl_common.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -497,7 +502,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_aesadv.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_aesadv.c</PathWithFileName>
       <FilenameWithoutPath>dl_aesadv.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -509,7 +514,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_aes.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_aes.c</PathWithFileName>
       <FilenameWithoutPath>dl_aes.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -521,7 +526,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\ti\dl_adc12.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\ti\\dl_adc12.c</PathWithFileName>
       <FilenameWithoutPath>dl_adc12.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -533,7 +538,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\source\ti\driverlib\m0p\dl_interrupt.c</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\source\ti\driverlib\m0p\dl_interrupt.c</PathWithFileName>
       <FilenameWithoutPath>dl_interrupt.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -545,7 +550,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\source\ti\driverlib\lib\keil\m0p\mspm0g1x0x_g3x0x\driverlib.a</PathWithFileName>
+      <PathWithFileName>..\\..\\WHEELTEC_C07A_CAR\\source\ti\driverlib\lib\keil\m0p\mspm0g1x0x_g3x0x\driverlib.a</PathWithFileName>
       <FilenameWithoutPath>driverlib.a</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -654,6 +659,30 @@
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
+    <File>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>39</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Hardware\k210_link.c</PathWithFileName>
+      <FilenameWithoutPath>k210_link.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>40</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Hardware\gimbal.c</PathWithFileName>
+      <FilenameWithoutPath>gimbal.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
   </Group>
 
   <Group>
@@ -664,7 +693,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>39</FileNumber>
+      <FileNumber>41</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -676,7 +705,7 @@
     </File>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>40</FileNumber>
+      <FileNumber>42</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -688,7 +717,7 @@
     </File>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>41</FileNumber>
+      <FileNumber>43</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -700,7 +729,7 @@
     </File>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>42</FileNumber>
+      <FileNumber>44</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>

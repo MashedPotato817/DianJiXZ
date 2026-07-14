@@ -3,9 +3,7 @@
  * All rights reserved.
  */
 #include "board.h"
-#include "jy62.h"
-#include "k210_link.h"
-
+#include "oled.h"
 u8 Car_Mode = Diff_Car;
 int Motor_Left, Motor_Right;
 u8 PID_Send;
@@ -16,36 +14,24 @@ float Voltage = 0;
 
 int main(void)
 {
-    u16 last_show_cnt = 0;
-
     SYSCFG_DL_init();
-
-    NVIC_ClearPendingIRQ(ENCODERA_INT_IRQN);
-    NVIC_ClearPendingIRQ(ENCODERB_INT_IRQN);
-    NVIC_ClearPendingIRQ(UART_0_INST_INT_IRQN);
-    NVIC_ClearPendingIRQ(UART_1_INST_INT_IRQN);
-
-    NVIC_EnableIRQ(ENCODERA_INT_IRQN);
-    NVIC_EnableIRQ(ENCODERB_INT_IRQN);
-    NVIC_EnableIRQ(UART_0_INST_INT_IRQN);
-    NVIC_EnableIRQ(UART_1_INST_INT_IRQN);
-
-    NVIC_ClearPendingIRQ(TIMER_0_INST_INT_IRQN);
-    NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN);
-    NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
-
     OLED_Init();
     Gimbal_Init();
-    JY62_Init();
-    K210_Link_Init();
+    Gimbal_StopYaw();
+    Gimbal_SetPitchPulseUs(1500);
+    OLED_Clear();
+    OLED_ShowString(0, 0, "Pitch demo PA1");
+    OLED_ShowString(0, 16, "1000us <-> 2000us");
+    OLED_Refresh_Gram();
+    delay_ms(1000);
 
     while (1) {
-        Voltage = Get_battery_volt();
-        BTBufferHandler();
-        K210_Link_Process();
-        if ((u16) (show_cnt - last_show_cnt) >= 8U) {
-            oled_show();
-            last_show_cnt = show_cnt;
-        }
+        LED_ON();
+        Gimbal_SetPitchPulseUs(1000);
+        delay_ms(1500);
+
+        LED_OFF();
+        Gimbal_SetPitchPulseUs(2000);
+        delay_ms(1500);
     }
 }

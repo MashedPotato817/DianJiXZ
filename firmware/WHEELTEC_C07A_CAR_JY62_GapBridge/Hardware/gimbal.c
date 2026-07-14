@@ -7,8 +7,8 @@
 #define GIMBAL_PULSE_MIN_US          1000U
 #define GIMBAL_PULSE_CENTER_US       1500U
 #define GIMBAL_PULSE_MAX_US          2000U
-#define GIMBAL_BOOT_TEST_ENABLE      1
-#define GIMBAL_GPIO_DEBUG_ENABLE     1
+#define GIMBAL_BOOT_TEST_ENABLE      0
+#define GIMBAL_GPIO_DEBUG_ENABLE     0
 #define GIMBAL_YAW_PORT              GPIOA
 #define GIMBAL_YAW_PIN               DL_GPIO_PIN_8
 #define GIMBAL_YAW_IOMUX             IOMUX_PINCM19
