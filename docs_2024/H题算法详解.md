@@ -120,106 +120,109 @@ if (g_odom_segment_mm > g_segment_expected_mm * 1.1f) {
 
 ---
 
-## 算法三：路段序列状态机
+## 算法三：T4 位姿导航状态机（队友实装）
 
-### 数据结构
+队友 `6e8be58` ~ `69dd12d` 实现了完整的 T4 位姿引导导航。比之前的设计更精细——不是简单的"巡线→过点→下一段"，而是**位姿推算 + 航向对齐 + 对角线直冲 + 重捕获**的多状态流水线。
+
+### 场地坐标系
+
+从代码中反推的场地布局（坐标单位：米）：
+
+```
+        A (0, 0)                 B (1.0, 0)
+           ┌──────────────────────┐
+           │                      │
+           │    220cm × 120cm     │
+           │                      │
+           └──────────────────────┘
+        D (0, -0.80)            C (1.0, -0.80)
+```
+
+位姿推算起点：A 点 (0, 0)，初始航向 180°（朝下）。
+
+### 九个状态
 
 ```c
 typedef enum {
-    POINT_A = 0,
-    POINT_B,
-    POINT_C,
-    POINT_D
-} RoutePoint_t;
-
-typedef enum {
-    SEG_ARC_AB = 0,    // A→B 顶弧（左转弧）
-    SEG_STRAIGHT_BC,   // B→C 右直
-    SEG_ARC_CD,        // C→D 底弧（右转弧）
-    SEG_STRAIGHT_DA,   // D→A 左直
-    SEG_STOP
-} RouteSegment_t;
-
-typedef struct {
-    RouteSegment_t seg;
-    RoutePoint_t   end_point;        // 终点
-    float          speed_mm_s;       // 目标速度
-    float          expected_len_mm;  // 预期里程（直线用）
-} RouteEntry_t;
+    GRAY_TASK4_LINE_AD = 0,      // 巡线 A→D
+    GRAY_TASK4_ALIGN_D_TANGENT,  // 对齐 D 点切线方向 (0°)
+    GRAY_TASK4_ALIGN_D_TO_B,     // 对齐 D→B 对角线方向 (35°)
+    GRAY_TASK4_BRIDGE_D_TO_B,    // 直冲 D→B（航向保持 35°）
+    GRAY_TASK4_LINE_BC,          // 巡线 B→C
+    GRAY_TASK4_ALIGN_C_TANGENT,  // 对齐 C 点切线方向 (180°)
+    GRAY_TASK4_ADVANCE_C,        // 过 C 后前进 200mm
+    GRAY_TASK4_ALIGN_C_TO_A,     // 对齐 C→A 对角线方向 (145°)
+    GRAY_TASK4_BRIDGE_C_TO_A,    // 直冲 C→A（航向保持 145°）
+    GRAY_TASK4_ALIGN_A_TANGENT   // 回到 A 后对齐初始方向 (180°)
+} GrayTask4State_t;
 ```
 
-### T4 路段序列
+### 状态流转图
 
-```c
-static const RouteEntry_t g_route_t4[] = {
-    { SEG_STRAIGHT_DA,  POINT_D, 300, 60 },   // A→D 左直, 60cm
-    { SEG_ARC_CD,       POINT_C, 200, 126 },  // D→C 底弧, 126cm
-    { SEG_STRAIGHT_BC,  POINT_B, 300, 60 },   // C→B 右直, 60cm (反向)
-    { SEG_ARC_AB,       POINT_A, 200, 126 },  // B→A 顶弧, 126cm (反向)
-    { SEG_STOP,         0,       0,   0   }
-};
+```
+LINE_AD ──丢线+位姿到达 D──→ ALIGN_D_TANGENT ──航向=0°对准──→
+ALIGN_D_TO_B ──航向=35°对准──→ BRIDGE_D_TO_B ──看到线──→
+LINE_BC ──丢线+位姿到达 C──→ ALIGN_C_TANGENT ──航向=180°对准──→
+ADVANCE_C ──前进了200mm──→ ALIGN_C_TO_A ──航向=145°对准──→
+BRIDGE_C_TO_A ──看到线+位姿到A──→ ALIGN_A_TANGENT ──航向=180°对准──→
+LINE_AD（下一圈）
 ```
 
-> 注：这里假设 A→C 的路径是 A→D→C。实际路径看 pic1 场地示意图确认。
+### 关键参数
 
-### 状态机主循环（每 5ms 调一次）
+| 参数 | 值 | 含义 |
+|------|-----|------|
+| `GRAY_TASK4_D_TO_B_DEG` | 35° | D→B 对角线航向 |
+| `GRAY_TASK4_C_TO_A_DEG` | 145° | C→A 对角线航向 |
+| `GRAY_TASK4_C_ADVANCE_MM` | 200mm | 过 C 后额外前进距离 |
+| `GRAY_TASK4_BRIDGE_SPEED_MM_S` | 280 mm/s | 对角线直冲速度 |
+| `GRAY_TASK4_BRIDGE_MAX_MM` | 1600mm | 对角线最大冲距 |
+| `GRAY_TASK4_ALIGN_ERR_DEG` | 4° | 航向对齐容差 |
+| `GRAY_TASK4_ALIGN_STABLE_TICKS` | 5 | 连续 5 周期误差<4°才算对准 |
+| `GRAY_TASK4_LOST_CREEP_MM_S` | 80 mm/s | 丢线慢速蠕动速度 |
+| `GRAY_TASK4_POINT_TOL_M` | 0.25m | 位姿到达点判据 |
+
+### 航向对齐
+
+不是简单"转到目标角度就切状态"——有**稳定窗口**：
 
 ```c
-static uint8_t  g_current_seg = 0;
-static uint8_t  g_lap_count = 0;
-static float    g_odom_segment_mm = 0;
+// control.c:641-664
+heading_err = 目标航向 - 当前位姿航向;
+turn_speed = 0.075 * heading_err - 0.010 * wz;  // PD
 
-void Gray_RouteTick(void)
-{
-    const RouteEntry_t *seg = &g_route_t4[g_current_seg];
-
-    if (seg->seg == SEG_STOP) {
-        Stop();
-        TaskComplete();  // 4圈完成
-        return;
-    }
-
-    // 1. 执行当前路段
-    switch (seg->seg) {
-    case SEG_ARC_AB:
-    case SEG_ARC_CD:
-        Gray_LineFollow(seg->speed_mm_s);  // 纯追踪巡线
-        break;
-    case SEG_STRAIGHT_BC:
-    case SEG_STRAIGHT_DA:
-        Gray_StraightRun(seg->speed_mm_s);  // 直行，偏差修正
-        break;
-    }
-
-    // 2. 累计里程
-    float v_mps = MotorA.Current_Encoder;  // 或左右平均
-    g_odom_segment_mm += v_mps * 1000.0f * 0.005f;
-
-    // 3. 检测过点条件
-    uint8_t transition = Gray_DetectSegmentTransition();
-    uint8_t odom_ok = (g_odom_segment_mm > seg->expected_len_mm * 0.9f);
-
-    if (transition && odom_ok) {
-        // 双重确认 → 过点
-        LED_Notify(seg->end_point);   // 声光提示
-        g_odom_segment_mm = 0;        // 清零路段里程
-
-        // 推进到下一段
-        g_current_seg++;
-        if (g_route_t4[g_current_seg].seg == SEG_STOP) {
-            g_lap_count++;
-            if (g_lap_count >= 4) {
-                // 4 圈完成，停在当前位置
-            } else {
-                g_current_seg = 0;  // 循环回第一段
-            }
-        }
-    }
+if (|heading_err| <= 4°) {
+    stable_ticks++;
+    if (stable_ticks >= 5) return ALIGNED;  // 连续5周期稳定
+} else {
+    stable_ticks = 0;
 }
+if (align_ticks >= 500) 超时强制推进;  // 防卡死
 ```
 
-### 为什么 A→C→B→D→A 和 A→B→C→D→A 是两套数组
+### 对角线直冲（BRIDGE 模式）
 
-T4 的路径是任务 (3) 的路线——**A→C→B→D→A**。但 A→C 的第一步到底走"左直 D→A 的反向"还是"顶弧 A→B 再往下"，取决于 pic1 中弧线的具体朝向。上面按"先走左直到 D"假设。如果 pic1 显示弧线在顶部和底部（不是左右两侧），则路段序列要调。
+巡线模式下丢了线 → 不是原地旋转！而是用 **JY62 yaw 保持目标航向** 高速直冲：
 
-但不管具体朝向——路段序列只是数据。**换了 T2（顺时针）只要换一套 `g_route_t2[]` 数组**，控制代码完全不变。这就是状态机 + 数据驱动的好处。
+```c
+// control.c:677-691
+bridge_distance += 280mm/s × 0.005s;   // 累积冲距
+heading_err = 目标航向 - 位姿航向;
+turn_speed = 0.075 * heading_err - 0.010 * wz; // PD航向保持
+
+if (bridge_distance >= 1600mm) 超时放弃;
+// 看到黑线 + 重捕获2次确认 → 切换到巡线状态
+```
+
+### 位姿推算
+
+启动时位姿初始化为 A(0, 0)，航向 180°。每 5ms 用 JY62 yaw + 编码器速度更新：
+
+```c
+// control.c:345-368
+pose_heading += wz × 0.005;   // 陀螺仪积分
+pose_x += v × cos(heading) × 0.005;
+pose_y += v × sin(heading) × 0.005;
+```
+
+到达目标点时做**位姿快照**（`PoseSnap`）——把当前推算位姿修正为已知坐标，切断累积误差。
