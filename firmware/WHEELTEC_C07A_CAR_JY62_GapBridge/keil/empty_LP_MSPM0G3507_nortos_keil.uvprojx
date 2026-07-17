@@ -578,18 +578,23 @@
               <FileType>1</FileType>
               <FilePath>..\Hardware\adc.c</FilePath>
             </File>
-        <File>
-          <FileName>jy62.c</FileName>
-          <FileType>1</FileType>
-          <FilePath>..\Hardware\jy62.c</FilePath>
-        </File>
-        <File>
-          <FileName>k210_link.c</FileName>
-          <FileType>1</FileType>
-          <FilePath>..\Hardware\k210_link.c</FilePath>
-        </File>
-      </Files>
-    </Group>
+            <File>
+              <FileName>jy62.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\jy62.c</FilePath>
+            </File>
+            <File>
+              <FileName>k210_link.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\k210_link.c</FilePath>
+            </File>
+            <File>
+              <FileName>gimbal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\gimbal.c</FilePath>
+            </File>
+          </Files>
+        </Group>
         <Group>
           <GroupName>Control</GroupName>
           <Files>
@@ -641,4 +646,3 @@
   </LayerInfo>
 
 </Project>
-
