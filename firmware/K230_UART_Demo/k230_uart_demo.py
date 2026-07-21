@@ -44,6 +44,9 @@ def handle_line(line):
     if line == b"$MSPM0,HELLO#":
         got_msp_hello = True
         send(b"$K230,ACK#")
+    elif line == b"$CAR,HELLO#":
+        # 兼容现有主板 k210_link.c 的握手协议。
+        send(b"$K210,OK#")
     elif line == b"$MSPM0,ACK#":
         got_msp_ack = True
     elif line == b"$MSPM0,DATA#":
