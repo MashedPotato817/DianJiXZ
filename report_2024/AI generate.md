@@ -5,7 +5,7 @@ problem: H题
 team_id: 待填写
 school: 待填写
 members: 待填写
-date: 2024-07
+date: 2024-07-01
 ---
 
 # 自动行驶小车
