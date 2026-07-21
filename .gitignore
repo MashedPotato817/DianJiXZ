@@ -20,6 +20,26 @@
 *.log
 !docs/*.log
 
+# LaTeX build intermediates (keep .tex sources and final PDFs)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+*.dvi
+*.ps
+
 # Local editor / OS files
 .vscode/
 .idea/
