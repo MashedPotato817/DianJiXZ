@@ -37,6 +37,7 @@ MIN_ASPECT = 0.52
 MAX_ASPECT = 0.92
 
 LOG_PERIOD_FRAMES = 15
+HOLD_FRAMES = 5  # 检测丢失后保持上一帧结果的帧数（~0.5s @10fps）
 
 
 def find_target(img_640):
@@ -107,13 +108,39 @@ try:
           (FRAME_WIDTH, FRAME_HEIGHT, PROC_WIDTH, PROC_HEIGHT))
 
     frame_count = 0
+    last_corners = None
+    last_rect = None
+    hold_count = 0
+    detect_streak = 0  # 连续检出帧数，≥2 才激活 hold
+
     while True:
         os.exitpoint()
         img = sensor.snapshot()
         result = find_target(img)
 
         if result:
-            corners, (rx, ry, rw, rh) = result
+            corners, rect = result
+            detect_streak += 1
+            if detect_streak >= 2:
+                # 连续检出 ≥2 帧，确认不是单帧闪现，激活保持
+                last_corners = corners
+                last_rect = rect
+                hold_count = 0
+            source = "detect"
+        else:
+            detect_streak = 0
+            if last_corners is not None and hold_count < HOLD_FRAMES:
+                corners = last_corners
+                rect = last_rect
+                hold_count += 1
+                source = "hold"
+            else:
+                corners = None
+                rect = None
+                source = "none"
+
+        if corners is not None:
+            rx, ry, rw, rh = rect
             cx = sum(p[0] for p in corners) // 4
             cy = sum(p[1] for p in corners) // 4
 
@@ -124,10 +151,10 @@ try:
 
             if frame_count % LOG_PERIOD_FRAMES == 0:
                 corners_str = ", ".join("(%d,%d)" % (p[0], p[1]) for p in corners)
-                print("selected=yes, roi=(%d,%d,%d,%d), center=(%d,%d), corners=[%s]" %
-                      (rx, ry, rw, rh, cx, cy, corners_str))
+                print("source=%s, roi=(%d,%d,%d,%d), center=(%d,%d), corners=[%s]" %
+                      (source, rx, ry, rw, rh, cx, cy, corners_str))
         elif frame_count % LOG_PERIOD_FRAMES == 0:
-            print("selected=no")
+            print("source=none")
 
         frame_count += 1
         Display.show_image(img, 0, 0)
