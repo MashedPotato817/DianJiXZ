@@ -102,7 +102,7 @@ git merge yangran/main
 
 **注意**: 只 fetch/merge 拉取队友代码，**绝不 push 到队友仓库**。
 
-队友贡献文件：`firmware/.../Hardware/k210_link.c/h`（K230通信）、`firmware/ESP32S3_Blackbox/`（黑匣子）、`firmware/K210/k210_uart_test.py`（视觉测试脚本）。
+队友贡献文件：`firmware/.../Hardware/k210_link.c/h`（K230通信）、`firmware/ESP32S3_Blackbox/`（黑匣子）。
 
 ## 编码规范
 

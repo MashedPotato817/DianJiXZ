@@ -63,7 +63,6 @@ git merge yangran/main
 
 | 文件 | 内容 |
 |------|------|
-| `firmware/K210/k210_uart_test.py` | 视觉芯片端 UART 测试脚本 |
 | `firmware/.../Hardware/k210_link.c/h` | MSPM0 端通信——**二进制协议**（0xAA 头+8字节 XOR）和**ASCII 握手**（$CAR,HELLO# / $K210,OK#）。K230 可复用此协议框架 |
 | `firmware/ESP32S3_Blackbox/` | ESP32-S3 遥测黑匣子 |
 
