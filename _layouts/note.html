@@ -3,10 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ page.title }}</title>
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <meta name="description" content="{{ page.title }} - {{ site.description }}">
+  <meta name="theme-color" content="#0D1525">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-light.css">
   <style>
-    .markdown-body { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    :root { color-scheme: light; }
+    body { margin: 0; background: #f6f8fa; }
+    .site-nav { background: #0d1525; border-bottom: 1px solid #1a2a44; }
+    .site-nav__inner { max-width: 900px; margin: 0 auto; padding: 0.7rem 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .site-nav__brand { color: #e8eef6; font: 700 0.9rem/1.2 system-ui, sans-serif; text-decoration: none; white-space: nowrap; }
+    .site-nav__brand span { color: #00c2ff; }
+    .site-nav__links { display: flex; gap: 1rem; overflow-x: auto; }
+    .site-nav__links a { color: #b7c5d8; font: 0.8rem/1.2 system-ui, sans-serif; text-decoration: none; white-space: nowrap; }
+    .site-nav__links a:hover { color: #00c2ff; }
+    .markdown-body { max-width: 900px; margin: 0 auto; padding: 2rem; background: #fff; min-height: calc(100vh - 48px); }
+    .markdown-body img { display: block; max-width: 100%; height: auto; margin: 1rem auto; }
+    .markdown-body table { display: block; width: max-content; max-width: 100%; overflow-x: auto; }
+    @media (max-width: 600px) {
+      .site-nav__inner { padding: 0.65rem 1rem; align-items: flex-start; flex-direction: column; }
+      .markdown-body { padding: 1.25rem 1rem; }
+    }
   </style>
   <script>
     MathJax = {
@@ -18,7 +35,21 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 </head>
-<body class="markdown-body">
-  {{ content }}
+<body>
+  <header class="site-nav">
+    <div class="site-nav__inner">
+      <a class="site-nav__brand" href="{{ '/' | relative_url }}">DianJi<span>XZ</span></a>
+      <nav class="site-nav__links" aria-label="文档导航">
+        <a href="{{ '/docs_2026guess/' | relative_url }}">2026 预测</a>
+        <a href="{{ '/docs_learn/' | relative_url }}">学习笔记</a>
+        <a href="{{ '/workflow/' | relative_url }}">技术路线</a>
+        <a href="{{ '/docs_2021/' | relative_url }}">2021 F题</a>
+        <a href="{{ '/docs_2024/' | relative_url }}">2024 H题</a>
+      </nav>
+    </div>
+  </header>
+  <main class="markdown-body">
+    {{ content }}
+  </main>
 </body>
 </html>
