@@ -1,3 +1,8 @@
+---
+layout: note
+title: 全国大学生电子设计竞赛历年赛题（1994-2026）
+---
+
 <div align="center">
     <img src= "assets/LOGO/NUEDC_LOGO.jpg" alt="LOGO" height="240" />
 </div>
