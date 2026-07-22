@@ -46,37 +46,37 @@
   </div></header>
   <main class="wrap">
     <section id="overview">
-      <div class="section-head"><h2>预测总览</h2><p>主线：可调倾角管道中的钢球运动测量与闭环控制</p></div>
+      <div class="section-head"><h2>预测总览</h2><p>限定为普通轮式小车题：先跑稳路线、坡桥、障碍与停车，再叠加视觉或协同</p></div>
       <div class="overview">
-        <article class="panel lead"><h3>先做一条<br>可重复验收的链路。</h3><p>从电磁释放、光电计时到倾角控制，先获得可靠的基础分能力；视觉和无线放在稳定之后。</p><a class="button" href="2026电赛赛题猜测与GitHub参考.html">查看完整判断与反证条件 →</a></article>
-        <div class="panel"><div class="facts"><div class="fact"><strong>4</strong><span>候选技术方向</span></div><div class="fact"><strong>5</strong><span>阶段化备赛模块</span></div><div class="fact"><strong>6</strong><span>本地关键历史题</span></div><div class="fact"><strong>P0</strong><span>优先建立可测底座</span></div></div></div>
+        <article class="panel lead"><h3>先做一条<br>可重复验收的小车链路。</h3><p>清单回测说明它只能给方向排序：先跑稳巡线、坡桥、障碍与停车；视觉和协同只放在发挥层。</p><a class="button" href="2026电赛赛题猜测与GitHub参考.html">查看回测、制题推演与反证条件 →</a></article>
+        <div class="panel"><div class="facts"><div class="fact"><strong>4</strong><span>正式清单回测年份</span></div><div class="fact"><strong>5</strong><span>分层任务等级</span></div><div class="fact"><strong>±10</strong><span>概率估计误差百分点</span></div><div class="fact"><strong>P0</strong><span>优先建立可测底座</span></div></div></div>
       </div>
     </section>
     <section id="prediction">
-      <div class="section-head"><h2>方向权重</h2><p>权重是“现在应投入多少时间”，不是官方出题概率</p></div>
+      <div class="section-head"><h2>方向权重</h2><p>仅在已确定为普通轮式小车题时成立；完整组合另列非小车预案</p></div>
       <div class="prediction-grid">
-        <article class="panel prediction"><h3>管道内钢球运动测量与控制</h3><p>最能同时解释钢球、PPR 管、光电、角度、电磁铁与执行电机；对应 2017 M 的直接历史参照。</p><div class="meter"><i style="width:45%"></i></div><strong class="percent">45%</strong></article>
-        <article class="panel prediction"><h3>滚球位置闭环控制</h3><p>以位置测量、倾角执行和 PID 为核心；可复用到小车、云台和摆杆类任务。</p><div class="meter"><i style="width:25%"></i></div><strong class="percent">25%</strong></article>
-        <article class="panel prediction"><h3>电磁钢球发射或牵引</h3><p>保留线圈、电流控制和保护电路能力，作为释放机构或独立发挥方向。</p><div class="meter"><i style="width:20%"></i></div><strong class="percent">20%</strong></article>
-        <article class="panel prediction"><h3>小车寻找并搬运钢球</h3><p>复用本仓库现有小车与 K230，但对指定管材的解释力较弱，保留为支线。</p><div class="meter"><i style="width:10%"></i></div><strong class="percent">10%</strong></article>
+        <article class="panel prediction"><h3>循迹、坡桥、障碍与定点停车</h3><p>历年移动题的共同基础：固定赛道可测、一次启动、遇障后重捕获路线。</p><div class="meter"><i style="width:40%"></i></div><strong class="percent">40%</strong></article>
+        <article class="panel prediction"><h3>视觉标志识别与路径选择</h3><p>以颜色或编号驱动选路；优先放在发挥部分，不把视觉作为基础分的唯一依赖。</p><div class="meter"><i style="width:30%"></i></div><strong class="percent">30%</strong></article>
+        <article class="panel prediction"><h3>双车或车-云台协同</h3><p>短距无线、图传和 2021/2026 的相邻题面支持协同成为发挥方向。</p><div class="meter"><i style="width:20%"></i></div><strong class="percent">20%</strong></article>
+        <article class="panel prediction"><h3>取放或电磁物料交互</h3><p>钢球与小电磁铁仅支持这一低权重分支，须等物料和装卸判据出现再投入。</p><div class="meter"><i style="width:10%"></i></div><strong class="percent">10%</strong></article>
       </div>
     </section>
     <section id="evidence">
       <div class="section-head"><h2>有效信息如何导向方案</h2><p>只保留能决定结构、传感器或控制链路的信息</p></div>
       <div class="evidence">
-        <article><span class="number">01 / 几何约束</span><h3>钢球 + PPR 管</h3><p>约 10 mm 钢球可在约 13.2 mm 内径管中滚动，优先验证“管道内运动”而不是泛化的小车任务。</p></article>
-        <article><span class="number">02 / 测量与执行</span><h3>光电 + 角度 + 电机</h3><p>天然构成测速、位置估计和可调坡度链路；先完成时间戳与角度校准，再做控制器。</p></article>
-        <article><span class="number">03 / 历史参照</span><h3>2017 M / B 等</h3><p>证明管道钢珠测量与滚球闭环都曾是独立考点；可借鉴任务拆法，不能照搬题面。</p></article>
+        <article><span class="number">01 / 四届回测</span><h3>清单不是单题配方</h3><p>2019、2021 有普通轮式车题；2023、2025 即使列出小车，也转向气垫车或无人机。</p></article>
+        <article><span class="number">02 / 命题分层</span><h3>固定行驶 + 发挥随机</h3><p>基础部分先考路线、坡桥、障碍和停车；发挥部分才加入视觉目标、协同或随机布置。</p></article>
+        <article><span class="number">03 / 强组合预警</span><h3>漆包线 + 电磁铁 + 钢球 + PPR</h3><p>这组首次同时出现，直接贴近 2017 管内钢珠题，并新增电磁释放/闭环执行；应独立防守。</p></article>
       </div>
     </section>
     <section id="roadmap">
       <div class="section-head"><h2>从 P0 到 P2 的执行路径</h2><p>每一步都有可独立验收的输出</p></div>
       <div class="route">
-        <article><b>P0-1</b><h3>光电计时</h3><p>两光电门、已知距离、时间戳和速度计算。</p></article>
-        <article><b>P0-2</b><h3>电磁释放</h3><p>连续 20 次释放，检查粘球、漏检和温升。</p></article>
-        <article><b>P0-3</b><h3>倾角执行</h3><p>建立电机/舵机和角度传感器闭环，限制机械极限。</p></article>
-        <article><b>P1</b><h3>位置 PID</h3><p>加入死区、限幅、积分保护与球丢失处理。</p></article>
-        <article><b>P2</b><h3>视觉与展示</h3><p>K230 坐标、无线遥测和自动调参；不阻塞基础功能。</p></article>
+        <article><b>P0-1</b><h3>行驶与停车</h3><p>连续 20 次完成直线、弯道和停车框，记录误差。</p></article>
+        <article><b>P0-2</b><h3>坡桥与停止线</h3><p>爬坡、坡顶停稳、下坡恢复和安全限速均有明确状态。</p></article>
+        <article><b>P0-3</b><h3>避障与重捕获</h3><p>绕开固定障碍后在规定距离内回到路线，失败时安全停车。</p></article>
+        <article><b>P1</b><h3>视觉目标</h3><p>K230 只输出类别和横坐标；以颜色、编号驱动选路，不直接控制 PWM。</p></article>
+        <article><b>P2</b><h3>协同或取放</h3><p>仅按题面加入无线协同、电磁执行、遥测与展示。</p></article>
       </div>
     </section>
     <section id="library">
