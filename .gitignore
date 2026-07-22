@@ -59,3 +59,5 @@ Thumbs.db
 *.msi
 vscode-extensions.md
 自动行驶小车（H题）.pdf
+
+firmware/K230_Target_Detection/pic/
