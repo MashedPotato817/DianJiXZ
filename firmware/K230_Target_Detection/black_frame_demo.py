@@ -1,74 +1,60 @@
 """K230 CanMV 靶面定位：预处理 + find_rects 检测黑框。
 
-靶纸 209.5×296 mm（竖），含 18.5 mm 宽黑框。
-管线：mean_pooled 降采样 → 灰度 → gaussian → binary → invert → erode → dilate → find_rects
-采集 640×480（LCD 兼容），处理在 320×240（加速），结果缩放回 640×480 显示。
+靶纸 209.5×296 mm（竖），含 18.5 mm 宽黑框，内部有同心圆。
+管线：sensor QVGA → binary → invert → find_rects
+采集 320×240（硬件缩放），显示居中在 640×480 LCD。
 """
 import os
 import time
+import math
 
 from media.sensor import Sensor
 from media.display import Display
 from media.media import MediaManager
 
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
-PROC_WIDTH = 320
-PROC_HEIGHT = 240
-SCALE_X = FRAME_WIDTH / PROC_WIDTH   # = 2.0
-SCALE_Y = FRAME_HEIGHT / PROC_HEIGHT # = 2.0
+FRAME_WIDTH = 320
+FRAME_HEIGHT = 240
+LCD_WIDTH = 640
+LCD_HEIGHT = 480
 
 # ── 预处理参数 ──
 BINARY_LO = 0        # 二值化暗区下限
-BINARY_HI = 80       # 二值化暗区上限（黑框 + 同心圆落在此范围）
-ERODE_K = 1          # 腐蚀核大小，去同心圆细线
-DILATE_K = 1         # 膨胀核大小，连接黑框断边
-GAUSSIAN_K = 1       # 高斯滤波核
+BINARY_HI = 80       # 二值化暗区上限（黑框落在此范围）
 
-# ── find_rects 参数（320×240 处理分辨率） ──
-RECT_THRESHOLD = 2_000    # 低分辨率矩形门槛
+# ── find_rects 参数（320×240） ──
+RECT_THRESHOLD = 2_000
 X_GRADIENT = 10
 Y_GRADIENT = 10
 
-# ── 筛选参数（320×240 处理分辨率下） ──
+# ── 筛选参数（320×240，总像素 76,800） ──
+# 靶纸长宽比 209.5/296 ≈ 0.708
 MIN_AREA = 800
 MAX_AREA = 72_000
 MIN_ASPECT = 0.52
 MAX_ASPECT = 0.92
 
 LOG_PERIOD_FRAMES = 15
-HOLD_FRAMES = 5  # 检测丢失后保持上一帧结果的帧数（~0.5s @10fps）
+HOLD_FRAMES = 5
+MAX_JUMP = 60  # 空间一致性门控：新检测距上次位置超过此值视为假阳性（320×240）
 
 
-def find_target(img_640):
-    """在 320×240 下预处理 + find_rects，结果坐标缩放回 640×480。"""
-    # 0. 降采样到 320×240 加速后续所有操作（2×2 平均池化）
-    small = img_640.mean_pooled(2, 2)
-
+def find_target(img):
+    """预处理 + find_rects，返回 (corners, rect_tuple) 或 None。"""
     # 1. 灰度化
-    gray = small.to_grayscale(copy=True)
+    gray = img.to_grayscale(copy=True)
 
-    # 2. 高斯去噪
-    gray.gaussian(GAUSSIAN_K)
-
-    # 3. 二值化：暗像素→白，其余→黑
+    # 2. 二值化：暗像素→白，其余→黑
     gray.binary([(BINARY_LO, BINARY_HI)])
 
-    # 4. 反色：黑框变白色前景
+    # 3. 反色：黑框变白色前景
     gray.invert()
 
-    # 5. 腐蚀：去除同心圆细线，保留粗黑框
-    gray.erode(ERODE_K)
-
-    # 6. 膨胀：连接黑框断边
-    gray.dilate(DILATE_K)
-
-    # 7. 矩形检测
+    # 4. 矩形检测
     rects = gray.find_rects(threshold=RECT_THRESHOLD,
                             x_gradient=X_GRADIENT,
                             y_gradient=Y_GRADIENT)
 
-    # 8. 筛选 + 坐标缩放回 640×480
+    # 6. 筛选
     best = None
     best_area = 0
     for r in rects:
@@ -86,12 +72,7 @@ def find_target(img_640):
             continue
         if area > best_area:
             best_area = area
-            # 缩放回 640×480
-            corners_640 = [(int(p[0] * SCALE_X), int(p[1] * SCALE_Y))
-                           for p in corners]
-            best = (corners_640,
-                    (int(rx * SCALE_X), int(ry * SCALE_Y),
-                     int(rw * SCALE_X), int(rh * SCALE_Y)))
+            best = (corners, (rx, ry, rw, rh))
     return best
 
 
@@ -101,17 +82,19 @@ try:
     sensor.reset()
     sensor.set_framesize(w=FRAME_WIDTH, h=FRAME_HEIGHT)
     sensor.set_pixformat(Sensor.RGB565)
-    Display.init(Display.ST7701, width=FRAME_WIDTH, height=FRAME_HEIGHT, to_ide=True)
+    Display.init(Display.ST7701, width=LCD_WIDTH, height=LCD_HEIGHT, to_ide=True)
     MediaManager.init()
     sensor.run()
-    print("find_rects demo started: capture %dx%d, proc %dx%d" %
-          (FRAME_WIDTH, FRAME_HEIGHT, PROC_WIDTH, PROC_HEIGHT))
+    print("find_rects demo started: capture %dx%d, display %dx%d" %
+          (FRAME_WIDTH, FRAME_HEIGHT, LCD_WIDTH, LCD_HEIGHT))
 
     frame_count = 0
     last_corners = None
     last_rect = None
     hold_count = 0
-    detect_streak = 0  # 连续检出帧数，≥2 才激活 hold
+    detect_streak = 0
+    track_cx = None   # 已确认的追踪位置
+    track_cy = None
 
     while True:
         os.exitpoint()
@@ -122,7 +105,6 @@ try:
             corners, rect = result
             detect_streak += 1
             if detect_streak >= 2:
-                # 连续检出 ≥2 帧，确认不是单帧闪现，激活保持
                 last_corners = corners
                 last_rect = rect
                 hold_count = 0
@@ -144,20 +126,42 @@ try:
             cx = sum(p[0] for p in corners) // 4
             cy = sum(p[1] for p in corners) // 4
 
-            img.draw_rectangle(rx, ry, rw, rh, color=(255, 255, 0), thickness=2)
+            # 空间一致性门控：拒绝跳到远处背景物体的假阳性
+            if track_cx is not None:
+                dx = cx - track_cx
+                dy = cy - track_cy
+                if dx * dx + dy * dy > MAX_JUMP * MAX_JUMP:
+                    # 跳变过大，视为假阳性，保持上一位置
+                    cx, cy = track_cx, track_cy
+                    source = "reject"
+                else:
+                    track_cx, track_cy = cx, cy
+            else:
+                track_cx, track_cy = cx, cy
+
+            # 最小包围圆：圆心 = 对角线交点，半径 = 四角点到圆心的平均距离
+            radius = int(sum(math.sqrt((p[0] - cx) ** 2 + (p[1] - cy) ** 2)
+                            for p in corners) / 4)
+            img.draw_circle(cx, cy, radius, color=(255, 255, 0), thickness=2)
             for p in corners:
-                img.draw_circle(p[0], p[1], 5, color=(0, 255, 0), thickness=2)
+                img.draw_circle(p[0], p[1], 3, color=(0, 255, 0), thickness=2)
             img.draw_cross(cx, cy, color=(255, 0, 0), size=20, thickness=2)
 
             if frame_count % LOG_PERIOD_FRAMES == 0:
                 corners_str = ", ".join("(%d,%d)" % (p[0], p[1]) for p in corners)
-                print("source=%s, roi=(%d,%d,%d,%d), center=(%d,%d), corners=[%s]" %
-                      (source, rx, ry, rw, rh, cx, cy, corners_str))
-        elif frame_count % LOG_PERIOD_FRAMES == 0:
-            print("source=none")
+                print("source=%s, roi=(%d,%d,%d,%d), center=(%d,%d), radius=%d, corners=[%s]" %
+                      (source, rx, ry, rw, rh, cx, cy, radius, corners_str))
+        else:
+            track_cx = None
+            track_cy = None
+            if frame_count % LOG_PERIOD_FRAMES == 0:
+                print("source=none")
 
         frame_count += 1
-        Display.show_image(img, 0, 0)
+        # 320×240 居中显示在 640×480 LCD 上
+        Display.show_image(img,
+                           x=round((LCD_WIDTH - FRAME_WIDTH) / 2),
+                           y=round((LCD_HEIGHT - FRAME_HEIGHT) / 2))
 
 except KeyboardInterrupt as error:
     print("user stop:", error)
