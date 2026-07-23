@@ -33,14 +33,23 @@ extern float Gray_Line_Pos_mm;
 #define Perimeter                    (PI * WHEEL_DIAMETER_M)
 #define Wheelspacing                 0.1780f
 
+/* 编码器与速度环参数（参照 demo，MG513X 28:1） */
+#define ENCODER_LINES                13
+#define MULTIPLY_FACTOR              2
+#define GEAR_RATIO                   28
+#define CPR                          (MULTIPLY_FACTOR * ENCODER_LINES * GEAR_RATIO)  /* 728 */
+#define SPEED_FILTER_ALPHA           0.4f    /* 一阶低通滤波系数 */
+#define PI_DEADBAND                  0.005f  /* PI 死区 (m/s) */
+#define PWM_MAX                      7800
+
 /* 8 路灰度基础巡线参数 */
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
-#define GRAY_BASE_SPEED_MM_S         45.0f   /* 方向排查用低速，确认后逐级提回 150 */
+#define GRAY_BASE_SPEED_MM_S         150.0f
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
 #define GRAY_SENSOR_FORWARD_MM       260.0f
 #define GRAY_STEER_GAIN              1.70f
-#define GRAY_MAX_ANGULAR_SPEED       0.40f   /* 与低速匹配，防御性钳位 */
+#define GRAY_MAX_ANGULAR_SPEED       1.20f
 //电机速度控制相关参数结构体
 typedef struct  
 {

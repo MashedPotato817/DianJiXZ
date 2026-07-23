@@ -118,7 +118,7 @@ void TIMER_0_INST_IRQHandler(void)
 			
 			Key();
 			LED_Flash(100);
-			Get_Velocity_From_Encoder(-Get_Encoder_countA,-Get_Encoder_countB);
+			Get_Velocity_From_Encoder(Get_Encoder_countA,Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
 			if(Run_Mode==0)
 			{
@@ -150,14 +150,20 @@ void Get_Velocity_From_Encoder(int Encoder1,int Encoder2)
 	
 	//Retrieves the original data of the encoder
 	//获取编码器的原始数据
-	float Encoder_A_pr,Encoder_B_pr; 
-	OriginalEncoder.A=-Encoder1;	
-	OriginalEncoder.B=-Encoder2;	
-	Encoder_A_pr=OriginalEncoder.A; Encoder_B_pr=-OriginalEncoder.B;
-	//编码器原始数据转换为车轮速度，单位m/s
-	MotorA.Current_Encoder= -Encoder_A_pr*Frequency*Perimeter/780.0f;  
-	MotorB.Current_Encoder= -Encoder_B_pr*Frequency*Perimeter/780.0f;   //1560=2*13*30=2（两路脉冲）*1（上升沿计数）*霍尔编码器13线*电机的减速比
-	
+	static float Filtered_SpeedA = 0.0f, Filtered_SpeedB = 0.0f;
+	float Encoder_A_pr, Encoder_B_pr, raw_speedA, raw_speedB;
+	OriginalEncoder.A = Encoder1;
+	OriginalEncoder.B = Encoder2;
+	Encoder_A_pr = OriginalEncoder.A;
+	Encoder_B_pr = -OriginalEncoder.B;
+	raw_speedA =  Encoder_A_pr * Frequency * Perimeter / CPR;
+	raw_speedB =  Encoder_B_pr * Frequency * Perimeter / CPR;
+
+	Filtered_SpeedA = SPEED_FILTER_ALPHA * raw_speedA + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedA;
+	Filtered_SpeedB = SPEED_FILTER_ALPHA * raw_speedB + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedB;
+
+	MotorA.Current_Encoder = Filtered_SpeedA;
+	MotorB.Current_Encoder = Filtered_SpeedB;
 }
 //运动学逆解，由x和y的速度得到编码器的速度,Vx是m/s,Vz单位是度/s(角度制)
 void Get_Target_Encoder(float Vx,float Vz)
@@ -227,28 +233,32 @@ pwm代表增量输出
 pwm+=Kp[e（k）-e(k-1)]+Ki*e(k)
 **************************************************************************/
 int Incremental_PI_Left (float Encoder,float Target)
-{ 	
+{
 	 static float Bias,Pwm,Last_bias;
+	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
 	if(Flag_Stop) Pwm=0;
-	 if(Pwm>7800)Pwm=7800;
-	 if(Pwm<-7800)Pwm=-7800;
-	 Last_bias=Bias;	                   					//保存上一次偏差 
-	 return Pwm;                         					//增量输出
+	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
+	 Last_bias=Bias;	                   					//保存上一次偏差
+	 return (int)Pwm;                         				//增量输出
 }
 
 
 int Incremental_PI_Right (float Encoder,float Target)
-{ 	
+{
 	 static float Bias,Pwm,Last_bias;
+	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
 	if(Flag_Stop) Pwm=0;
-	 if(Pwm>7800)Pwm=7800;
-	 if(Pwm<-7800)Pwm=-7800;
-	 Last_bias=Bias;	                   					//保存上一次偏差 
-	 return Pwm;                         					//增量输出
+	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
+	 Last_bias=Bias;	                   					//保存上一次偏差
+	 return (int)Pwm;                         				//增量输出
 }
 /**************************************************************************
 Function: Processes the command sent by APP through usart 2
