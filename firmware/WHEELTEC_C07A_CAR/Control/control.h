@@ -50,6 +50,8 @@ extern float Gray_Line_Pos_mm;
 #define GRAY_SENSOR_FORWARD_MM       260.0f
 #define GRAY_STEER_GAIN              1.70f
 #define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
+#define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */
+#define GRAY_LOST_SEARCH_MAX_ANGLE_RAD (2.0f * PI) /* 最多搜线一圈 */
 //电机速度控制相关参数结构体
 typedef struct  
 {

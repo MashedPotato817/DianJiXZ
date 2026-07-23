@@ -73,6 +73,9 @@ void Gray_Read_All(void)
 
 void Gray_Mode(void)
 {
+    static float lost_search_angle;
+    static float last_search_move_z;
+    static uint8_t line_seen;
     float pos_sum = 0;
     int black_count = 0;
     float y_m;
@@ -90,12 +93,23 @@ void Gray_Mode(void)
 
     if (black_count == 0) {
         Gray_Line_Pos_mm = 0;
-        Move_X = 0;
-        Move_Z = 0;
+        /* 首次上电未识别到黑线、无有效搜线方向或已搜满一圈时停车 */
+        if ((!line_seen) || (last_search_move_z == 0.0f) ||
+            (lost_search_angle >= GRAY_LOST_SEARCH_MAX_ANGLE_RAD)) {
+            Move_X = 0;
+            Move_Z = 0;
+        } else {
+            /* 丢线后停止前进，沿最后一次有效偏线方向低速原地搜线 */
+            Move_X = 0;
+            Move_Z = last_search_move_z;
+            lost_search_angle += GRAY_LOST_SEARCH_ANGULAR_SPEED / Frequency;
+        }
         Get_Target_Encoder(Move_X, Move_Z);
         return;
     }
 
+    line_seen = 1;
+    lost_search_angle = 0;
     Gray_Line_Pos_mm = pos_sum / black_count;
     Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
@@ -106,6 +120,10 @@ void Gray_Mode(void)
 
     if (Move_Z > GRAY_MAX_ANGULAR_SPEED) Move_Z = GRAY_MAX_ANGULAR_SPEED;
     if (Move_Z < -GRAY_MAX_ANGULAR_SPEED) Move_Z = -GRAY_MAX_ANGULAR_SPEED;
+
+    /* 仅在存在偏线时更新搜线方向，居中直线不覆盖最近一次转向方向 */
+    if (Move_Z > 0.0f) last_search_move_z = GRAY_LOST_SEARCH_ANGULAR_SPEED;
+    else if (Move_Z < 0.0f) last_search_move_z = -GRAY_LOST_SEARCH_ANGULAR_SPEED;
 
     Get_Target_Encoder(Move_X, Move_Z);
 }
