@@ -26,9 +26,29 @@ try:
     info = sensor.bind_info(x=0, y=0, chn=CAM_CHN_ID_0)
     print("5. bind_info:", info)
 
-    # 按 main.py 的正确调用方式
-    Display.bind_layer(**info, dstlayer=Display.LAYER_VIDEO1)
-    print("6. bind_layer(**info, dstlayer=VIDEO1) OK ✓")
+    # 尝试1: 关键字展开 + dstlayer=（已知 v1.8 失败）
+    try:
+        Display.bind_layer(**info, dstlayer=Display.LAYER_VIDEO1)
+        print("6a. bind_layer(**info, dstlayer=...) OK ✓")
+    except Exception as e1:
+        print("6a. bind_layer(**info, dstlayer=...) FAILED:", e1)
+
+        # 尝试2: 纯位置参数
+        try:
+            Display.bind_layer(
+                info['pix_format'], info['src'], info['rect'],
+                Display.LAYER_VIDEO1)
+            print("6b. bind_layer(pos args + layer) OK ✓")
+        except Exception as e2:
+            print("6b. bind_layer(pos args + layer) FAILED:", e2)
+
+            # 尝试3: 3个位置参数，不加 layer
+            try:
+                Display.bind_layer(
+                    info['pix_format'], info['src'], info['rect'])
+                print("6c. bind_layer(3 pos args) OK ✓")
+            except Exception as e3:
+                print("6c. bind_layer(3 pos args) FAILED:", e3)
 
     import image
     osd = image.Image(640, 480, image.ARGB8888)
@@ -38,8 +58,7 @@ try:
 
     MediaManager.init()
     sensor.run()
-    print("ALL OK — v1.8 supports bind_layer + dstlayer!")
-    print("Check LCD: should see camera preview with red cross in center")
+    print("bind_layer NOT available in v1.8 — fallback to show_image required")
 
 except Exception as e:
     print("FAILED:", e)

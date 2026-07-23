@@ -1,8 +1,10 @@
 """K230 CanMV 靶面定位：cv_lite 硬件加速 + 双通道显示。
 
-ch0: 640×480 YUV → bind_layer 硬件直显 LCD（零 CPU）
+ch0: 640×480 RGB565 → snapshot → 绘制结果 → show_image（软件显示）
 ch1: 320×240 GRAYSCALE → cv_lite 检测
-OSD: 640×480 ARGB → LAYER_OSD3（坐标 ×2，结果变化时刷新）
+坐标 ×2 映射，每帧绘制，实测 ~56-58 FPS。
+
+注：v1.8 固件 bind_layer 三种调用形式均不兼容，show_image 是当前唯一可行路径。
 """
 import os
 import time
