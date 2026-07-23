@@ -31,26 +31,6 @@ float Velocity_KP=400,Velocity_KI=300;
 int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
 
-#define GRAY_BLACK_LEVEL              1
-#define GRAY_BASE_SPEED_MM_S          300.0f
-#define GRAY_MID_SPEED_MM_S           240.0f
-#define GRAY_CURVE_SPEED_MM_S         185.0f
-#define GRAY_CROSS_SPEED_MM_S         310.0f
-#define GRAY_LOST_SEARCH_SPEED_MM_S   0.0f
-#define GRAY_SENSOR_PITCH_MM          10.0f
-#define GRAY_SENSOR_FORWARD_MM        150.0f
-#define GRAY_CAR_WHEELBASE_MM         105.0f
-#define GRAY_STEER_GAIN               1.70f
-#define GRAY_MAX_ANGULAR_SPEED        3.60f
-#define GRAY_LOST_TURN_SPEED          1.80f
-#define GRAY_LOST_POS_DEADBAND_MM     3.0f
-#define GRAY_MID_POS_MM               10.0f
-#define GRAY_CURVE_POS_MM             22.0f
-#define GRAY_CROSS_BLACK_COUNT        7
-#define GRAY_CROSS_DETECT_COUNT       2
-#define GRAY_CROSS_RUN_TICKS          32
-#define GRAY_CROSS_COOLDOWN_TICKS     60
-
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
     -2.5f * GRAY_SENSOR_PITCH_MM,
@@ -93,13 +73,7 @@ void Gray_Read_All(void)
 
 void Gray_Mode(void)
 {
-    static float last_line_pos_mm = 0;
-    static int8_t last_search_dir = 1;
-    static uint8_t cross_detect_count = 0;
-    static uint8_t cross_run_ticks = 0;
-    static uint8_t cross_cooldown_ticks = 0;
     float pos_sum = 0;
-    float abs_line_pos_mm;
     int black_count = 0;
     float y_m;
     float lookahead_m;
@@ -114,59 +88,16 @@ void Gray_Mode(void)
         }
     }
 
-    if (cross_cooldown_ticks > 0) {
-        cross_cooldown_ticks--;
-    }
-
-    if (cross_run_ticks > 0) {
-        cross_run_ticks--;
-        Move_X = GRAY_CROSS_SPEED_MM_S / 1000.0f;
+    if (black_count == 0) {
+        Gray_Line_Pos_mm = 0;
+        Move_X = 0;
         Move_Z = 0;
         Get_Target_Encoder(Move_X, Move_Z);
         return;
     }
 
-    if (black_count >= GRAY_CROSS_BLACK_COUNT) {
-        if (cross_detect_count < GRAY_CROSS_DETECT_COUNT) {
-            cross_detect_count++;
-        }
-        if ((cross_detect_count >= GRAY_CROSS_DETECT_COUNT) && (cross_cooldown_ticks == 0)) {
-            cross_detect_count = 0;
-            cross_run_ticks = GRAY_CROSS_RUN_TICKS;
-            cross_cooldown_ticks = GRAY_CROSS_COOLDOWN_TICKS;
-            Move_X = GRAY_CROSS_SPEED_MM_S / 1000.0f;
-            Move_Z = 0;
-            Get_Target_Encoder(Move_X, Move_Z);
-            return;
-        }
-    } else {
-        cross_detect_count = 0;
-    }
-
-    Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
-    if (black_count == 0) {
-        Gray_Line_Pos_mm = last_line_pos_mm;
-        Move_X = GRAY_LOST_SEARCH_SPEED_MM_S / 1000.0f;
-        Move_Z = last_search_dir * GRAY_LOST_TURN_SPEED;
-        Get_Target_Encoder(Move_X, Move_Z);
-        return;
-    }
-
     Gray_Line_Pos_mm = pos_sum / black_count;
-    last_line_pos_mm = Gray_Line_Pos_mm;
-
-    if (Gray_Line_Pos_mm > GRAY_LOST_POS_DEADBAND_MM) {
-        last_search_dir = -1;
-    } else if (Gray_Line_Pos_mm < -GRAY_LOST_POS_DEADBAND_MM) {
-        last_search_dir = 1;
-    }
-
-    abs_line_pos_mm = (Gray_Line_Pos_mm >= 0) ? Gray_Line_Pos_mm : -Gray_Line_Pos_mm;
-    if ((black_count >= 5) || (abs_line_pos_mm >= GRAY_CURVE_POS_MM)) {
-        Move_X = GRAY_CURVE_SPEED_MM_S / 1000.0f;
-    } else if (abs_line_pos_mm >= GRAY_MID_POS_MM) {
-        Move_X = GRAY_MID_SPEED_MM_S / 1000.0f;
-    }
+    Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
     y_m = Gray_Line_Pos_mm / 1000.0f;
     lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;

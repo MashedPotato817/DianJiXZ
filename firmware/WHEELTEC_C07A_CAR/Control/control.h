@@ -25,10 +25,22 @@ extern int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
 extern uint16_t Gray_Data[8];
 extern uint16_t Gray_Raw[8];
 extern float Gray_Line_Pos_mm;
-#define Frequency	200.0f			//每5ms读取一次编码器的值
-#define Perimeter	0.2104867	    //轮子周长(单位:m)=0.67*3.1415926
-#define Wheelspacing 0.1300f		//主动轮轮距(单位:m)
 #define PI 3.1415926
+
+/* 底盘几何参数：按当前实车尺寸标定 */
+#define Frequency                    200.0f
+#define WHEEL_DIAMETER_M             0.0768f
+#define Perimeter                    (PI * WHEEL_DIAMETER_M)
+#define Wheelspacing                 0.1780f
+
+/* 8 路灰度基础巡线参数 */
+#define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
+#define GRAY_BASE_SPEED_MM_S         45.0f   /* 方向排查用低速，确认后逐级提回 150 */
+#define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
+#define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
+#define GRAY_SENSOR_FORWARD_MM       260.0f
+#define GRAY_STEER_GAIN              1.70f
+#define GRAY_MAX_ANGULAR_SPEED       0.40f   /* 与低速匹配，防御性钳位 */
 //电机速度控制相关参数结构体
 typedef struct  
 {
