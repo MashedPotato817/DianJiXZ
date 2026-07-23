@@ -1,7 +1,7 @@
 # cvlite_demo 双通道显示架构评审
 
 > 评审人：Codex  
-> 日期：2026-07-23 12:47 
+> 日期：2026-07-23 12:47
 > 范围：`cvlite_demo.py`、`test_dual_channel.py`、`cvlite_dual_channel.md`  
 > 结论：**暂不建议按当前提交说明合入。** 双通道分辨率和 `×2` 坐标映射方向正确，但主程序尚未落实文档所述的“ch0 硬件直显 + OSD 独立层”架构。
 
@@ -160,3 +160,121 @@ r_osd = 2 × r_detect
 3. OSD 在独立 ARGB 层绘制，且存在明确刷新条件；
 4. `test_dual_channel.py` 能正确报告绑定成功或失败；
 5. 实机测得显示、检测和 OSD 指标达到第 3 节验收要求。
+
+---
+
+## 6. 二次评审（13:36）
+
+评审范围：以下提交说明及当前工作区代码。
+
+```text
+fix: 修正 reject 日志 ROI 错位 + 新增 fps 实测 + 确认 bind_layer v1.8 不兼容
+```
+
+### 6.1 已确认修复：`reject` 后日志 ROI 一致
+
+本次代码已将 `rx, ry, rw, rh = rect` 移到跳变拒绝和 `rect` 回退之后。若候选被拒绝，`corners`、`rect`、中心坐标和后续半径都来自上一份有效状态；日志 ROI 不再沿用被拒绝候选的 ROI。
+
+来源：选自 [cvlite_demo.py（第 131～151 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/cvlite_demo.py:131)。
+
+结论：**此项修复通过代码审查。** 建议补一条可复现的 `source=reject` 日志样本，证明 `roi` 与打印的四角外接范围一致。
+
+### 6.2 已确认：加入了端到端 FPS 统计；应修正指标表述
+
+代码在每轮开始执行 `clock.tick()`，每 15 帧打印 `clock.fps()`。这测得的是当前主循环的端到端速率，包含：ch0 `snapshot`、ch1 `snapshot`、cv_lite、在 ch0 上绘制叠加层、`Display.show_image()`、日志等开销。
+
+来源：选自 [cvlite_demo.py（第 91～104、177～181 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/cvlite_demo.py:91)。
+
+现有 `log.md` 尾部记录约为 `56.3~57.9 FPS`，可表述为“当前测试条件下观测到约 56～58 FPS”。不建议写成无条件的“稳定 58 FPS”，原因是：
+
+1. 日志只展示了这一段运行窗口，未给出最小值、平均值、持续运行时间；
+2. 当前配置使用 `to_ide=True`，IDE 传输和中断会影响实测；日志最后出现 `Exception: IDE interrupt`；
+3. 该 FPS 是当前 RGB565 `snapshot + show_image` 回退方案的端到端值，不代表未来 `bind_layer + OSD` 方案的检测 FPS 或显示刷新率。
+
+建议后续分别记录：`detect_fps`（完整检测循环）、`osd_fps`（叠加层提交）、测试持续时间、最小/平均 FPS，以及 `to_ide=True/False` 两组结果。
+
+### 6.3 未通过：`bind_layer v1.8 不兼容`尚不能由当前材料确认
+
+当前 `test_dual_channel.py` 已修正为正确形式：
+
+```python
+Display.bind_layer(**info, dstlayer=Display.LAYER_VIDEO1)
+```
+
+来源：选自 [test_dual_channel.py（第 25～40 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/test_dual_channel.py:25)。
+
+但本次提交未附该脚本在 K230D/CanMV v1.8 上的**完整实际输出**，当前仓库 `log.md` 也没有该测试的 `FAILED: ...` 异常文本。因此不能从可审查证据确认“不兼容”；只能确认“存在待复核的实机失败现象”。
+
+另外，脚本在 `sensor.run()` 后没有持续循环、等待或抓帧验证，会立刻进入 `finally` 停止传感器、反初始化显示和媒体管理器。也就是说，打印“Check LCD”后并没有有效观察窗口，无法可靠验证绑定后 LCD 是否真的出图。
+
+来源：选自 [test_dual_channel.py（第 42～67 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/test_dual_channel.py:42)。
+
+结论：**在补齐失败日志前，不应把“不兼容”写为确定事实。** 若实机错误明确为 `unexpected keyword argument 'dstlayer'` 或同等 API 签名错误，应将报错原文、固件完整版本和执行脚本版本写入本文档；若是层资源、像素格式或绑定时序错误，则不是 `dstlayer` 不兼容，必须按实际错误修正。
+
+#### 13:36 后补充：已收到实机失败日志
+
+实机环境：`CanMV v1.8-8-ge38ca78`、`k230d_canmv_atk_dnk230d with K230D`、GC2093（当前输出 `1280×960@90`）。`test_dual_channel.py` 已成功完成：传感器复位、ch0 `640×480 YUV420`、ch1 `320×240 GRAYSCALE`、`Display.init(..., osd_num=1)`，并取得：
+
+```text
+bind_info: {'pix_format': 31, 'src': (6, 0, 0), 'rect': (0, 0, 640, 480)}
+FAILED: extra keyword arguments given
+```
+
+失败发生在：
+
+```python
+Display.bind_layer(**info, dstlayer=Display.LAYER_VIDEO1)
+```
+
+因此可以确认：**该固件拒绝上述“以关键字展开 `info`，并传入 `dstlayer`”的调用形式。** 这不是传感器配置、YUV 像素格式或 `sensor.run()` 失败；异常发生在绑定调用本身。
+
+但异常文本是通用的 `extra keyword arguments given`，不能严格区分“只是不支持 `dstlayer` 关键字”与“`bind_layer` 在此固件中整体不接收任意关键字参数”。所以准确表述应为：
+
+> CanMV v1.8-8-ge38ca78（ATK DNK230D/K230D）不兼容 `Display.bind_layer(**info, dstlayer=Display.LAYER_VIDEO1)` 这一关键字调用形式；`bind_layer` 的可用位置参数签名尚待隔离验证。
+
+不要表述为“已确认 `bind_layer` 完全不可用”。
+
+下一次诊断应只测试位置参数形式，并将每次结果独立打印：
+
+```python
+Display.bind_layer(
+    info['pix_format'], info['src'], info['rect'], Display.LAYER_VIDEO1
+)
+```
+
+若该调用也失败，保存完整异常文本；若成功，则主程序应使用这一位置参数签名。测试绑定成功后应保持运行至少 5 秒，才能目视确认 LCD 上的视频层和 OSD 层实际出图。
+
+### 6.4 当前 `show_image` 回退方案的定位
+
+若经过可复核测试确认当前固件无法完成 `bind_layer`，保留：
+
+```text
+ch0: 640×480 RGB565 → snapshot → 绘制结果 → show_image
+ch1: 320×240 GRAYSCALE → cv_lite
+```
+
+是合理的功能回退方案，且最新日志显示约 56～58 FPS，交互体验可接受。
+
+但必须同步修改代码文件头、提交说明和 `cvlite_dual_channel.md`：它不是“ch0 硬件直显 + OSD 独立层按需刷新”，而是“ch0 彩色软件显示 + ch1 灰度检测”。当前文件头和设计文档仍声称 YUV `bind_layer`、ARGB OSD、零 CPU，与实际实现不一致。
+
+来源：选自 [cvlite_demo.py（第 1～4、79～84、154～175 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/cvlite_demo.py:1)；[cvlite_dual_channel.md（第 1～55 行）](/C:/Users/zhntd/Desktop/DianJiXZ/firmware/K230_Target_Detection/docs/cvlite_dual_channel.md:1)。
+
+### 6.5 二次评审结论
+
+| 项目 | 结论 |
+| --- | --- |
+| `reject` 的 ROI 日志一致性 | 通过代码审查 |
+| FPS 统计功能 | 通过；结果应表述为当前条件下约 56～58 FPS |
+| 320×240 检测 / 640×480 显示 / `×2` 映射 | 可保留 |
+| `bind_layer` 关键字调用 | 已确认 `**info, dstlayer=...` 形式失败；位置参数签名待验证 |
+| 当前软件显示回退路径 | 可运行，但不能称作硬件直显或独立 OSD |
+| 窗格误检根因 | 尚未解决，仍需两阶段靶纸身份校验 |
+
+### 6.6 下一步最小闭环
+
+1. 将 `test_dual_channel.py` 改为绑定后持续运行至少 5 秒，或用循环持续显示；捕获并保存完整串口输出。
+2. 若绑定失败，将完整异常文本追加到 `log.md` 或单独的诊断日志，记录 CanMV 版本、板卡型号、显示器型号和脚本哈希。
+3. 依据实测结果二选一：
+   - 绑定可用：按第 3 节完成 YUV `bind_layer + ARGB OSD`；
+   - 绑定确实不可用：保留当前 RGB565 + `show_image`，并更正全部文档和提交描述为“软件显示回退方案”。
+4. 在任一显示路径上，继续完成黑框 ROI、四边几何和圆环/红点校验；显示性能不应替代靶纸身份校验。
