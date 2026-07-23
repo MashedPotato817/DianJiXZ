@@ -131,7 +131,7 @@ void TIMER_0_INST_IRQHandler(void)
 			MotorB.Motor_Pwm = Incremental_PI_Right(MotorB.Current_Encoder,MotorB.Target_Encoder);
 			if(!Flag_Stop)
 			{
-				Set_PWM(MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
+				Set_PWM(-MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
 			}else Set_PWM(0,0);
 		}
     }
