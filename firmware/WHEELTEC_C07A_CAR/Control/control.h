@@ -44,12 +44,12 @@ extern float Gray_Line_Pos_mm;
 
 /* 8 路灰度基础巡线参数 */
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
-#define GRAY_BASE_SPEED_MM_S         150.0f
+#define GRAY_BASE_SPEED_MM_S         45.0f    /* 低速验证巡线方向，确认后再逐级提速 */
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
 #define GRAY_SENSOR_FORWARD_MM       260.0f
 #define GRAY_STEER_GAIN              1.70f
-#define GRAY_MAX_ANGULAR_SPEED       1.20f
+#define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
 //电机速度控制相关参数结构体
 typedef struct  
 {
