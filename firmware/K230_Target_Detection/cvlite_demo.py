@@ -27,8 +27,9 @@ MAX_ANGLE_COS = 0.3         # 角点直角容差，越小越严格
 GAUSSIAN_BLUR = 5           # 高斯模糊核，必须奇数
 
 # ── 筛选参数（320×240） ──
-MIN_ASPECT = 0.52
-MAX_ASPECT = 0.92
+MIN_ASPECT = 0.60
+MAX_ASPECT = 0.80
+TARGET_ASPECT = 0.70  # 黑框整体 209.5/296 ≈ 0.708
 
 LOG_PERIOD_FRAMES = 15
 HOLD_FRAMES = 5
@@ -48,7 +49,7 @@ def find_target(img):
     )
 
     best = None
-    best_area = 0
+    best_score = 0
     for r in rects:
         if len(r) != 12:
             continue
@@ -62,8 +63,10 @@ def find_target(img):
         aspect = min(rw, rh) / max(rw, rh) if rw and rh else 0
         if not MIN_ASPECT <= aspect <= MAX_ASPECT:
             continue
-        if area > best_area:
-            best_area = area
+        # 形状得分：面积 × 长宽比匹配度
+        score = area * (1.0 - abs(aspect - TARGET_ASPECT) / TARGET_ASPECT)
+        if score > best_score:
+            best_score = score
             best = (corners, (rx, ry, rw, rh))
     return best
 
@@ -100,7 +103,12 @@ try:
                 last_corners = corners
                 last_rect = rect
                 hold_count = 0
-            source = "detect"
+                source = "detect"
+            else:
+                # streak=1：首帧确认中，不绘制不上屏
+                corners = None
+                rect = None
+                source = "detect"
         else:
             detect_streak = 0
             if last_corners is not None and hold_count < HOLD_FRAMES:
@@ -123,7 +131,10 @@ try:
                 dx = cx - track_cx
                 dy = cy - track_cy
                 if dx * dx + dy * dy > MAX_JUMP * MAX_JUMP:
+                    # 跳变过大，视为假阳性，整帧回退到上一确认位置
                     cx, cy = track_cx, track_cy
+                    corners = last_corners
+                    rect = last_rect
                     source = "reject"
                 else:
                     track_cx, track_cy = cx, cy
