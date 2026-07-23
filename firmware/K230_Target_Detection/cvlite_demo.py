@@ -1,35 +1,38 @@
-"""K230 CanMV 靶面定位：cv_lite 硬件加速版。
+"""K230 CanMV 靶面定位：cv_lite 硬件加速 + 双通道显示。
 
-管线：sensor GRAYSCALE → cv_lite.grayscale_find_rectangles_with_corners
-采集 320×240，显示居中在 640×480 LCD。
+ch0: 640×480 YUV → bind_layer 硬件直显 LCD（零 CPU）
+ch1: 320×240 GRAYSCALE → cv_lite 检测
+OSD: 640×480 ARGB → LAYER_OSD3（坐标 ×2，结果变化时刷新）
 """
 import os
 import time
 import math
 
 import cv_lite
-import ulab.numpy as np
-from media.sensor import Sensor
 from media.display import Display
 from media.media import MediaManager
+from media.sensor import CAM_CHN_ID_0, CAM_CHN_ID_1, Sensor
 
-FRAME_WIDTH = 320
-FRAME_HEIGHT = 240
 LCD_WIDTH = 640
 LCD_HEIGHT = 480
+DETECT_WIDTH = 320
+DETECT_HEIGHT = 240
+SCALE = 2  # 检测→显示坐标映射
 
 # ── cv_lite 参数 ──
 CANNY_LO = 50
 CANNY_HI = 150
-APPROX_EPSILON = 0.04       # 多边形拟合精度，越小越精确
-AREA_MIN_RATIO = 0.02       # 矩形最小面积比（相对全图）
-MAX_ANGLE_COS = 0.3         # 角点直角容差，越小越严格
-GAUSSIAN_BLUR = 5           # 高斯模糊核，必须奇数
+APPROX_EPSILON = 0.04
+AREA_MIN_RATIO = 0.02
+MAX_ANGLE_COS = 0.3
+GAUSSIAN_BLUR = 5
 
 # ── 筛选参数（320×240） ──
+MIN_AREA = 800
+MAX_AREA = 72_000
 MIN_ASPECT = 0.60
 MAX_ASPECT = 0.80
-TARGET_ASPECT = 0.70  # 黑框整体 209.5/296 ≈ 0.708
+TARGET_ASPECT = 0.70
 
 LOG_PERIOD_FRAMES = 15
 HOLD_FRAMES = 5
@@ -40,7 +43,7 @@ def find_target(img):
     """cv_lite 矩形检测，返回 (corners, (rx,ry,rw,rh)) 或 None。"""
     img_np = img.to_numpy_ref()
     rects = cv_lite.grayscale_find_rectangles_with_corners(
-        [FRAME_HEIGHT, FRAME_WIDTH], img_np,
+        [DETECT_HEIGHT, DETECT_WIDTH], img_np,
         CANNY_LO, CANNY_HI,
         APPROX_EPSILON,
         AREA_MIN_RATIO,
@@ -60,10 +63,11 @@ def find_target(img):
         if any(p[0] < 0 or p[1] < 0 for p in corners):
             continue
         area = rw * rh
+        if area < MIN_AREA or area > MAX_AREA:
+            continue
         aspect = min(rw, rh) / max(rw, rh) if rw and rh else 0
         if not MIN_ASPECT <= aspect <= MAX_ASPECT:
             continue
-        # 形状得分：面积 × 长宽比匹配度
         score = area * (1.0 - abs(aspect - TARGET_ASPECT) / TARGET_ASPECT)
         if score > best_score:
             best_score = score
@@ -75,13 +79,20 @@ sensor = None
 try:
     sensor = Sensor(width=1280, height=960)
     sensor.reset()
-    sensor.set_framesize(w=FRAME_WIDTH, h=FRAME_HEIGHT)
-    sensor.set_pixformat(Sensor.GRAYSCALE)  # cv_lite grayscale 函数要求灰度图
+
+    # ch0: 640×480 RGB565 → show_image 显示
+    sensor.set_framesize(w=LCD_WIDTH, h=LCD_HEIGHT, chn=CAM_CHN_ID_0)
+    sensor.set_pixformat(Sensor.RGB565, chn=CAM_CHN_ID_0)
+
+    # ch1: 320×240 GRAYSCALE → cv_lite 检测
+    sensor.set_framesize(w=DETECT_WIDTH, h=DETECT_HEIGHT, chn=CAM_CHN_ID_1)
+    sensor.set_pixformat(Sensor.GRAYSCALE, chn=CAM_CHN_ID_1)
+
     Display.init(Display.ST7701, width=LCD_WIDTH, height=LCD_HEIGHT, to_ide=True)
     MediaManager.init()
     sensor.run()
-    print("cvlite demo started: capture %dx%d GRAYSCALE, display %dx%d" %
-          (FRAME_WIDTH, FRAME_HEIGHT, LCD_WIDTH, LCD_HEIGHT))
+    print("cvlite dual-channel started: display %dx%d, detect %dx%d" %
+          (LCD_WIDTH, LCD_HEIGHT, DETECT_WIDTH, DETECT_HEIGHT))
 
     frame_count = 0
     last_corners = None
@@ -93,7 +104,8 @@ try:
 
     while True:
         os.exitpoint()
-        img = sensor.snapshot()
+        display_img = sensor.snapshot(chn=CAM_CHN_ID_0)
+        img = sensor.snapshot(chn=CAM_CHN_ID_1)
         result = find_target(img)
 
         if result:
@@ -105,7 +117,6 @@ try:
                 hold_count = 0
                 source = "detect"
             else:
-                # streak=1：首帧确认中，不绘制不上屏
                 corners = None
                 rect = None
                 source = "detect"
@@ -126,12 +137,10 @@ try:
             cx = sum(p[0] for p in corners) // 4
             cy = sum(p[1] for p in corners) // 4
 
-            # 距离门控
             if track_cx is not None:
                 dx = cx - track_cx
                 dy = cy - track_cy
                 if dx * dx + dy * dy > MAX_JUMP * MAX_JUMP:
-                    # 跳变过大，视为假阳性，整帧回退到上一确认位置
                     cx, cy = track_cx, track_cy
                     corners = last_corners
                     rect = last_rect
@@ -140,28 +149,34 @@ try:
                     track_cx, track_cy = cx, cy
             else:
                 track_cx, track_cy = cx, cy
-
-            radius = int(sum(math.sqrt((p[0] - cx) ** 2 + (p[1] - cy) ** 2)
-                            for p in corners) / 4)
-            img.draw_circle(cx, cy, radius, color=(255, 255, 0), thickness=2)
-            for p in corners:
-                img.draw_circle(p[0], p[1], 3, color=(0, 255, 0), thickness=2)
-            img.draw_cross(cx, cy, color=(255, 0, 0), size=20, thickness=2)
-
-            if frame_count % LOG_PERIOD_FRAMES == 0:
-                corners_str = ", ".join("(%d,%d)" % (p[0], p[1]) for p in corners)
-                print("source=%s, roi=(%d,%d,%d,%d), center=(%d,%d), radius=%d, corners=[%s]" %
-                      (source, rx, ry, rw, rh, cx, cy, radius, corners_str))
         else:
             track_cx = None
             track_cy = None
-            if frame_count % LOG_PERIOD_FRAMES == 0:
-                print("source=none")
+
+        # 在 ch0 显示帧上叠加检测结果（每帧画，因为 snapshot 每次都是新图）
+        if corners is not None:
+            radius = int(sum(math.sqrt((p[0] - cx) ** 2 + (p[1] - cy) ** 2)
+                            for p in corners) / 4)
+            # 坐标 ×2 映射到 640×480
+            ox, oy = cx * SCALE, cy * SCALE
+            oradius = radius * SCALE
+            display_img.draw_circle(ox, oy, oradius, color=(255, 255, 0), thickness=2)
+            for p in corners:
+                display_img.draw_circle(p[0] * SCALE, p[1] * SCALE, 5,
+                                        color=(0, 255, 0), thickness=2)
+            display_img.draw_cross(ox, oy, color=(255, 0, 0), size=20, thickness=2)
+
+        Display.show_image(display_img, 0, 0)
+
+        if frame_count % LOG_PERIOD_FRAMES == 0:
+            if corners is not None:
+                corners_str = ", ".join("(%d,%d)" % (p[0], p[1]) for p in corners)
+                print("source=%s, roi=(%d,%d,%d,%d), center=(%d,%d), radius=%d, corners=[%s]" %
+                      (source, rx, ry, rw, rh, cx, cy, radius, corners_str))
+            else:
+                print("source=%s" % source)
 
         frame_count += 1
-        Display.show_image(img,
-                           x=round((LCD_WIDTH - FRAME_WIDTH) / 2),
-                           y=round((LCD_HEIGHT - FRAME_HEIGHT) / 2))
 
 except KeyboardInterrupt as error:
     print("user stop:", error)
