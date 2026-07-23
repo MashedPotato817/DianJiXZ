@@ -31,26 +31,6 @@ float Velocity_KP=400,Velocity_KI=300;
 int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
 
-#define GRAY_BLACK_LEVEL              1
-#define GRAY_BASE_SPEED_MM_S          300.0f
-#define GRAY_MID_SPEED_MM_S           240.0f
-#define GRAY_CURVE_SPEED_MM_S         185.0f
-#define GRAY_CROSS_SPEED_MM_S         310.0f
-#define GRAY_LOST_SEARCH_SPEED_MM_S   0.0f
-#define GRAY_SENSOR_PITCH_MM          10.0f
-#define GRAY_SENSOR_FORWARD_MM        150.0f
-#define GRAY_CAR_WHEELBASE_MM         105.0f
-#define GRAY_STEER_GAIN               1.70f
-#define GRAY_MAX_ANGULAR_SPEED        3.60f
-#define GRAY_LOST_TURN_SPEED          1.80f
-#define GRAY_LOST_POS_DEADBAND_MM     3.0f
-#define GRAY_MID_POS_MM               10.0f
-#define GRAY_CURVE_POS_MM             22.0f
-#define GRAY_CROSS_BLACK_COUNT        7
-#define GRAY_CROSS_DETECT_COUNT       2
-#define GRAY_CROSS_RUN_TICKS          32
-#define GRAY_CROSS_COOLDOWN_TICKS     60
-
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
     -2.5f * GRAY_SENSOR_PITCH_MM,
@@ -93,13 +73,10 @@ void Gray_Read_All(void)
 
 void Gray_Mode(void)
 {
-    static float last_line_pos_mm = 0;
-    static int8_t last_search_dir = 1;
-    static uint8_t cross_detect_count = 0;
-    static uint8_t cross_run_ticks = 0;
-    static uint8_t cross_cooldown_ticks = 0;
+    static float lost_search_angle;
+    static float last_search_move_z;
+    static uint8_t line_seen;
     float pos_sum = 0;
-    float abs_line_pos_mm;
     int black_count = 0;
     float y_m;
     float lookahead_m;
@@ -114,59 +91,27 @@ void Gray_Mode(void)
         }
     }
 
-    if (cross_cooldown_ticks > 0) {
-        cross_cooldown_ticks--;
-    }
-
-    if (cross_run_ticks > 0) {
-        cross_run_ticks--;
-        Move_X = GRAY_CROSS_SPEED_MM_S / 1000.0f;
-        Move_Z = 0;
-        Get_Target_Encoder(Move_X, Move_Z);
-        return;
-    }
-
-    if (black_count >= GRAY_CROSS_BLACK_COUNT) {
-        if (cross_detect_count < GRAY_CROSS_DETECT_COUNT) {
-            cross_detect_count++;
-        }
-        if ((cross_detect_count >= GRAY_CROSS_DETECT_COUNT) && (cross_cooldown_ticks == 0)) {
-            cross_detect_count = 0;
-            cross_run_ticks = GRAY_CROSS_RUN_TICKS;
-            cross_cooldown_ticks = GRAY_CROSS_COOLDOWN_TICKS;
-            Move_X = GRAY_CROSS_SPEED_MM_S / 1000.0f;
-            Move_Z = 0;
-            Get_Target_Encoder(Move_X, Move_Z);
-            return;
-        }
-    } else {
-        cross_detect_count = 0;
-    }
-
-    Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
     if (black_count == 0) {
-        Gray_Line_Pos_mm = last_line_pos_mm;
-        Move_X = GRAY_LOST_SEARCH_SPEED_MM_S / 1000.0f;
-        Move_Z = last_search_dir * GRAY_LOST_TURN_SPEED;
+        Gray_Line_Pos_mm = 0;
+        /* 首次上电未识别到黑线、无有效搜线方向或已搜满一圈时停车 */
+        if ((!line_seen) || (last_search_move_z == 0.0f) ||
+            (lost_search_angle >= GRAY_LOST_SEARCH_MAX_ANGLE_RAD)) {
+            Move_X = 0;
+            Move_Z = 0;
+        } else {
+            /* 丢线后停止前进，沿最后一次有效偏线方向低速原地搜线 */
+            Move_X = 0;
+            Move_Z = last_search_move_z;
+            lost_search_angle += GRAY_LOST_SEARCH_ANGULAR_SPEED / Frequency;
+        }
         Get_Target_Encoder(Move_X, Move_Z);
         return;
     }
 
+    line_seen = 1;
+    lost_search_angle = 0;
     Gray_Line_Pos_mm = pos_sum / black_count;
-    last_line_pos_mm = Gray_Line_Pos_mm;
-
-    if (Gray_Line_Pos_mm > GRAY_LOST_POS_DEADBAND_MM) {
-        last_search_dir = -1;
-    } else if (Gray_Line_Pos_mm < -GRAY_LOST_POS_DEADBAND_MM) {
-        last_search_dir = 1;
-    }
-
-    abs_line_pos_mm = (Gray_Line_Pos_mm >= 0) ? Gray_Line_Pos_mm : -Gray_Line_Pos_mm;
-    if ((black_count >= 5) || (abs_line_pos_mm >= GRAY_CURVE_POS_MM)) {
-        Move_X = GRAY_CURVE_SPEED_MM_S / 1000.0f;
-    } else if (abs_line_pos_mm >= GRAY_MID_POS_MM) {
-        Move_X = GRAY_MID_SPEED_MM_S / 1000.0f;
-    }
+    Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
     y_m = Gray_Line_Pos_mm / 1000.0f;
     lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;
@@ -175,6 +120,10 @@ void Gray_Mode(void)
 
     if (Move_Z > GRAY_MAX_ANGULAR_SPEED) Move_Z = GRAY_MAX_ANGULAR_SPEED;
     if (Move_Z < -GRAY_MAX_ANGULAR_SPEED) Move_Z = -GRAY_MAX_ANGULAR_SPEED;
+
+    /* 仅在存在偏线时更新搜线方向，居中直线不覆盖最近一次转向方向 */
+    if (Move_Z > 0.0f) last_search_move_z = GRAY_LOST_SEARCH_ANGULAR_SPEED;
+    else if (Move_Z < 0.0f) last_search_move_z = -GRAY_LOST_SEARCH_ANGULAR_SPEED;
 
     Get_Target_Encoder(Move_X, Move_Z);
 }
@@ -187,7 +136,7 @@ void TIMER_0_INST_IRQHandler(void)
 			
 			Key();
 			LED_Flash(100);
-			Get_Velocity_From_Encoder(-Get_Encoder_countA,-Get_Encoder_countB);
+			Get_Velocity_From_Encoder(Get_Encoder_countA,Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
 			if(Run_Mode==0)
 			{
@@ -200,7 +149,7 @@ void TIMER_0_INST_IRQHandler(void)
 			MotorB.Motor_Pwm = Incremental_PI_Right(MotorB.Current_Encoder,MotorB.Target_Encoder);
 			if(!Flag_Stop)
 			{
-				Set_PWM(MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
+				Set_PWM(-MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
 			}else Set_PWM(0,0);
 		}
     }
@@ -219,14 +168,20 @@ void Get_Velocity_From_Encoder(int Encoder1,int Encoder2)
 	
 	//Retrieves the original data of the encoder
 	//获取编码器的原始数据
-	float Encoder_A_pr,Encoder_B_pr; 
-	OriginalEncoder.A=-Encoder1;	
-	OriginalEncoder.B=-Encoder2;	
-	Encoder_A_pr=OriginalEncoder.A; Encoder_B_pr=-OriginalEncoder.B;
-	//编码器原始数据转换为车轮速度，单位m/s
-	MotorA.Current_Encoder= -Encoder_A_pr*Frequency*Perimeter/780.0f;  
-	MotorB.Current_Encoder= -Encoder_B_pr*Frequency*Perimeter/780.0f;   //1560=2*13*30=2（两路脉冲）*1（上升沿计数）*霍尔编码器13线*电机的减速比
-	
+	static float Filtered_SpeedA = 0.0f, Filtered_SpeedB = 0.0f;
+	float Encoder_A_pr, Encoder_B_pr, raw_speedA, raw_speedB;
+	OriginalEncoder.A = Encoder1;
+	OriginalEncoder.B = Encoder2;
+	Encoder_A_pr = OriginalEncoder.A;
+	Encoder_B_pr = -OriginalEncoder.B;
+	raw_speedA =  Encoder_A_pr * Frequency * Perimeter / CPR;
+	raw_speedB =  Encoder_B_pr * Frequency * Perimeter / CPR;
+
+	Filtered_SpeedA = SPEED_FILTER_ALPHA * raw_speedA + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedA;
+	Filtered_SpeedB = SPEED_FILTER_ALPHA * raw_speedB + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedB;
+
+	MotorA.Current_Encoder = Filtered_SpeedA;
+	MotorB.Current_Encoder = Filtered_SpeedB;
 }
 //运动学逆解，由x和y的速度得到编码器的速度,Vx是m/s,Vz单位是度/s(角度制)
 void Get_Target_Encoder(float Vx,float Vz)
@@ -296,28 +251,32 @@ pwm代表增量输出
 pwm+=Kp[e（k）-e(k-1)]+Ki*e(k)
 **************************************************************************/
 int Incremental_PI_Left (float Encoder,float Target)
-{ 	
+{
 	 static float Bias,Pwm,Last_bias;
+	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
 	if(Flag_Stop) Pwm=0;
-	 if(Pwm>7800)Pwm=7800;
-	 if(Pwm<-7800)Pwm=-7800;
-	 Last_bias=Bias;	                   					//保存上一次偏差 
-	 return Pwm;                         					//增量输出
+	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
+	 Last_bias=Bias;	                   					//保存上一次偏差
+	 return (int)Pwm;                         				//增量输出
 }
 
 
 int Incremental_PI_Right (float Encoder,float Target)
-{ 	
+{
 	 static float Bias,Pwm,Last_bias;
+	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
 	if(Flag_Stop) Pwm=0;
-	 if(Pwm>7800)Pwm=7800;
-	 if(Pwm<-7800)Pwm=-7800;
-	 Last_bias=Bias;	                   					//保存上一次偏差 
-	 return Pwm;                         					//增量输出
+	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
+	 Last_bias=Bias;	                   					//保存上一次偏差
+	 return (int)Pwm;                         				//增量输出
 }
 /**************************************************************************
 Function: Processes the command sent by APP through usart 2

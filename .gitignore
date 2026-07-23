@@ -61,3 +61,10 @@ vscode-extensions.md
 自动行驶小车（H题）.pdf
 firmware/K230_Target_Detection/log.md
 firmware/K230_Target_Detection/pic
+firmware/demo/EIDE/build/
+*.s19
+*.sct
+*.objlist
+*.params
+*.iex
+Event.dot
