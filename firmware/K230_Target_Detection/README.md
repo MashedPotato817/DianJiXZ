@@ -1,66 +1,81 @@
 # K230 同心圆靶识别
 
-本项目用于实时识别红色同心圆靶的靶心，输出靶心像素坐标。中心红点是首选特征；当其因距离、反光或遮挡而不可见时，使用同心圆的公共圆心兜底。
+本项目用于实时识别同心圆靶的靶心，输出靶心像素坐标。黑框定位和靶心提取分两阶段：先通过四边形检测锁定靶面，再使用同心圆/红点精确定位靶心。
 
-> 当前状态：已完成 K230 CanMV 取流与靶面定位调试骨架。`find_rects()` 对当前粗黑框存在漏检和中心圆误检，现改为黑色连通域锁定 ROI；最终靶心精度尚未上板验证。未接入 MSPM0 UART，不会影响现有小车工程。
+> 当前状态：黑框定位已完成，双通道 cv_lite 版稳定运行 ~56-58 FPS。**已知限制：全画面矩形检测无法区分靶纸和同形背景（窗框等），靶纸身份校验（黑框/同心圆/红点）尚未接入。** 同心圆/红点检测（`main.py`）尚未升级。未接入 MSPM0 UART。
+
+## 固件要求
+
+- `cvlite_demo.py`：需要 **CanMV v1.8+**（ATK DNK230D 专用，含 `cv_lite` 模块）
+- `black_frame_demo.py`：CanMV v1.2+ 即可
+- `main.py` / `test_cvlite.py`：CanMV v1.2+
+- 固件烧录工具和镜像见厂商资料盘 `6，软件资料/`
 
 ## 目录
 
 ```text
 K230_Target_Detection/
-├── main.py             # CanMV 入口：取流、圆检测、同心筛选、OSD 显示
-├── black_frame_demo.py # 黑框黑色连通域 ROI 调试入口
-├── target_config.py    # 与相机视场和靶距有关的可调参数
-├── 靶子.jpg            # 当前样张
-└── README.md
+├── cvlite_demo.py              # cv_lite 双通道黑框定位（主力）
+├── black_frame_demo.py         # 原生 find_rects 黑框定位（对照）
+├── main.py                     # 同心圆/红点靶心检测（待升级）
+├── target_config.py            # 检测阈值参数
+├── test_cvlite.py              # cv_lite 模块可用性测试
+├── test_dual_channel.py        # bind_layer API 兼容性诊断
+├── 靶子.jpg                    # 靶纸样张
+├── log.md                      # 运行日志（不纳入 git）
+├── docs/                       # 设计文档与评审
+│   ├── cvlite_dual_channel.md
+│   ├── cvlite_dual_channel_review.md
+│   └── cvlite_demo_优化建议报告.md
+├── research/                   # 调研文档
+│   ├── 2025-电赛E题-视觉方案调研.md
+│   └── 靶心识别方案调研.md
+├── log/                        # 开发日志
+└── pic/                        # 实拍帧（不纳入 git）
 ```
 
-## 检测定义
+## 黑框定位管线
 
-- 优先使用红色阈值提取中心红点，输出红点质心。
-- 未检出可信红点时，对相机画面运行 Hough 圆检测；将圆心距离不超过 `CENTER_TOLERANCE_PX` 的圆归为同一靶子，取圆数最多的一组的平均圆心。
-- 红点与同心圆均不可用时，本帧识别无效，不复用上一帧坐标。
-- 圆直径的实际尺寸为 4 cm 的整数倍；初版不输出厘米值，圆环数量和像素半径只用于调试兜底结果。
+### cv_lite 版 (`cvlite_demo.py`) — 分支 `feat/k230-cvlite`
 
-样张中可见 5 条圆环线和中心红点。中心红点不是圆环，不计入 `ring_count`。
+双通道架构，实测 ~56-58 FPS：
 
-## 运行
+```
+sensor 1280×960
+  ├─ ch0: 640×480 RGB565 → snapshot → 绘制检测结果 → show_image（彩色预览）
+  └─ ch1: 320×240 GRAYSCALE → cv_lite.grayscale_find_rectangles_with_corners()
+```
 
-1. 将 `main.py`、`target_config.py` 上传至 K230 CanMV 文件系统，或用 CanMV IDE 打开 `main.py` 运行。
-2. 首次运行只观察 IDE/LCD 预览与串口日志。若提示不支持 `find_blobs()` 或 `find_circles()`，请保留完整日志；不同 CanMV 固件版本的图像 API 可能不同。
-3. 将靶子放到实际使用距离，依次调整 `MIN_RADIUS`、`MAX_RADIUS`、`CIRCLE_THRESHOLD` 与 `CENTER_TOLERANCE_PX`，直到圆心稳定、圆环数正确。
+检测坐标 ×2 映射到 640×480 显示。追踪逻辑：连续确认（detect_streak≥2）+ 时序保持（HOLD_FRAMES=5）+ 距离门控（MAX_JUMP=60）。候选按形状得分（面积 × 长宽比匹配度，TARGET=0.70）排序。
 
-默认 `SENSOR_ID = None`，由 CanMV 自动检测摄像头。只有在实机已确认具体摄像头编号时才填写该编号。
+### 原生版 (`black_frame_demo.py`) — 分支 `feat/k230-target-detection`
 
-## 黑框定位调试
+```
+sensor QVGA(320×240) → to_grayscale → binary(0,80) → invert → find_rects()
+```
 
-先运行 `black_frame_demo.py`。当前第 1 阶段不再使用 `find_rects()`：它直接提取黑色连通域，选取面积和长宽比符合靶纸的最大黑色区域。黄色矩形应覆盖黑框，红色十字为该区域中心。这只是锁定靶面 ROI；后续会在 ROI 内用黑框四边线和同心圆进一步精确靶心。
+同样具备时序保持 + 连续确认 + 距离门控 + 形状得分。
 
-黑框整体尺寸为 209.5 × 296 mm，长宽比约 0.708，脚本据此过滤不相干矩形。此调试阶段只验证“黑框几何中心”是否与实际靶心重合，不替代同心圆校验。
+## 靶纸规格
 
-### 已知问题与下一步
-
-- 厂家 `find_rects()` 例程能检测细矩形边缘，但当前实拍中的粗黑框只产生中心圆附近的假矩形，不能作为黑框主定位方法。
-- 当前黑色连通域方案只输出靶面 ROI 的轴对齐包围框中心；靶面倾斜时，该中心不能作为最终靶心。
-- 下一步是在已锁定的 ROI 内检测黑框四边线，取对角线交点得到抗透视的靶心；同心圆只用于交叉校验和近距离微调。
-- 现阶段不需要训练模型。只有黑框被频繁遮挡、背景存在相似黑框或靶纸样式不固定时，才考虑训练目标检测模型；模型输出的目标框中心也不能替代几何精定位。
-- `pic/` 中的实拍帧仅用于参数验证，默认不纳入本次代码提交。
+209.5 × 296 mm（竖），含 18.5 mm 宽黑色外框（长宽比 ≈ 0.708）。白纸区域 172.5 × 259 mm（长宽比 ≈ 0.666）。内部有黑色同心圆（直径 40mm 整数倍）和红色中心点。
 
 ## 当前输出
 
-控制台示例：
-
 ```text
-target: source=red_dot, center=(640, 361), rings=0, radii=[]
-target: source=circles, center=(640, 361), rings=5, radii=[78, 157, 235, 314, 392]
+source=detect, roi=(131,76,55,74), center=(156,112), radius=40, corners=[...]
+fps=58.4
 ```
 
-圆心和半径均为相机像素坐标。初版仅在 K230 的 LCD/IDE 叠加显示并输出控制台日志。后续如需发送给 MSPM0，将保留 `valid, center_x, center_y` 三个字段并复用仓库既有的 UART 帧；本初版不擅自改变该协议。
+- `source`: detect=新检出, hold=时序保持, reject=距离门控拦截, none=未检出
+- `center`: 对角线交点（透视中心），圆形 visual 指示
+- `radius`: 四角点到圆心平均距离
+- 坐标均为 320×240 检测分辨率下的像素值
 
-## 验收顺序
+## 待办
 
-1. K230 可打开相机并显示预览。
-2. 靶子正对相机时，优先出现 `source=red_dot`，中心叠加标记稳定。
-3. 将靶子拉远至红点不可见时，出现 `source=circles`，且中心仍正确。
-4. 平移靶子时，中心坐标方向、数值变化正确。
-5. 倾斜、强反光、部分遮挡时记录误检情况，再决定是否增加滤波或透视校正。
+- [ ] **靶纸身份校验**（P0）：黑框 ROI → 四边线 → 透视矫正 → 同心圆/红点验证，解决窗框误检
+- [ ] `main.py` 同心圆/红点检测用 cv_lite 升级
+- [ ] UART 输出对接 MSPM0（复用 `k210_link` 二进制协议 `0xAA+x+y+area+xor`）
+- [ ] 评估 `rgb888_perspective_transform` 抗倾斜效果
+- [ ] v1.8 `bind_layer` 不可用——待固件更新后切换硬件直显 + 独立 OSD 层
