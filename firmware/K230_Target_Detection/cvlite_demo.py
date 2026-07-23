@@ -94,6 +94,7 @@ try:
     print("cvlite dual-channel started: display %dx%d, detect %dx%d" %
           (LCD_WIDTH, LCD_HEIGHT, DETECT_WIDTH, DETECT_HEIGHT))
 
+    clock = time.clock()
     frame_count = 0
     last_corners = None
     last_rect = None
@@ -104,6 +105,7 @@ try:
 
     while True:
         os.exitpoint()
+        clock.tick()
         display_img = sensor.snapshot(chn=CAM_CHN_ID_0)
         img = sensor.snapshot(chn=CAM_CHN_ID_1)
         result = find_target(img)
@@ -133,7 +135,6 @@ try:
                 source = "none"
 
         if corners is not None:
-            rx, ry, rw, rh = rect
             cx = sum(p[0] for p in corners) // 4
             cy = sum(p[1] for p in corners) // 4
 
@@ -149,6 +150,9 @@ try:
                     track_cx, track_cy = cx, cy
             else:
                 track_cx, track_cy = cx, cy
+
+            # 在 reject 之后解包 rect，保证日志 ROI 与图形一致
+            rx, ry, rw, rh = rect
         else:
             track_cx = None
             track_cy = None
@@ -175,6 +179,9 @@ try:
                       (source, rx, ry, rw, rh, cx, cy, radius, corners_str))
             else:
                 print("source=%s" % source)
+
+        if frame_count % LOG_PERIOD_FRAMES == 0:
+            print("fps=%.1f" % clock.fps())
 
         frame_count += 1
 
