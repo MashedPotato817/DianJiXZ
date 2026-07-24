@@ -26,5 +26,6 @@
 - `Control/control.h`：直线/弯道速度、阈值与搜线参数。
 - `Control/control.c`：灰度质心、两档速度选择、差速控制与丢线搜线。
 - `keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx`：独立 Keil 工程，目标 `MSPM0G3507_Project`。
+- `docs/PID与提速巡线审计_20260724.md`：当前代码快照、PID 调参边界与上下文交接信息。
 
 使用 Keil 打开本目录的 `keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx` 编译下载。SysConfig 文件仍须通过 TI SysConfig 修改和重新生成，不直接编辑 `ti_msp_dl_config.c/h`。
