@@ -1,75 +1,88 @@
 # MSPM0 主控工程
 
-> 状态：架构草稿。当前目录不包含源代码、Keil 工程或 SysConfig 生成文件。
+> 状态：**源码骨架已完成**（2026-07-25），待复制 Keil 工程 + SysConfig + DriverLib 后可编译。
 
-本目录将承载智能送药小车的 MSPM0G3507 独立控制工程。后续以 [`../../WHEELTEC_C07A_CAR/`](../../WHEELTEC_C07A_CAR/) 为已验证底盘基线复制建立，送药车专用功能只在本目录维护，不回写通用底盘工程。
+基于 `WHEELTEC_C07A_CAR` 底盘基线，仅保留送药车必需模块。
 
-## 计划目录
+## 当前文件结构
 
 ```text
 mspm0/
-├── README.md                 # 本架构说明
-├── keil/                     # 独立 Keil 工程
+├── README.md
+├── empty.c/h                    # 主入口：初始化 + 主循环（K230→状态机→OLED）
 ├── Control/
-│   ├── control.c/h           # 5ms 控制调度、速度闭环与电机输出
-│   ├── medicine_task.c/h     # 送药任务状态机
-│   ├── route.c/h             # 病房路线表、路口与到位判据
-│   └── line_follow.c/h       # 红线巡线接口与失线处理
+│   ├── control.c/h              # 5ms ISR、编码器速度换算、PI、运动学逆解、PWM
+│   ├── line_follow.c/h          # 8 路灰度巡线（从 Gray_Mode 迁移，待 Codex 实测修正符号）
+│   ├── medicine_task.c/h        # 6 状态机 + 故障停车（传感器接入点为 TODO）
+│   └── route.c/h                # 路线表 + 到位判据（Task 4 占位）
 ├── Hardware/
-│   ├── motor.c/h             # TB6612 电机驱动（底盘复用）
-│   ├── encoder.c/h           # 编码器采集（底盘复用）
-│   ├── k230_link.c/h         # K230 串口接收、链路状态与识别结果
-│   ├── load_detect.c/h       # 装载/卸载检测
-│   ├── indicator.c/h         # 红、绿指示灯控制
-│   └── board.c/h             # 板级初始化
-├── source/                   # TI DriverLib、CMSIS 与 SysConfig 生成文件
-└── empty.c/h                 # 工程入口
+│   ├── motor.c/h                # TB6612 PWM + 方向（PB2/PB3, PA13/14, PA16/17）
+│   ├── encoder.c/h              # 编码器 GPIO 中断（PA25/26, PB20/24）
+│   ├── board.c/h                # printf → UART0，延时，类型定义
+│   ├── k230_link.c/h            # UART1 K230 通信：$...# 协议、握手、心跳、RESULT 帧解析
+│   ├── oled.c/h/oledfont.h      # SSD1306 显示
+│   ├── key.c/h                  # 按键扫描
+│   ├── adc.c/h                  # 电池电压
+│   ├── led.c/h                  # PB9 LED
+│   ├── load_detect.c/h          # 装载/卸载检测（Task 3 占位）
+│   └── indicator.c/h            # 红绿指示灯（待分配 GPIO）
+├── keil/                        # ← 待复制
+├── source/                      # ← 待复制
+├── empty.syscfg                 # ← 待复制 + 修改 UART 分配
+└── ti_msp_dl_config.c/h         # ← SysConfig 重新生成
 ```
 
-上述为目标结构；仅在对应功能开始实现时创建文件，避免空模块和未使用的抽象。
+## 串口分配
 
-## 模块边界
+| UART | 引脚 | 用途 | 模式 |
+|------|------|------|------|
+| UART0 | PA10/PA11 | printf 调试输出 | 115200, 阻塞发送 |
+| UART1 | PB6/PB7 | **K230 通信** | 115200 8N1, 轮询 FIFO 接收 |
 
-| 模块 | 职责 | 不负责 |
-| --- | --- | --- |
-| `line_follow` | 根据红线位置计算前进/转向请求，处理丢线 | 病房选择、路口路径和任务状态跳转 |
-| `route` | 将病房号映射为去返路线、路口动作和停车判据 | 电机 PWM、串口解析 |
-| `medicine_task` | 管理 `WAIT_TARGET → WAIT_LOAD → OUTBOUND → ARRIVED → RETURN → FINISHED` | 传感器底层读取、速度 PI |
-| `k230_link` | 维护 UART 链路，输出稳定病房号与通信状态 | 直接启动电机或修改任务状态 |
-| `load_detect` | 输出已装载、已卸载状态 | 路径决策和指示灯策略 |
-| `indicator` | 按任务状态控制红、绿灯 | 状态机跳转 |
-| `control` | 调度实时运动控制、将目标速度输出至电机 | 复杂字符串解析、视觉推理和任务策略 |
+K230 初始化和协议在 `k230_link.c` 中——握手、心跳、超时逻辑完整，`$K230,RESULT,<ward>,<conf>#` 帧解析已实现。
 
-## 实时职责划分
+## K230 协议帧
 
-### 5ms 定时中断
+| 帧 | 方向 | 用途 |
+|----|------|------|
+| `$K230,HELLO#` / `$MSPM0,HELLO#` | 双向 | 握手（500ms 周期） |
+| `$K230,ACK#` / `$MSPM0,ACK#` | 双向 | 握手应答 |
+| `$MSPM0,LINK_OK#` | MSPM0→K230 | 握手完成 |
+| `$K230,DATA#` / `$MSPM0,DATA#` | 双向 | 心跳（1 Hz） |
+| **`$K230,RESULT,<ward>,<conf>#`** | K230→MSPM0 | **识别结果**（ward=1-8, conf=0-100） |
+| `$MSPM0,LINK_LOST#` | MSPM0→K230 | 3 秒超时断链 |
 
-- 读取编码器并计算轮速。
-- 当任务状态允许行驶时，执行巡线计算与路径动作。
-- 执行左右轮速度 PI，输出 PWM。
-- 只使用确定时长的运算；不做 UART 文本解析、OLED 刷新、文件操作或阻塞等待。
+## Codex 待办
 
-### 主循环
+在写巡线控制逻辑前，Codex 需在实车完成：
 
-- 处理 K230 UART 接收缓冲和链路超时。
-- 读取装载/卸载检测结果并执行去抖。
-- 推进送药任务状态机，管理故障停车。
-- 刷新 OLED/调试信息和记录测试数据。
+| # | 任务 | 依据 |
+|---|------|------|
+| 1 | 通道映射：遮最左/最右传感器 → 记录 `Gray_Data[0..7]` | research.md §四.1 |
+| 2 | 轮子方向：抬车 45mm/s，确认黑线居中→同向前转；偏左/右→哪侧加速 | research.md §四.2 |
+| 3 | 红线响应：赛题场地采集白底/红线下 8 路原始读数 | task1.md |
+| 4 | 装载传感器调研：称重 vs 限位开关 vs 红外遮挡 | task3.md |
 
-## 外部接口
+1–2 结果决定 `line_follow.c:80` 的转向符号；3 决定 `GRAY_BLACK_LEVEL` 和 `Gray_ToBlack()` 逻辑。
 
-- 巡线基线：复用 `WHEELTEC_C07A_CAR/Control/control.c` 中的编码器、速度 PI 和 8 路灰度巡线思路；红线识别逻辑须在 Task 1 实测通过后确定。
-- 视觉通信基线：复用 `K230_UART_Demo` 的 IO40/IO41 接线、115200 8N1、`$...#` 帧定界、握手和超时机制；识别结果报文在 Task 2 定稿。
-- 路径和装卸检测：分别在 Task 3、Task 4 确认硬件方案与可量化判据后接入。
+## 未决事项（不影响当前编译）
 
-## 实现约束
+| 事项 | 状态 |
+|------|------|
+| 转向符号修正 | 等 Codex 通道映射结果 |
+| 红线判定阈值 | 等 Task 1 实测 |
+| 装载检测传感器 | 等 Codex 调研 |
+| 红绿 LED GPIO | 待分配 |
+| 路线表参数 | 等 Task 4 |
 
-- 不修改 `../../WHEELTEC_C07A_CAR/` 的通用底盘基线，也不修改 `../../K230_UART_Demo/` 的验证工程。
-- 不修改上级 `topic/` 中的原始赛题资料。
-- `ti_msp_dl_config.c/h` 由 TI SysConfig 生成，禁止手动编辑。
-- 接入 K230 前先解决 UART1 与 JY62、蓝牙、VOFA+ 的资源冲突，明确送药车最终串口分配。
-- 每完成一个模块，按 [`../docs/task1.md`](../docs/task1.md) 至 [`../docs/task6.md`](../docs/task6.md) 的完成判据验证后再进入下一任务。
+## 编译准备（需手动完成）
 
-## 建立工程时的最小复制范围
-
-在进入 Task 5 前，复制 `WHEELTEC_C07A_CAR` 的 Keil 工程、入口文件、`Control/`、`Hardware/`、`source/` 以及 SysConfig 生成文件至本目录；先确保原始底盘功能可独立编译和运行，再做送药车专用改动。
+1. **复制 Keil 工程**：从 `WHEELTEC_C07A_CAR/keil/` 复制 `.uvprojx`、`.uvoptx`、`.sct`、startup 到 `mspm0/keil/`
+2. **复制 DriverLib**：`WHEELTEC_C07A_CAR/source/` → `mspm0/source/`
+3. **复制 SysConfig**：`WHEELTEC_C07A_CAR/empty.syscfg` → `mspm0/empty.syscfg`
+4. **修改 SysConfig**：用 TI SysConfig GUI 打开 `empty.syscfg`，做以下更改：
+   - UART0：启用，115200（调试 printf）
+   - UART1：**关闭 DMA 和中断**，波特率改 115200（K230 通信）
+   - 移除工程中不需要的源文件引用（`uart_callback.c`、`show.c`、`CCD.c`、`DataScope_DP.c`）
+5. **重新生成** `ti_msp_dl_config.c/h`
+6. **Keil 工程中**：移除旧文件引用，添加新模块文件到编译列表
