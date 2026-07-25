@@ -64,6 +64,7 @@ vscode-extensions.md
 firmware/demo/EIDE/build/
 *.s19
 *.sct
+!**/linker_files/**/*.sct
 *.objlist
 *.params
 *.iex
