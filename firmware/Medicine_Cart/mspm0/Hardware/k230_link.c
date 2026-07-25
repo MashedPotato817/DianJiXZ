@@ -231,6 +231,7 @@ void K230_Link_Process(void)
         g_linkState = K230_LINK_DOWN;
         g_k230Hello = 0;
         g_k230Ack = 0;
+        K230_Clear_Target();
         UART1_SendString("$MSPM0,LINK_LOST#\r\n");
     }
 }
@@ -241,6 +242,15 @@ uint8_t K230_Get_TargetWard(void)
         return g_latestResult.ward;
     }
     return K230_WARD_NONE;
+}
+
+void K230_Clear_Target(void)
+{
+    g_latestResult.confirmed = 0;
+    g_latestResult.ward = K230_WARD_NONE;
+    g_latestResult.confidence = 0;
+    g_pendingWard = 0;
+    g_pendingCount = 0;
 }
 
 uint8_t K230_Is_TargetLocked(void)

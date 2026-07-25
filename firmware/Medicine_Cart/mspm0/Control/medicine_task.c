@@ -52,6 +52,7 @@ static void ChangeState(Medicine_State new_state)
         case TASK_WAIT_TARGET:
             g_task.target_ward = 0;
             Flag_Stop = 1;
+            K230_Clear_Target();
             break;
         case TASK_WAIT_LOAD:
             Flag_Stop = 1;
@@ -94,7 +95,7 @@ void Medicine_Task_Run(void)
 
     switch (s) {
         case TASK_WAIT_TARGET:
-            if (K230_Is_TargetLocked()) {
+            if (K230_Is_Online() && K230_Is_TargetLocked()) {
                 g_task.target_ward = K230_Get_TargetWard();
                 if (g_task.target_ward >= 1 && g_task.target_ward <= 8) {
                     ChangeState(TASK_WAIT_LOAD);

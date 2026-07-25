@@ -1,5 +1,7 @@
 #include "control.h"
 #include "k230_link.h"
+#include "key.h"
+#include "line_follow.h"
 #include "empty.h"
 
 Encoder OriginalEncoder;
@@ -61,14 +63,20 @@ int Incremental_PI_Left(float Encoder, float Target)
     static float Bias, Pwm, Last_bias;
     float abs_bias;
 
+    /* 停车时清零历史值，防止起步突跳 */
+    if (Flag_Stop) {
+        Pwm = 0;
+        Bias = 0;
+        Last_bias = 0;
+        return 0;
+    }
+
     Bias = Target - Encoder;
     abs_bias = (Bias > 0.0f) ? Bias : -Bias;
 
     if (abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 
     Pwm += Velocity_KP * (Bias - Last_bias) + Velocity_KI * Bias;
-
-    if (Flag_Stop) Pwm = 0;
     Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
     Last_bias = Bias;
     return (int)Pwm;
@@ -79,14 +87,20 @@ int Incremental_PI_Right(float Encoder, float Target)
     static float Bias, Pwm, Last_bias;
     float abs_bias;
 
+    /* 停车时清零历史值，防止起步突跳 */
+    if (Flag_Stop) {
+        Pwm = 0;
+        Bias = 0;
+        Last_bias = 0;
+        return 0;
+    }
+
     Bias = Target - Encoder;
     abs_bias = (Bias > 0.0f) ? Bias : -Bias;
 
     if (abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
 
     Pwm += Velocity_KP * (Bias - Last_bias) + Velocity_KI * Bias;
-
-    if (Flag_Stop) Pwm = 0;
     Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
     Last_bias = Bias;
     return (int)Pwm;
@@ -95,8 +109,7 @@ int Incremental_PI_Right(float Encoder, float Target)
 /* ========== 5ms 控制中断 ========== */
 void TIMER_0_INST_IRQHandler(void)
 {
-    if (DL_TimerA_getPendingInterrupt(TIMER_0_INST)) {
-        if (DL_TIMER_IIDX_ZERO) {
+    if (DL_TimerG_getPendingInterrupt(TIMER_0_INST) == DL_TIMERG_IIDX_ZERO) {
 
             g_sysTick5ms += 5U;
             K230_Tick5ms();
@@ -122,6 +135,5 @@ void TIMER_0_INST_IRQHandler(void)
             } else {
                 Set_PWM(0, 0);
             }
-        }
     }
 }

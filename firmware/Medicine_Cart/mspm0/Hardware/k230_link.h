@@ -40,6 +40,9 @@ uint8_t K230_Get_TargetWard(void);
 /* ---- 目标是否已锁定 ---- */
 uint8_t K230_Is_TargetLocked(void);
 
+/* ---- 清除已锁定目标（复位/断链时调用） ---- */
+void K230_Clear_Target(void);
+
 /* ---- 链路是否在线 ---- */
 uint8_t K230_Is_Online(void);
 

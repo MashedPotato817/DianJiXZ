@@ -6,6 +6,12 @@
  *   主循环 — K230 串口、状态机、装载检测、OLED 刷新
  */
 #include "empty.h"
+#include "medicine_task.h"
+#include "k230_link.h"
+#include "line_follow.h"
+#include "route.h"
+#include "load_detect.h"
+#include "indicator.h"
 
 volatile uint32_t g_sysTick5ms;
 
