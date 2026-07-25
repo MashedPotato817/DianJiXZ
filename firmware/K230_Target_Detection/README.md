@@ -72,6 +72,11 @@ fps=58.4
 - `radius`: 四角点到圆心平均距离
 - 坐标均为 320×240 检测分辨率下的像素值
 
+## 参考资料
+
+- `CanMV-K230 快速入门指南(重要参考)`: https://www.kendryte.com/k230_canmv/v0.7/zh/ 
+- `CanMV-K230 API 手册`: https://www.kendryte.com/k230_canmv/v0.7/zh/api/
+
 ## 待办
 
 - [ ] **靶纸身份校验**（P0）：黑框 ROI → 四边线 → 透视矫正 → 同心圆/红点验证，解决窗框误检
