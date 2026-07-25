@@ -15,6 +15,7 @@
  * 当前版本仅实现状态框架，具体转移条件在各 Task 完成后接入。
  */
 #include "medicine_task.h"
+#include "board.h"
 #include "k230_link.h"
 
 static Medicine_Task g_task;

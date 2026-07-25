@@ -2,6 +2,7 @@
  * 病房路线表 — Task 4 占位模块。
  */
 #include "route.h"
+#include "board.h"
 
 void Route_Init(void)
 {

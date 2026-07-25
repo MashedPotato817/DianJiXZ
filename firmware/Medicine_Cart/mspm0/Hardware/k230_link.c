@@ -10,6 +10,7 @@
  * 病房号确认：连续 K230_TARGET_CONFIRM_COUNT 次相同结果后锁定。
  */
 #include "k230_link.h"
+#include "board.h"
 #include <string.h>
 
 /* ---- 内部状态 ---- */

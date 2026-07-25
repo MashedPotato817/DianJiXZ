@@ -10,6 +10,7 @@
  * ==== 以上均不改动底盘基线，仅在本文件内修改 ====
  */
 #include "line_follow.h"
+#include "board.h"
 
 uint16_t Gray_Data[8];
 uint16_t Gray_Raw[8];

@@ -11,13 +11,8 @@
 #include "adc.h"
 #include "control.h"
 
-/* 送药车专用模块 */
-#include "k230_link.h"
-#include "line_follow.h"
-#include "medicine_task.h"
-#include "route.h"
-#include "load_detect.h"
-#include "indicator.h"
+/* 旧模块在此结束。送药车新模块 (k230_link, line_follow, medicine_task 等)
+   不在此处包含——由各自的 .c 文件直接引用 board.h 即可。 */
 
 #define ABS(a)      (a>0 ? a:(-a))
 typedef int32_t  s32;

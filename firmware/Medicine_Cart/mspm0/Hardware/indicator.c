@@ -2,6 +2,7 @@
  * 红绿指示灯 — 占位模块。
  */
 #include "indicator.h"
+#include "board.h"
 
 void Indicator_Init(void) {}
 void Indicator_Red_On(void) {}
