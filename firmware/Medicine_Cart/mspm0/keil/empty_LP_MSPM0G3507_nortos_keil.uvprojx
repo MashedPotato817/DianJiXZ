@@ -337,9 +337,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>__MSPM0G3507__,MPU6050,MOTION_DRIVER_TARGET_MSPM0</Define>
+              <Define>__MSPM0G3507__</Define>
               <Undefine></Undefine>
-              <IncludePath>..\source;..\source\third_party\CMSIS\Core\Include;..\Hardware;..\..\WHEELTEC_C07A_CAR;..\Control</IncludePath>
+              <IncludePath>..\source;..\source\third_party\CMSIS\Core\Include;..\Hardware;..\Control</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -569,14 +569,24 @@
               <FilePath>..\Hardware\encoder.c</FilePath>
             </File>
             <File>
-              <FileName>CCD.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Hardware\CCD.c</FilePath>
-            </File>
-            <File>
               <FileName>adc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\adc.c</FilePath>
+            </File>
+            <File>
+              <FileName>k230_link.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\k230_link.c</FilePath>
+            </File>
+            <File>
+              <FileName>load_detect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\load_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>indicator.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\indicator.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -589,19 +599,19 @@
               <FilePath>..\Control\control.c</FilePath>
             </File>
             <File>
-              <FileName>show.c</FileName>
+              <FileName>line_follow.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Control\show.c</FilePath>
+              <FilePath>..\Control\line_follow.c</FilePath>
             </File>
             <File>
-              <FileName>DataScope_DP.C</FileName>
+              <FileName>medicine_task.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Control\DataScope_DP.C</FilePath>
+              <FilePath>..\Control\medicine_task.c</FilePath>
             </File>
             <File>
-              <FileName>uart_callback.c</FileName>
+              <FileName>route.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Control\uart_callback.c</FilePath>
+              <FilePath>..\Control\route.c</FilePath>
             </File>
           </Files>
         </Group>
