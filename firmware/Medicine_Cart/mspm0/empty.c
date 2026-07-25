@@ -68,6 +68,9 @@ int main(void)
 {
     SYSCFG_DL_init();
 
+    /* UART0 关闭 loopback（SysConfig 模板默认开启），使 printf 输出到 PA10 */
+    DL_UART_Main_disableLoopbackMode(UART_0_INST);
+
     /* 清除中断挂起 */
     NVIC_ClearPendingIRQ(ENCODERA_INT_IRQN);
     NVIC_ClearPendingIRQ(ENCODERB_INT_IRQN);
