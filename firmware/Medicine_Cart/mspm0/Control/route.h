@@ -1,6 +1,6 @@
 #ifndef __ROUTE_H
 #define __ROUTE_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /*
  * 病房路线表 — Task 4 实现。

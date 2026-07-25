@@ -1,6 +1,6 @@
 #ifndef __MEDICINE_TASK_H
 #define __MEDICINE_TASK_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /* ---- 状态机 ---- */
 typedef enum {

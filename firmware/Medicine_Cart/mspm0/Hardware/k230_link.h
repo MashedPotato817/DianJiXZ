@@ -1,6 +1,6 @@
 #ifndef __K230_LINK_H
 #define __K230_LINK_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /* ---- 链路参数 ---- */
 #define K230_HELLO_PERIOD_MS          500U

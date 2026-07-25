@@ -1,6 +1,6 @@
 #ifndef __INDICATOR_H
 #define __INDICATOR_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /*
  * 红绿指示灯 — 待分配 GPIO 后实现。

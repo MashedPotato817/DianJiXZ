@@ -1,6 +1,6 @@
 #ifndef __LOAD_DETECT_H
 #define __LOAD_DETECT_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /*
  * 装载/卸载检测 — Task 3 实现。

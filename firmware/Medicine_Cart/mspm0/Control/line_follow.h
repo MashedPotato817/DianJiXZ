@@ -1,6 +1,6 @@
 #ifndef __LINE_FOLLOW_H
 #define __LINE_FOLLOW_H
-#include "board.h"
+#include "ti_msp_dl_config.h"
 
 /* ---- 8 路灰度传感器参数 ---- */
 #define GRAY_BLACK_LEVEL             1
