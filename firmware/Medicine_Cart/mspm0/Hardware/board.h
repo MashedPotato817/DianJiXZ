@@ -15,6 +15,9 @@
 #include "k230_link.h"
 #include "line_follow.h"
 #include "medicine_task.h"
+#include "route.h"
+#include "load_detect.h"
+#include "indicator.h"
 
 #define ABS(a)      (a>0 ? a:(-a))
 typedef int32_t  s32;
@@ -64,7 +67,6 @@ extern float Voltage;
 extern float Move_X, Move_Z;
 extern int Motor_Left, Motor_Right;
 extern float Velocity_Left, Velocity_Right;
-extern u8 Run_Mode;
 
 #define SysTickMAX_COUNT 0xFFFFFF
 #define SysTickFre 80000000

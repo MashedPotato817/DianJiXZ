@@ -1,4 +1,7 @@
 #include "adc.h"
+
+volatile bool gCheckADC;
+
 //读取ADC的数据
 float Get_battery_volt(void)
 {
