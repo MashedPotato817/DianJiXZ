@@ -201,15 +201,25 @@ while True:
     best_conf = 0
 
     if res:
-        for det in res:
-            # det 格式: [class_id, score, x1, y1, x2, y2]
-            class_id = int(det[0])
-            score    = float(det[1])
-
-            if score > best_conf:
-                best_conf = score
-                # labels = ["4","5","3","6","7","8","1","2"]
-                best_ward = int(labels[class_id])
+        if isinstance(res, dict):
+            # CanMV v1.8+ API: res = {'scores':array, 'idx':array, 'boxes':array}
+            scores = res.get('scores', [])
+            idxs   = res.get('idx', [])
+            for i in range(len(scores)):
+                score = float(scores[i])
+                if score > best_conf:
+                    best_conf = score
+                    class_id = int(idxs[i])
+                    # labels = ["4","5","3","6","7","8","1","2"]
+                    best_ward = int(labels[class_id])
+        else:
+            # 旧 API: res = [[class_id, score, x1, y1, x2, y2], ...]
+            for det in res:
+                class_id = int(det[0])
+                score    = float(det[1])
+                if score > best_conf:
+                    best_conf = score
+                    best_ward = int(labels[class_id])
 
     # 8. 稳定性确认 + 发送
     if best_ward >= 1 and best_ward <= 8 and best_conf >= conf_threshold:
