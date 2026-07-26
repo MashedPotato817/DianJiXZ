@@ -280,8 +280,17 @@ while True:
                     continue
                 class_id = int(idxs[i])
                 ward = int(labels[class_id])
-                cx = (int(boxes[i][0]) + int(boxes[i][2])) // 2
-                side = "LEFT" if cx < frame_w // 2 else "RIGHT"
+                # 用 bbox 左/右边缘判断：整框在某一侧才发，跨中线不发
+                mid = frame_w // 2
+                x1 = int(boxes[i][0])
+                x2 = int(boxes[i][2])
+                dead = 30  # 死区 px
+                if x2 < mid - dead:
+                    side = "LEFT"
+                elif x1 > mid + dead:
+                    side = "RIGHT"
+                else:
+                    continue  # 跨中线，不归属任一侧
                 msg = "$K230,%s,%d,%d#" % (side, ward, int(score * 100))
                 uart_send(msg.encode())
                 sent = True
