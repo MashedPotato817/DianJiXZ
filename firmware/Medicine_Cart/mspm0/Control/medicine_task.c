@@ -104,25 +104,54 @@ void Medicine_Task_Run(void)
             break;
 
         case TASK_WAIT_LOAD:
-            /* TODO(Task 3): Load_Detect_IsLoaded() → ChangeState(TASK_OUTBOUND) */
+            /* 按键模拟装载检测：按下 PA18（低有效）持续 50ms 后触发 */
+            {
+                static uint8_t btn_cnt;
+                if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN)) {
+                    if (++btn_cnt > 10) {  /* 10次×主循环 ≈ 50ms+ */
+                        btn_cnt = 0;
+                        ChangeState(TASK_OUTBOUND);
+                    }
+                } else {
+                    btn_cnt = 0;
+                }
+            }
             break;
 
         case TASK_OUTBOUND:
-            /* TODO(Task 4): Route_CheckArrived() → ChangeState(TASK_ARRIVED) */
-            /* TODO: 失线/超时 → ChangeState(TASK_FAULT) */
+            /* 按键模拟到达病房（Task 4 未接入前） */
+            if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN)) {
+                delay_ms(50);
+                if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN))
+                    ChangeState(TASK_ARRIVED);
+            }
             break;
 
         case TASK_ARRIVED:
-            /* TODO(Task 3): Load_Detect_IsUnloaded() → ChangeState(TASK_RETURN) */
+            /* 按键模拟卸载检测（Task 3 未接入前） */
+            if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN)) {
+                delay_ms(50);
+                if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN))
+                    ChangeState(TASK_RETURN);
+            }
             break;
 
         case TASK_RETURN:
-            /* TODO(Task 4): Route_CheckHome() → ChangeState(TASK_FINISHED) */
-            /* TODO: 失线/超时 → ChangeState(TASK_FAULT) */
+            /* 按键模拟药房到位（Task 4 未接入前） */
+            if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN)) {
+                delay_ms(50);
+                if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN))
+                    ChangeState(TASK_FINISHED);
+            }
             break;
 
         case TASK_FINISHED:
-            /* 等待按键复位 → ChangeState(TASK_WAIT_TARGET) */
+            /* 按键复位 */
+            if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN)) {
+                delay_ms(50);
+                if (!DL_GPIO_readPins(KEY_PORT, KEY_key_PIN))
+                    ChangeState(TASK_WAIT_TARGET);
+            }
             break;
 
         default:
