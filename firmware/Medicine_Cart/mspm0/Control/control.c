@@ -106,6 +106,19 @@ int Incremental_PI_Right(float Encoder, float Target)
     return (int)Pwm;
 }
 
+/* 按键处理：单击启停，双击切模式 */
+static void Key(void)
+{
+    u8 tmp;
+    tmp = key_scan(200);
+    if (tmp == 1) {
+        Flag_Stop = !Flag_Stop;
+    } else if (tmp == 2) {
+        Run_Mode++;
+        Run_Mode %= 2;
+    }
+}
+
 /* ========== 5ms 控制中断 ========== */
 void TIMER_0_INST_IRQHandler(void)
 {

@@ -52,4 +52,7 @@ K230_LinkState K230_Get_State(void);
 /* ---- 获取最新识别结果（含未锁定的） ---- */
 void K230_Get_Result(K230_Result *result);
 
+/* ---- 5ms 时基（由 TIMG0 ISR 调用） ---- */
+void K230_Tick5ms(void);
+
 #endif
