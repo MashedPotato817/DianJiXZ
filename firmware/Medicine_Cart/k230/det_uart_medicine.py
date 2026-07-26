@@ -198,32 +198,59 @@ while True:
         res = det_app.run(img)
         det_app.draw_result(pl.osd_img, res)
 
-    # 7. 解析检测结果，提取最优病房号
+    # 7. 解析检测结果，提取最优病房号 + 左右侧区分
     best_ward = 0
     best_conf = 0
+    left_ward  = 0
+    left_conf  = 0
+    right_ward = 0
+    right_conf = 0
+    frame_w = RGB888P_SIZE[0]  # 640
 
     if res:
         if isinstance(res, dict):
-            # CanMV v1.8+ API: res = {'scores':array, 'idx':array, 'boxes':array}
             scores = res.get('scores', [])
             idxs   = res.get('idx', [])
+            boxes  = res.get('boxes', [])
             for i in range(len(scores)):
                 score = float(scores[i])
+                class_id = int(idxs[i])
+                ward = int(labels[class_id])
                 if score > best_conf:
                     best_conf = score
-                    class_id = int(idxs[i])
-                    # labels = ["4","5","3","6","7","8","1","2"]
-                    best_ward = int(labels[class_id])
+                    best_ward = ward
+                # 左右区分：检测框中心 x 坐标
+                cx = (int(boxes[i][0]) + int(boxes[i][2])) // 2
+                if cx < frame_w // 2:
+                    if score > left_conf:
+                        left_conf = score
+                        left_ward = ward
+                else:
+                    if score > right_conf:
+                        right_conf = score
+                        right_ward = ward
         else:
-            # 旧 API: res = [[class_id, score, x1, y1, x2, y2], ...]
             for det in res:
                 class_id = int(det[0])
                 score    = float(det[1])
+                ward = int(labels[class_id])
                 if score > best_conf:
                     best_conf = score
-                    best_ward = int(labels[class_id])
+                    best_ward = ward
+                cx = (int(det[2]) + int(det[4])) // 2
+                if cx < frame_w // 2:
+                    if score > left_conf:
+                        left_conf = score
+                        left_ward = ward
+                else:
+                    if score > right_conf:
+                        right_conf = score
+                        right_ward = ward
 
-    # 8. 稳定性确认 + 发送
+    # 8. 发送
+    now = time_ms()
+
+    # RESULT 帧：仅药房阶段发送（WAIT_TARGET），总最优
     if best_ward >= 1 and best_ward <= 8 and best_conf >= conf_threshold:
         if best_ward == pending_ward:
             pending_count += 1
@@ -238,6 +265,27 @@ while True:
         # 无有效检测 → 重置待确认
         pending_ward = 0
         pending_count = 0
+
+    # LEFT/RIGHT 帧：每个检测到的数字单独发一帧，不只看最优
+    if link_online and time_diff(now, last_result) >= RESULT_MIN_INTERVAL:
+        if res and isinstance(res, dict):
+            scores = res.get('scores', [])
+            idxs   = res.get('idx', [])
+            boxes  = res.get('boxes', [])
+            sent = False
+            for i in range(len(scores)):
+                score = float(scores[i])
+                if score < conf_threshold:
+                    continue
+                class_id = int(idxs[i])
+                ward = int(labels[class_id])
+                cx = (int(boxes[i][0]) + int(boxes[i][2])) // 2
+                side = "LEFT" if cx < frame_w // 2 else "RIGHT"
+                msg = "$K230,%s,%d,%d#" % (side, ward, int(score * 100))
+                uart_send(msg.encode())
+                sent = True
+            if sent:
+                last_result = now
 
     # 9. 显示链路状态到 OSD
     status_line = "K230"

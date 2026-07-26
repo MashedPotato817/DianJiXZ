@@ -31,6 +31,12 @@ static K230_Result g_latestResult;
 static uint8_t g_pendingWard;
 static uint8_t g_pendingCount;
 
+/* ---- 路口左右侧识别 ---- */
+static uint8_t g_leftWard;
+static uint8_t g_leftConf;
+static uint8_t g_rightWard;
+static uint8_t g_rightConf;
+
 /* ========== 底层 UART 操作 ========== */
 
 static void UART1_SendByte(uint8_t data)
@@ -133,6 +139,20 @@ static void HandleLine(const char *line)
         if (!g_latestResult.confirmed) {
             g_latestResult.ward = parsed.ward;
             g_latestResult.confidence = parsed.confidence;
+        }
+    } else if (strncmp(line, "$K230,LEFT,", 11) == 0) {
+        K230_Result parsed;
+        ParseResult(line, &parsed);
+        if (parsed.ward != K230_WARD_NONE) {
+            g_leftWard = parsed.ward;
+            g_leftConf = parsed.confidence;
+        }
+    } else if (strncmp(line, "$K230,RIGHT,", 12) == 0) {
+        K230_Result parsed;
+        ParseResult(line, &parsed);
+        if (parsed.ward != K230_WARD_NONE) {
+            g_rightWard = parsed.ward;
+            g_rightConf = parsed.confidence;
         }
     }
 }
@@ -267,6 +287,11 @@ K230_LinkState K230_Get_State(void)
 {
     return g_linkState;
 }
+
+uint8_t K230_Get_LeftWard(void)  { return g_leftWard; }
+uint8_t K230_Get_RightWard(void) { return g_rightWard; }
+uint8_t K230_Get_LeftConf(void)  { return g_leftConf; }
+uint8_t K230_Get_RightConf(void) { return g_rightConf; }
 
 void K230_Get_Result(K230_Result *result)
 {
