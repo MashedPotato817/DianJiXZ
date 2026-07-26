@@ -75,6 +75,7 @@ best_conf   = 0
 def uart_send(text):
     '''发送 ASCII 帧，自动追加 \\r\\n'''
     uart.write(text + b"\r\n")
+    print("TX:", text.decode())
 
 
 def handle_rx_line(line):
@@ -82,6 +83,7 @@ def handle_rx_line(line):
     global got_ack, got_msp_hello, link_online, last_rx
 
     last_rx = time.ticks_ms()
+    print("RX:", line.decode())
 
     if line == b"$MSPM0,HELLO#":
         got_msp_hello = True
@@ -191,7 +193,7 @@ while True:
         print("LINK LOST: 3 秒未收到 MSPM0 数据")
 
     # 6. 采集 + 推理
-    with ScopedTiming("total", 1):
+    with ScopedTiming("total", 0):
         img = pl.get_frame()
         res = det_app.run(img)
         det_app.draw_result(pl.osd_img, res)
