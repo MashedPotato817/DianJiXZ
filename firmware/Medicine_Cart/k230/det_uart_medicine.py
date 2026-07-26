@@ -63,6 +63,7 @@ last_rx     = time.ticks_ms()
 last_hello  = last_rx
 last_data   = last_rx
 last_result = 0
+last_side   = 0   # LEFT/RIGHT 独立节流
 
 # ========== 识别结果稳定 ==========
 STABLE_COUNT = 3          # 连续相同结果才视为稳定
@@ -267,7 +268,7 @@ while True:
         pending_count = 0
 
     # LEFT/RIGHT 帧：每个检测到的数字单独发一帧，不只看最优
-    if link_online and time_diff(now, last_result) >= RESULT_MIN_INTERVAL:
+    if link_online and time_diff(now, last_side) >= RESULT_MIN_INTERVAL:
         if res and isinstance(res, dict):
             scores = res.get('scores', [])
             idxs   = res.get('idx', [])
@@ -285,7 +286,7 @@ while True:
                 uart_send(msg.encode())
                 sent = True
             if sent:
-                last_result = now
+                last_side = now
 
     # 9. 显示链路状态到 OSD
     status_line = "K230"
