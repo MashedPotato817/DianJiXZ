@@ -1,0 +1,5 @@
+# Keil 构建产物（根 .gitignore 已有全局规则，此处仅作项目文档）
+# Objects/  Listings/  *.axf  *.hex  *.o  *.d  *.lnp  *.dep  *.htm  *.uvguix.*
+
+# TI SysConfig 备份（GUI 自动生成）
+*.syscfg.bak

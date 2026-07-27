@@ -22,6 +22,15 @@ static uint32_t g_lastDataMs;
 static char g_lineBuf[LINE_BUF_SIZE];
 static uint8_t g_lineIndex;
 
+/* RESULT/LEFT/RIGHT 帧接收 */
+static uint8_t g_lastWard;
+static uint8_t g_lastConf;
+static uint32_t g_lastResultMs;
+static uint8_t g_leftWard;
+static uint8_t g_leftConf;
+static uint8_t g_rightWard;
+static uint8_t g_rightConf;
+
 static void UART1_SendByte(uint8_t data)
 {
     while (DL_UART_Main_isTXFIFOFull(UART_1_INST)) {
@@ -41,6 +50,42 @@ static uint8_t TimeReached(uint32_t now, uint32_t last, uint32_t period)
     return ((uint32_t)(now - last) >= period);
 }
 
+/*
+ * 解析 $K230,<TYPE>,<ward>,<conf>#
+ * 找到第二个逗号后的 ward 和 conf，适用 RESULT/LEFT/RIGHT。
+ * 返回 1 表示解析成功，结果写入 *ward 和 *conf。
+ */
+static uint8_t ParseResult(const char *line, uint8_t *ward, uint8_t *conf)
+{
+    const char *p;
+    uint8_t w = 0, c = 0;
+
+    /* 跳过 "$K230," */
+    if (strncmp(line, "$K230,", 6) != 0) return 0;
+
+    /* 跳过 TYPE 字段到第一个逗号后 */
+    p = line + 6;
+    while (*p != '\0' && *p != ',' && *p != '#') p++;
+    if (*p != ',') return 0;
+    p++;  /* 跳过逗号 */
+
+    /* 解析病房号 */
+    while (*p >= '0' && *p <= '9') {
+        w = w * 10 + (uint8_t)(*p++ - '0');
+    }
+    if (*p != ',') return 0;
+    p++;
+    /* 解析置信度 */
+    while (*p >= '0' && *p <= '9') {
+        c = c * 10 + (uint8_t)(*p++ - '0');
+    }
+    if (w < 1 || w > 8) return 0;
+
+    *ward = w;
+    *conf = (c <= 100) ? c : 100;
+    return 1;
+}
+
 static void HandleLine(const char *line)
 {
     g_lastRxMs = g_nowMs;
@@ -52,6 +97,31 @@ static void HandleLine(const char *line)
         g_k230Ack = 1;
     } else if (strcmp(line, "$K230,DATA#") == 0) {
         UART1_SendString("$MSPM0,DATA_ACK#\r\n");
+    } else if (strncmp(line, "$K230,RESULT,", 13) == 0) {
+        uint8_t ward, conf;
+        if (ParseResult(line, &ward, &conf)) {
+            g_lastWard = ward;
+            g_lastConf = conf;
+            g_lastResultMs = g_nowMs;
+            DL_GPIO_clearPins(LED_PORT, LED_led_PIN);
+            UART1_SendString("$MSPM0,RESULT_ACK#\r\n");
+        }
+    } else if (strncmp(line, "$K230,LEFT,", 11) == 0) {
+        uint8_t ward, conf;
+        if (ParseResult(line, &ward, &conf)) {
+            g_leftWard = ward;
+            g_leftConf = conf;
+            DL_GPIO_clearPins(LED_PORT, LED_led_PIN);
+            UART1_SendString("$MSPM0,LEFT_ACK#\r\n");
+        }
+    } else if (strncmp(line, "$K230,RIGHT,", 12) == 0) {
+        uint8_t ward, conf;
+        if (ParseResult(line, &ward, &conf)) {
+            g_rightWard = ward;
+            g_rightConf = conf;
+            DL_GPIO_clearPins(LED_PORT, LED_led_PIN);
+            UART1_SendString("$MSPM0,RIGHT_ACK#\r\n");
+        }
     }
 }
 
@@ -122,7 +192,18 @@ int main(void)
             g_linkOnline = 0;
             g_k230Hello = 0;
             g_k230Ack = 0;
+            g_lastWard = 0;
+            g_lastConf = 0;
             UART1_SendString("$MSPM0,LINK_LOST#\r\n");
+        }
+
+        /* LED 反馈：收到 RESULT 时亮 200ms，在线时心跳闪烁 */
+        if (g_lastWard && !TimeReached(g_nowMs, g_lastResultMs, 200U)) {
+            DL_GPIO_clearPins(LED_PORT, LED_led_PIN);  /* LED ON */
+        } else if (g_linkOnline && ((g_nowMs / 250U) & 1U)) {
+            DL_GPIO_clearPins(LED_PORT, LED_led_PIN);  /* heartbeat */
+        } else {
+            DL_GPIO_setPins(LED_PORT, LED_led_PIN);    /* LED OFF */
         }
     }
 }

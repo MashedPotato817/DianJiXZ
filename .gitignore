@@ -61,12 +61,22 @@ Thumbs.db
 *.msi
 vscode-extensions.md
 自动行驶小车（H题）.pdf
-firmware/K230_Target_Detection/log.md
-firmware/K230_Target_Detection/pic
+
+# Firmware build output
 firmware/demo/EIDE/build/
 *.s19
 *.sct
+!**/linker_files/**/*.sct
 *.objlist
 *.params
 *.iex
 Event.dot
+
+# logs and pics from K230_Target_Detection 
+firmware/K230_Target_Detection/log.md
+firmware/K230_Target_Detection/pic/
+
+firmware/WHEELTEC_C07A_CAR_SPEEDUP/.metadata/.tirex/package.tirex.json
+**/det_results/
+firmware/Medicine_Cart/log.md
+
