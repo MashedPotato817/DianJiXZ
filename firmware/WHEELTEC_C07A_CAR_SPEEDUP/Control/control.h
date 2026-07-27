@@ -38,7 +38,8 @@ extern float Gray_Line_Pos_mm;
 #define MULTIPLY_FACTOR              2
 #define GEAR_RATIO                   28
 #define CPR                          (MULTIPLY_FACTOR * ENCODER_LINES * GEAR_RATIO)  /* 728 */
-#define SPEED_FILTER_ALPHA           0.4f    /* 一阶低通滤波系数 */
+#define SPEED_MEASURE_WINDOW_TICKS   4       /* 4×5 ms 滑动测速窗口，降低低速脉冲量化 */
+#define SPEED_FILTER_ALPHA           0.4f    /* 滑动测速后的速度低通系数 */
 #define PI_DEADBAND                  0.005f  /* PI 死区 (m/s) */
 #define PWM_MAX                      7800
 
@@ -46,13 +47,23 @@ extern float Gray_Line_Pos_mm;
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
 #define GRAY_STRAIGHT_SPEED_MM_S     90.0f    /* 直线速度：稳定版的两倍 */
 #define GRAY_CURVE_SPEED_MM_S        75.0f    /* 弯道保守降速 */
-#define GRAY_CURVE_POS_THRESHOLD_MM  18.0f    /* 超过该偏差进入弯道速度 */
+#define GRAY_POS_FILTER_ALPHA        0.35f    /* 灰度位置低通系数，仅用于常规巡线 */
+#define GRAY_CURVE_POS_THRESHOLD_MM  18.0f    /* 超过该偏差连续确认后进入弯道速度 */
+#define GRAY_CURVE_POS_EXIT_THRESHOLD_MM 12.0f /* 回到该偏差以内才允许退出弯道速度 */
 #define GRAY_CURVE_BLACK_COUNT       4        /* 宽黑线/急弯时提前降速 */
+#define GRAY_CURVE_BLACK_COUNT_EXIT  2        /* 黑线通道数降至该值才允许退出弯道速度 */
+#define GRAY_CURVE_ENTER_CONFIRM_TICKS 2      /* 进入弯道档连续帧数（10 ms） */
+#define GRAY_CURVE_EXIT_CONFIRM_TICKS  3      /* 退出弯道档连续帧数（15 ms） */
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
 #define GRAY_SENSOR_FORWARD_MM       134.0f   /* 灰度传感器至左右轮中心中点的前向实测距离 */
 #define GRAY_STEER_GAIN              1.70f
 #define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
+#define GRAY_SHARP_TURN_POS_THRESHOLD_MM 30.0f /* 最外侧急弯判定偏差 */
+#define GRAY_SHARP_TURN_CONFIRM_TICKS 2      /* 急弯判定连续帧数（10 ms） */
+#define GRAY_SHARP_TURN_CENTER_THRESHOLD_MM 12.0f /* 急弯后重新居中判定 */
+#define GRAY_SHARP_TURN_CENTER_CONFIRM_TICKS 3 /* 急弯后重新居中连续帧数 */
+#define GRAY_SHARP_TURN_ANGULAR_SPEED 0.50f /* 急弯原地转向角速度 */
 #define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */
 #define GRAY_LOST_SEARCH_MAX_ANGLE_RAD (2.0f * PI) /* 最多搜线一圈 */
 //电机速度控制相关参数结构体

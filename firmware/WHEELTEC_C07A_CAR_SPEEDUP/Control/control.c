@@ -31,6 +31,22 @@ float Velocity_KP=400,Velocity_KI=300;
 int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
 
+typedef enum {
+    GRAY_TRACK_FOLLOW = 0,
+    GRAY_TRACK_SHARP_TURN,
+    GRAY_TRACK_LOST_SEARCH
+} Gray_Track_State;
+
+/* 将 PI 状态移至文件作用域，便于急弯/搜线切换时清零，避免历史 PWM 冲击 */
+static float PI_Left_Bias, PI_Left_Pwm, PI_Left_Last_Bias;
+static float PI_Right_Bias, PI_Right_Pwm, PI_Right_Last_Bias;
+
+static void Speed_PI_Reset(void)
+{
+    PI_Left_Bias = PI_Left_Pwm = PI_Left_Last_Bias = 0.0f;
+    PI_Right_Bias = PI_Right_Pwm = PI_Right_Last_Bias = 0.0f;
+}
+
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
     -2.5f * GRAY_SENSOR_PITCH_MM,
@@ -73,15 +89,27 @@ void Gray_Read_All(void)
 
 void Gray_Mode(void)
 {
+    static Gray_Track_State track_state = GRAY_TRACK_FOLLOW;
     static float lost_search_angle;
     static float last_search_move_z;
+    static float sharp_turn_move_z;
+    static float filtered_pos_mm;
     static uint8_t line_seen;
+    static uint8_t filtered_pos_valid;
+    static uint8_t curve_mode;
+    static uint8_t curve_enter_count;
+    static uint8_t curve_exit_count;
+    static uint8_t sharp_detect_count;
+    static uint8_t center_detect_count;
     float pos_sum = 0;
     int black_count = 0;
+    float raw_pos_mm;
     float y_m;
     float lookahead_m;
     float curvature;
     float abs_pos_mm;
+    uint8_t outer_left;
+    uint8_t outer_right;
     uint8_t i;
 
     Gray_Read_All();
@@ -92,36 +120,157 @@ void Gray_Mode(void)
         }
     }
 
-    if (black_count == 0) {
-        Gray_Line_Pos_mm = 0;
-        /* 首次上电未识别到黑线、无有效搜线方向或已搜满一圈时停车 */
-        if ((!line_seen) || (last_search_move_z == 0.0f) ||
-            (lost_search_angle >= GRAY_LOST_SEARCH_MAX_ANGLE_RAD)) {
-            Move_X = 0;
-            Move_Z = 0;
+    if (black_count > 0) {
+        raw_pos_mm = pos_sum / black_count;
+        Gray_Line_Pos_mm = raw_pos_mm;  /* OLED 保留显示未经滤波的实际质心 */
+    } else {
+        raw_pos_mm = 0.0f;
+        Gray_Line_Pos_mm = 0.0f;
+    }
+
+    /* 急弯或丢线期间只等待黑线回到中间，避免边缘黑线重新触发普通前进 */
+    if ((track_state == GRAY_TRACK_SHARP_TURN) ||
+        (track_state == GRAY_TRACK_LOST_SEARCH)) {
+        if ((track_state == GRAY_TRACK_SHARP_TURN) && (black_count == 0)) {
+            track_state = GRAY_TRACK_LOST_SEARCH;
+        }
+        if ((black_count > 0) &&
+            (((raw_pos_mm >= 0.0f) ? raw_pos_mm : -raw_pos_mm) <=
+             GRAY_SHARP_TURN_CENTER_THRESHOLD_MM)) {
+            if (center_detect_count < GRAY_SHARP_TURN_CENTER_CONFIRM_TICKS) {
+                center_detect_count++;
+            }
         } else {
-            /* 丢线后停止前进，沿最后一次有效偏线方向低速原地搜线 */
-            Move_X = 0;
-            Move_Z = last_search_move_z;
+            center_detect_count = 0;
+        }
+
+        if (center_detect_count >= GRAY_SHARP_TURN_CENTER_CONFIRM_TICKS) {
+            track_state = GRAY_TRACK_FOLLOW;
+            filtered_pos_mm = raw_pos_mm;
+            filtered_pos_valid = 1;
+            curve_mode = 1;  /* 重新见线后先以弯道速度恢复前进 */
+            curve_enter_count = 0;
+            curve_exit_count = 0;
+            center_detect_count = 0;
+            lost_search_angle = 0.0f;
+            Speed_PI_Reset();
+        } else {
+            /* 首次上电全白时停车；其他情况保持锁存方向原地找线 */
+            if ((!line_seen) || (sharp_turn_move_z == 0.0f) ||
+                (lost_search_angle >= GRAY_LOST_SEARCH_MAX_ANGLE_RAD)) {
+                Move_X = 0.0f;
+                Move_Z = 0.0f;
+            } else {
+                Move_X = 0.0f;
+                Move_Z = sharp_turn_move_z;
+                lost_search_angle += GRAY_SHARP_TURN_ANGULAR_SPEED / Frequency;
+            }
+            Get_Target_Encoder(Move_X, Move_Z);
+            return;
+        }
+    }
+
+    if (black_count == 0) {
+        filtered_pos_valid = 0;
+        curve_enter_count = 0;
+        curve_exit_count = 0;
+        center_detect_count = 0;
+
+        /* 首次上电未识别到黑线时保持停车；已有方向时进入兜底搜线 */
+        if (line_seen && (last_search_move_z != 0.0f)) {
+            if (track_state != GRAY_TRACK_LOST_SEARCH) {
+                track_state = GRAY_TRACK_LOST_SEARCH;
+                sharp_turn_move_z = last_search_move_z;
+                lost_search_angle = 0.0f;
+                Speed_PI_Reset();
+            }
+            Move_X = 0.0f;
+            Move_Z = sharp_turn_move_z;
             lost_search_angle += GRAY_LOST_SEARCH_ANGULAR_SPEED / Frequency;
+        } else {
+            Move_X = 0.0f;
+            Move_Z = 0.0f;
         }
         Get_Target_Encoder(Move_X, Move_Z);
         return;
     }
 
     line_seen = 1;
-    lost_search_angle = 0;
-    Gray_Line_Pos_mm = pos_sum / black_count;
-    abs_pos_mm = (Gray_Line_Pos_mm >= 0.0f) ? Gray_Line_Pos_mm : -Gray_Line_Pos_mm;
-    Move_X = GRAY_STRAIGHT_SPEED_MM_S / 1000.0f;
-
-    /* 偏差增大或黑线变宽时提前降速，给小半径弯保留回线余量 */
-    if ((abs_pos_mm >= GRAY_CURVE_POS_THRESHOLD_MM) ||
-        (black_count >= GRAY_CURVE_BLACK_COUNT)) {
-        Move_X = GRAY_CURVE_SPEED_MM_S / 1000.0f;
+    if (!filtered_pos_valid) {
+        filtered_pos_mm = raw_pos_mm;
+        filtered_pos_valid = 1;
+    } else {
+        filtered_pos_mm = GRAY_POS_FILTER_ALPHA * raw_pos_mm +
+                          (1.0f - GRAY_POS_FILTER_ALPHA) * filtered_pos_mm;
     }
 
-    y_m = Gray_Line_Pos_mm / 1000.0f;
+    abs_pos_mm = (raw_pos_mm >= 0.0f) ? raw_pos_mm : -raw_pos_mm;
+    outer_left = (Gray_Data[0] || Gray_Data[1]) ? 1 : 0;
+    outer_right = (Gray_Data[6] || Gray_Data[7]) ? 1 : 0;
+
+    /* 黑线连续位于一侧最外端时，提前原地转向，不等全白后再补救 */
+    if ((abs_pos_mm >= GRAY_SHARP_TURN_POS_THRESHOLD_MM) &&
+        (((raw_pos_mm < 0.0f) && outer_left) ||
+         ((raw_pos_mm > 0.0f) && outer_right))) {
+        if (sharp_detect_count < GRAY_SHARP_TURN_CONFIRM_TICKS) {
+            sharp_detect_count++;
+        }
+    } else {
+        sharp_detect_count = 0;
+    }
+
+    if (sharp_detect_count >= GRAY_SHARP_TURN_CONFIRM_TICKS) {
+        /* 当前实车约定：黑线在右侧时 Move_Z 为负，左侧时为正 */
+        sharp_turn_move_z = (raw_pos_mm > 0.0f) ?
+                            -GRAY_SHARP_TURN_ANGULAR_SPEED :
+                             GRAY_SHARP_TURN_ANGULAR_SPEED;
+        track_state = GRAY_TRACK_SHARP_TURN;
+        lost_search_angle = 0.0f;
+        center_detect_count = 0;
+        sharp_detect_count = 0;
+        Speed_PI_Reset();
+        Move_X = 0.0f;
+        Move_Z = sharp_turn_move_z;
+        lost_search_angle += GRAY_SHARP_TURN_ANGULAR_SPEED / Frequency;
+        Get_Target_Encoder(Move_X, Move_Z);
+        return;
+    }
+
+    /* 速度档位采用滞回与连续帧确认，避免 18 mm 附近反复切换 */
+    abs_pos_mm = (filtered_pos_mm >= 0.0f) ? filtered_pos_mm : -filtered_pos_mm;
+    if (!curve_mode) {
+        if ((abs_pos_mm >= GRAY_CURVE_POS_THRESHOLD_MM) ||
+            (black_count >= GRAY_CURVE_BLACK_COUNT)) {
+            if (curve_enter_count < GRAY_CURVE_ENTER_CONFIRM_TICKS) {
+                curve_enter_count++;
+            }
+        } else {
+            curve_enter_count = 0;
+        }
+        if (curve_enter_count >= GRAY_CURVE_ENTER_CONFIRM_TICKS) {
+            curve_mode = 1;
+            curve_enter_count = 0;
+            curve_exit_count = 0;
+        }
+    } else {
+        if ((abs_pos_mm <= GRAY_CURVE_POS_EXIT_THRESHOLD_MM) &&
+            (black_count <= GRAY_CURVE_BLACK_COUNT_EXIT)) {
+            if (curve_exit_count < GRAY_CURVE_EXIT_CONFIRM_TICKS) {
+                curve_exit_count++;
+            }
+        } else {
+            curve_exit_count = 0;
+        }
+        if (curve_exit_count >= GRAY_CURVE_EXIT_CONFIRM_TICKS) {
+            curve_mode = 0;
+            curve_enter_count = 0;
+            curve_exit_count = 0;
+        }
+    }
+
+    Move_X = curve_mode ? (GRAY_CURVE_SPEED_MM_S / 1000.0f) :
+                          (GRAY_STRAIGHT_SPEED_MM_S / 1000.0f);
+    y_m = filtered_pos_mm / 1000.0f;
     lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;
     curvature = (2.0f * y_m) / (lookahead_m * lookahead_m + y_m * y_m);
     Move_Z = -GRAY_STEER_GAIN * Move_X * curvature;
@@ -173,17 +322,32 @@ Output  : none
 **************************************************************************/	 	
 void Get_Velocity_From_Encoder(int Encoder1,int Encoder2)
 {
-	
-	//Retrieves the original data of the encoder
-	//获取编码器的原始数据
+	/* 5 ms 内只有约 1 个脉冲时，单周期测速会频繁读到 0。
+	 * 采用 4 周期滑动累计，每 5 ms 仍更新一次速度，兼顾连续性与响应速度。 */
+	static int Encoder_HistoryA[SPEED_MEASURE_WINDOW_TICKS];
+	static int Encoder_HistoryB[SPEED_MEASURE_WINDOW_TICKS];
+	static int Encoder_SumA, Encoder_SumB;
+	static uint8_t History_Index, History_Count;
 	static float Filtered_SpeedA = 0.0f, Filtered_SpeedB = 0.0f;
-	float Encoder_A_pr, Encoder_B_pr, raw_speedA, raw_speedB;
+	float raw_speedA, raw_speedB;
 	OriginalEncoder.A = Encoder1;
 	OriginalEncoder.B = Encoder2;
-	Encoder_A_pr = OriginalEncoder.A;
-	Encoder_B_pr = -OriginalEncoder.B;
-	raw_speedA =  Encoder_A_pr * Frequency * Perimeter / CPR;
-	raw_speedB =  Encoder_B_pr * Frequency * Perimeter / CPR;
+
+	Encoder_SumA -= Encoder_HistoryA[History_Index];
+	Encoder_SumB -= Encoder_HistoryB[History_Index];
+	Encoder_HistoryA[History_Index] = OriginalEncoder.A;
+	Encoder_HistoryB[History_Index] = -OriginalEncoder.B;
+	Encoder_SumA += Encoder_HistoryA[History_Index];
+	Encoder_SumB += Encoder_HistoryB[History_Index];
+
+	if (History_Count < SPEED_MEASURE_WINDOW_TICKS) History_Count++;
+	History_Index++;
+	if (History_Index >= SPEED_MEASURE_WINDOW_TICKS) History_Index = 0;
+
+	raw_speedA = (float)Encoder_SumA * Frequency * Perimeter /
+	             ((float)CPR * History_Count);
+	raw_speedB = (float)Encoder_SumB * Frequency * Perimeter /
+	             ((float)CPR * History_Count);
 
 	Filtered_SpeedA = SPEED_FILTER_ALPHA * raw_speedA + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedA;
 	Filtered_SpeedB = SPEED_FILTER_ALPHA * raw_speedB + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedB;
@@ -260,31 +424,29 @@ pwm+=Kp[e（k）-e(k-1)]+Ki*e(k)
 **************************************************************************/
 int Incremental_PI_Left (float Encoder,float Target)
 {
-	 static float Bias,Pwm,Last_bias;
 	 float abs_bias;
-	 Bias=Target-Encoder;                					//计算偏差
-	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
-	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
-	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
-	if(Flag_Stop) Pwm=0;
-	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
-	 Last_bias=Bias;	                   					//保存上一次偏差
-	 return (int)Pwm;                         				//增量输出
+	 PI_Left_Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (PI_Left_Bias > 0.0f) ? PI_Left_Bias : -PI_Left_Bias;
+	 if(abs_bias < PI_DEADBAND) { PI_Left_Last_Bias = PI_Left_Bias; return (int)PI_Left_Pwm; }
+	 PI_Left_Pwm+=Velocity_KP*(PI_Left_Bias-PI_Left_Last_Bias)+Velocity_KI*PI_Left_Bias;   	//增量式PI控制器
+	if(Flag_Stop) PI_Left_Pwm=0;
+	 PI_Left_Pwm = PWM_Limit(PI_Left_Pwm, PWM_MAX, -PWM_MAX);
+	 PI_Left_Last_Bias=PI_Left_Bias;	                   					//保存上一次偏差
+	 return (int)PI_Left_Pwm;                         				//增量输出
 }
 
 
 int Incremental_PI_Right (float Encoder,float Target)
 {
-	 static float Bias,Pwm,Last_bias;
 	 float abs_bias;
-	 Bias=Target-Encoder;                					//计算偏差
-	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
-	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
-	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
-	if(Flag_Stop) Pwm=0;
-	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
-	 Last_bias=Bias;	                   					//保存上一次偏差
-	 return (int)Pwm;                         				//增量输出
+	 PI_Right_Bias=Target-Encoder;                					//计算偏差
+	 abs_bias = (PI_Right_Bias > 0.0f) ? PI_Right_Bias : -PI_Right_Bias;
+	 if(abs_bias < PI_DEADBAND) { PI_Right_Last_Bias = PI_Right_Bias; return (int)PI_Right_Pwm; }
+	 PI_Right_Pwm+=Velocity_KP*(PI_Right_Bias-PI_Right_Last_Bias)+Velocity_KI*PI_Right_Bias;   	//增量式PI控制器
+	if(Flag_Stop) PI_Right_Pwm=0;
+	 PI_Right_Pwm = PWM_Limit(PI_Right_Pwm, PWM_MAX, -PWM_MAX);
+	 PI_Right_Last_Bias=PI_Right_Bias;	                   					//保存上一次偏差
+	 return (int)PI_Right_Pwm;                         				//增量输出
 }
 /**************************************************************************
 Function: Processes the command sent by APP through usart 2
