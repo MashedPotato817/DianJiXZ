@@ -47,7 +47,7 @@ extern float Gray_Line_Pos_mm;
 #define GRAY_BASE_SPEED_MM_S         45.0f    /* 低速验证巡线方向，确认后再逐级提速 */
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
-#define GRAY_SENSOR_FORWARD_MM       260.0f
+#define GRAY_SENSOR_FORWARD_MM       134.0f   /* 灰度传感器至左右轮中心中点的前向实测距离 */
 #define GRAY_STEER_GAIN              1.70f
 #define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
 #define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */
