@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>HC-06 蓝牙串口</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', monospace;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── header ── */
+  .header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: #16213e;
+    border-bottom: 2px solid #0f3460;
+  }
+  .header h1 { font-size: 16px; flex: 1; white-space: nowrap; }
+  .status {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #666; flex-shrink: 0;
+  }
+  .status.connected { background: #00e676; box-shadow: 0 0 8px #00e676; }
+  .status.scanning  { background: #ff9100; animation: pulse 0.6s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+
+  .btn {
+    padding: 8px 16px; border: none; border-radius: 6px;
+    font-size: 14px; cursor: pointer; font-weight: bold;
+    white-space: nowrap;
+  }
+  .btn-connect    { background: #0f3460; color: #fff; }
+  .btn-disconnect { background: #b71c1c; color: #fff; }
+  .btn-send       { background: #1b5e20; color: #fff; padding: 10px 20px; }
+  .btn:active { opacity: 0.7; }
+
+  /* ── terminal ── */
+  .terminal {
+    flex: 1; overflow-y: auto;
+    padding: 10px 12px;
+    font-size: 14px; line-height: 1.5;
+    -webkit-overflow-scrolling: touch;
+  }
+  .terminal .rx { color: #00e676; }
+  .terminal .tx { color: #64b5f6; }
+  .terminal .info { color: #888; font-style: italic; }
+
+  /* ── input ── */
+  .input-bar {
+    display: flex; gap: 6px;
+    padding: 8px 12px; padding-bottom: max(8px, env(safe-area-inset-bottom));
+    background: #16213e;
+    border-top: 2px solid #0f3460;
+  }
+  .input-bar input {
+    flex: 1; padding: 10px;
+    font-size: 16px;            /* ≥16px prevents iOS zoom */
+    font-family: inherit;
+    background: #0a0a1a; color: #e0e0e0;
+    border: 1px solid #0f3460; border-radius: 6px;
+    outline: none;
+  }
+  .input-bar input:focus { border-color: #00e676; }
+
+  /* ── footer hint ── */
+  .hint {
+    font-size: 11px; color: #666; text-align: center;
+    padding: 4px 12px; background: #111;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="status" id="status"></div>
+  <h1>HC-06 Terminal</h1>
+  <button class="btn btn-connect" id="btnConn" onclick="doConnect()">连接</button>
+</div>
+
+<div class="terminal" id="term">
+  <div class="info">等待连接 HC-06...</div>
+  <div class="info">1. 确保 HC-06 已上电（指示灯快闪）</div>
+  <div class="info">2. 点击右上角「连接」按钮</div>
+  <div class="info">3. 在弹出列表中选择 HC-06</div>
+</div>
+
+<div class="input-bar">
+  <input type="text" id="input" placeholder="输入文字，点发送..." autocomplete="off" autocapitalize="off">
+  <button class="btn btn-send" onclick="doSend()">发送</button>
+</div>
+
+<div class="hint">提示：手机 Chrome 支持 Web Bluetooth，HC-06 为经典蓝牙可能不显示在列表中</div>
+
+<script>
+const SPP_UUID = '00001101-0000-1000-8000-00805f9b34fb';
+
+let device = null;
+let server = null;
+let rxChar = null;
+let txChar = null;
+
+const $ = id => document.getElementById(id);
+
+// ── terminal helpers ──
+function log(cls, text) {
+  const div = document.createElement('div');
+  div.className = cls;
+  div.textContent = text;
+  const t = $('term');
+  t.appendChild(div);
+  t.scrollTop = t.scrollHeight;
+}
+
+function setConnected(flag) {
+  $('status').className = 'status ' + (flag ? 'connected' : '');
+  $('btnConn').textContent  = flag ? '断开' : '连接';
+  $('btnConn').className    = flag ? 'btn btn-disconnect' : 'btn btn-connect';
+}
+
+// ── connect ──
+async function doConnect() {
+  if (server && server.connected) {
+    server.disconnect();
+    setConnected(false);
+    server = null; rxChar = null; txChar = null;
+    log('info', '--- 已断开 ---');
+    return;
+  }
+
+  try {
+    $('status').className = 'status scanning';
+    log('info', '正在搜索 HC-06...');
+
+    // try SPP UUID filter first
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SPP_UUID] }],
+      optionalServices: [SPP_UUID]
+    });
+
+    log('info', '找到设备: ' + (device.name || '未知'));
+    log('info', '正在连接 GATT...');
+
+    server = await device.gatt.connect();
+    log('info', 'GATT 已连接, 获取服务...');
+
+    const service = await server.getPrimaryService(SPP_UUID);
+    log('info', 'SPP 服务已找到');
+
+    // list characteristics
+    const chars = await service.getCharacteristics();
+    log('info', '特征值数量: ' + chars.length);
+
+    if (chars.length >= 1) {
+      // The first characteristic is usually bidirectional for SPP
+      rxChar = chars[0];
+      txChar = chars[0];
+
+      // subscribe to notifications
+      if (rxChar.properties.notify || rxChar.properties.indicate) {
+        await rxChar.startNotifications();
+        rxChar.addEventListener('characteristicvaluechanged',
+          e => log('rx', new TextDecoder().decode(e.target.value)));
+        log('info', '已订阅通知 ✓');
+      }
+    }
+
+    if (chars.length >= 2) {
+      txChar = chars[1];
+    }
+
+    // log available properties
+    const props = [];
+    if (txChar.properties.write) props.push('write');
+    if (txChar.properties.writeWithoutResponse) props.push('write_wo_resp');
+    if (txChar.properties.notify) props.push('notify');
+    if (txChar.properties.indicate) props.push('indicate');
+    log('info', '特征值属性: ' + props.join(', '));
+
+    setConnected(true);
+    log('info', '=== HC-06 已连接 ===');
+    log('info', '等待接收数据...');
+
+    device.addEventListener('gattserverdisconnected', () => {
+      log('info', '--- 连接断开 ---');
+      setConnected(false);
+      server = null;
+    });
+
+  } catch (err) {
+    $('status').className = 'status';
+    log('info', '错误: ' + err.message);
+  }
+}
+
+// ── send ──
+async function doSend() {
+  const inp = $('input');
+  const text = inp.value;
+  if (!text) return;
+  if (!txChar) { log('info', '未连接!'); return; }
+
+  try {
+    const data = new TextEncoder().encode(text + '\r\n');
+    if (txChar.properties.writeWithoutResponse) {
+      await txChar.writeValueWithoutResponse(data);
+    } else {
+      await txChar.writeValue(data);
+    }
+    log('tx', '→ ' + text);
+    inp.value = '';
+  } catch (err) {
+    log('info', '发送失败: ' + err.message);
+  }
+}
+
+// enter key to send
+$('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSend();
+});
+
+// check if Web Bluetooth is available
+if (!navigator.bluetooth) {
+  log('info', '⚠ 当前浏览器不支持 Web Bluetooth');
+  log('info', '请使用 Chrome 浏览器打开此页面');
+  log('info', '(iOS Safari 不支持，Android Chrome 支持)');
+}
+</script>
+</body>
+</html>
