@@ -42,16 +42,19 @@ extern float Gray_Line_Pos_mm;
 #define PI_DEADBAND                  0.005f  /* PI 死区 (m/s) */
 #define PWM_MAX                      7800
 
-/* 8 路灰度基础巡线参数 */
+/* 8 路灰度巡线参数（v2.0 — 非线性加权 PD） */
+/* 控制逻辑已迁移至 firmware/LineFollow_PID/line_follow.h */
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
-#define GRAY_BASE_SPEED_MM_S         45.0f    /* 低速验证巡线方向，确认后再逐级提速 */
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
-#define GRAY_SENSOR_FORWARD_MM       260.0f
-#define GRAY_STEER_GAIN              1.70f
-#define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
-#define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */
-#define GRAY_LOST_SEARCH_MAX_ANGLE_RAD (2.0f * PI) /* 最多搜线一圈 */
+
+/* ---- 以下参数已被 line_follow.h 替代，保留仅供历史参考 ---- */
+// #define GRAY_BASE_SPEED_MM_S         45.0f    → LF_SPEED_STRAIGHT / LF_SPEED_MID / LF_SPEED_HARD
+// #define GRAY_SENSOR_FORWARD_MM       260.0f   → 不再使用（原 pure-pursuit 前视距离）
+// #define GRAY_STEER_GAIN              1.70f    → LF_PD_KP_SOFT / LF_PD_KP_HARD + LF_PD_KD
+// #define GRAY_MAX_ANGULAR_SPEED       0.40f    → LF_WHEEL_TARGET_MAX
+// #define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  → LF_LOST_SEARCH_SPEED + LF_LOST_DIFF_*
+// #define GRAY_LOST_SEARCH_MAX_ANGLE_RAD (2.0f*PI) → 不再使用（新搜线不限圈数）*/
 //电机速度控制相关参数结构体
 typedef struct  
 {
