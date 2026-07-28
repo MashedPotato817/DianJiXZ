@@ -18,7 +18,7 @@ Update：2021-04-29
 All rights reserved
 ***********************************************/
 #include "control.h"
-#include "../../LineFollow_PID/line_follow.h"
+#include "line_follow.h"
 
 u8 CCD_count,ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;

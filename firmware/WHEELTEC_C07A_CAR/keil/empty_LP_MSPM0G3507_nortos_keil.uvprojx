@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>__MSPM0G3507__,MPU6050,MOTION_DRIVER_TARGET_MSPM0</Define>
               <Undefine></Undefine>
-              <IncludePath>..\source;..\source\third_party\CMSIS\Core\Include;..\Hardware;..\..\WHEELTEC_C07A_CAR;..\Control</IncludePath>
+              <IncludePath>..\source;..\source\third_party\CMSIS\Core\Include;..\Hardware;..\..\WHEELTEC_C07A_CAR;..\Control;..\..\LineFollow_PID</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -602,6 +602,11 @@
               <FileName>uart_callback.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Control\uart_callback.c</FilePath>
+            </File>
+            <File>
+              <FileName>line_follow.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\LineFollow_PID\line_follow.c</FilePath>
             </File>
           </Files>
         </Group>
