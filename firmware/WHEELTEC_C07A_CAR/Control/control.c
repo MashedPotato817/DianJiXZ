@@ -27,7 +27,11 @@ float Gray_Line_Pos_mm;
 
 Encoder OriginalEncoder; 					//编码器原始数据   
 Motor_parameter MotorA,MotorB;				//左右电机相关变量
-float Velocity_KP=400,Velocity_KI=300;	
+/* 左轮起转阻力较大，保留较强驱动；右轮降低 PI，先消除扰动后的冲转。 */
+float Velocity_KP_Left  = VELOCITY_KP_LEFT;
+float Velocity_KI_Left  = VELOCITY_KI_LEFT;
+float Velocity_KP_Right = VELOCITY_KP_RIGHT;
+float Velocity_KI_Right = VELOCITY_KI_RIGHT;
 int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
 
@@ -136,18 +140,15 @@ void TIMER_0_INST_IRQHandler(void)
 			LED_Flash(100);
 			Get_Velocity_From_Encoder(Get_Encoder_countA,Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
-			if(Run_Mode==0)
-			{
-				Get_RC();         //Handle the APP remote commands //处理APP遥控命令
-			}else if(Run_Mode==1){
-				Gray_Mode();//8路灰度巡线
-			}
+			/* 方向与速度环验证：不读取灰度，固定直线前进 1.0 m/s。 */
+			Get_Target_Encoder(FORWARD_TEST_SPEED_M_S, 0.0f);
 //			//计算左右电机对应的PWM
 			MotorA.Motor_Pwm = Incremental_PI_Left(MotorA.Current_Encoder,MotorA.Target_Encoder);	
 			MotorB.Motor_Pwm = Incremental_PI_Right(MotorB.Current_Encoder,MotorB.Target_Encoder);
 			if(!Flag_Stop)
 			{
-				Set_PWM(-MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
+				/* 接线表：A 通道直接为左轮前进；B 通道因右电机镜像安装取反。 */
+				Set_PWM(MotorA.Motor_Pwm, -MotorB.Motor_Pwm);
 			}else Set_PWM(0,0);
     }
 }
@@ -253,8 +254,17 @@ int Incremental_PI_Left (float Encoder,float Target)
 	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
 	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 /* 目标停车时同时清除历史积分，避免下次启动沿用旧 PWM。 */
+	 if (((Target > -PI_DEADBAND) && (Target < PI_DEADBAND)) || Flag_Stop) {
+		 Pwm=0.0f;
+		 Last_bias=0.0f;
+		 return 0;
+	 }
 	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
-	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
+	 /* 已顶到同方向限幅时禁止继续积分，防止扰动后积分堆积。 */
+	 Pwm += Velocity_KP_Left * (Bias - Last_bias);
+	 if (!((Pwm >= PWM_MAX && Bias > 0.0f) || (Pwm <= -PWM_MAX && Bias < 0.0f)))
+		 Pwm += Velocity_KI_Left * Bias;
 	if(Flag_Stop) Pwm=0;
 	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
 	 Last_bias=Bias;	                   					//保存上一次偏差
@@ -268,8 +278,17 @@ int Incremental_PI_Right (float Encoder,float Target)
 	 float abs_bias;
 	 Bias=Target-Encoder;                					//计算偏差
 	 abs_bias = (Bias > 0.0f) ? Bias : -Bias;
+	 /* 目标停车时同时清除历史积分，避免下次启动沿用旧 PWM。 */
+	 if (((Target > -PI_DEADBAND) && (Target < PI_DEADBAND)) || Flag_Stop) {
+		 Pwm=0.0f;
+		 Last_bias=0.0f;
+		 return 0;
+	 }
 	 if(abs_bias < PI_DEADBAND) { Last_bias = Bias; return (int)Pwm; }
-	 Pwm+=Velocity_KP*(Bias-Last_bias)+Velocity_KI*Bias;   	//增量式PI控制器
+	 /* 已顶到同方向限幅时禁止继续积分，防止扰动后积分堆积。 */
+	 Pwm += Velocity_KP_Right * (Bias - Last_bias);
+	 if (!((Pwm >= PWM_MAX && Bias > 0.0f) || (Pwm <= -PWM_MAX && Bias < 0.0f)))
+		 Pwm += Velocity_KI_Right * Bias;
 	if(Flag_Stop) Pwm=0;
 	 Pwm = PWM_Limit(Pwm, PWM_MAX, -PWM_MAX);
 	 Last_bias=Bias;	                   					//保存上一次偏差
@@ -365,9 +384,5 @@ void Key(void)
 	{
 		Flag_Stop=!Flag_Stop;
 	}		//单击控制小车的启停
-	else if(tmp==2)
-	{
-		Run_Mode++;
-		Run_Mode%=2;
-	}
+	/* 最小巡线工程不切换 APP 遥控模式，双击不改变控制链路。 */
 }

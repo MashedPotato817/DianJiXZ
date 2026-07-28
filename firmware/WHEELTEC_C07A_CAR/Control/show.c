@@ -40,8 +40,7 @@ void oled_show(void)
         else if(Car_Mode==3)   OLED_ShowString(0,0,"Diff");
         else if(Car_Mode==4)   OLED_ShowString(0,0,"4WD ");
 		else if(Car_Mode==5)   OLED_ShowString(0,0,"Tank");
-	    if(Run_Mode==0)   OLED_ShowString(90,0,"APP");
-        else if(Run_Mode==1)   OLED_ShowString(90,0,"GRY");
+	    OLED_ShowString(90,0,"FWD");
 	
 		OLED_ShowString(00,10,"G");
         for(i=0;i<8;i++)
@@ -82,13 +81,14 @@ void oled_show(void)
                                                     OLED_ShowString(96,40,"mm/s");
 
         //=============第六行显示电压与电机开关=======================//
-                              OLED_ShowString(0,50,"V");
-                                                    OLED_ShowString(30,50,".");
-                                                    OLED_ShowString(64,50,"V");
-                                                    OLED_ShowNumber(19,50,(int)Voltage,2,12);
-                                                    OLED_ShowNumber(39,50,(u16)(Voltage*10)%10,2,12);
-        if(Flag_Stop)         OLED_ShowString(95,50,"OFF");
-        if(!Flag_Stop)        OLED_ShowString(95,50,"ON ");
+        OLED_ShowString(0,50,"PL");
+        OLED_ShowString(12,50,(MotorA.Motor_Pwm < 0) ? "-" : "+");
+        OLED_ShowNumber(18,50,myabs((int)MotorA.Motor_Pwm),4,12);
+        OLED_ShowString(54,50,"PR");
+        OLED_ShowString(66,50,(MotorB.Motor_Pwm < 0) ? "-" : "+");
+        OLED_ShowNumber(72,50,myabs((int)MotorB.Motor_Pwm),4,12);
+        if(Flag_Stop)         OLED_ShowString(102,50,"S");
+        if(!Flag_Stop)        OLED_ShowString(102,50,"R");
 
         //=============刷新=======================//
         OLED_Refresh_Gram();
@@ -112,7 +112,8 @@ void APP_Show(void)
     flag=!flag;
     if(PID_Send==1)         //发送PID参数,在APP调参界面显示
     {
-        printf("{C%d:%d:%d:%d:%d:%d:%d:%d:%d}$",(int)Velocity_KP,(int)Velocity_KI,(int)0,(int)0,(int)0,(int)0,0,0,0);//打印到APP上面
+        /* APP 槽位 0~3：左 Kp、左 Ki、右 Kp、右 Ki。 */
+        printf("{C%d:%d:%d:%d:%d:%d:%d:%d:%d}$",(int)Velocity_KP_Left,(int)Velocity_KI_Left,(int)Velocity_KP_Right,(int)Velocity_KI_Right,(int)0,(int)0,0,0,0);//打印到APP上面
         PID_Send=0;
     }
    else if(flag==0)     // 发送电池电压，速度，角度等参数，在APP首页显示

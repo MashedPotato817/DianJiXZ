@@ -42,6 +42,15 @@ extern float Gray_Line_Pos_mm;
 #define PI_DEADBAND                  0.005f  /* PI 死区 (m/s) */
 #define PWM_MAX                      7800
 
+/* 1 m/s 前进验证先使用 demo 的对称 PI 基准；确认方向与起转后再分轮调参。 */
+#define VELOCITY_KP_LEFT             400.0f
+#define VELOCITY_KI_LEFT             300.0f
+#define VELOCITY_KP_RIGHT            400.0f
+#define VELOCITY_KI_RIGHT            300.0f
+
+/* 单轮闭环方向验证：按键启动后，车辆直线前进的目标速度。 */
+#define FORWARD_TEST_SPEED_M_S        1.0f
+
 /* 8 路灰度基础巡线参数 */
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
 #define GRAY_BASE_SPEED_MM_S         45.0f    /* 低速验证巡线方向，确认后再逐级提速 */
@@ -71,7 +80,8 @@ extern float Move_X,Move_Z;						//目标速度和目标转向速度
 extern Encoder OriginalEncoder; 					//编码器原始数据   
 extern Motor_parameter MotorA,MotorB;				//左右电机相关变量
 extern float Voltage_Count,Voltage_All,Voltage;
-extern float Velocity_KP,Velocity_KI;	
+extern float Velocity_KP_Left,Velocity_KI_Left;
+extern float Velocity_KP_Right,Velocity_KI_Right;
 extern int Run_Mode;//小车运行模式
 void TIM6_Init(void); 
 void Get_Velocity_From_Encoder(int Encoder1,int Encoder2);

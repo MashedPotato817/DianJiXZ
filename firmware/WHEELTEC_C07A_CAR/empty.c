@@ -40,30 +40,24 @@ float Voltage=0;
 
 int main(void)
 {
-    // 系统初始化
-    SYSCFG_DL_init();  // 初始化系统配置
-    // 清除所有外设的中断挂起状态
-    NVIC_ClearPendingIRQ(ENCODERA_INT_IRQN);    // 编码器A中断
-    NVIC_ClearPendingIRQ(ENCODERB_INT_IRQN);    // 编码器B中断
-    NVIC_ClearPendingIRQ(UART_0_INST_INT_IRQN);  // UART0串口中断
-    NVIC_ClearPendingIRQ(UART_1_INST_INT_IRQN);  // UART1串口中断
-    // 使能各外设的中断
-    NVIC_EnableIRQ(ENCODERA_INT_IRQN);    // 开启编码器A中断
-    NVIC_EnableIRQ(ENCODERB_INT_IRQN);    // 开启编码器B中断
-    NVIC_EnableIRQ(UART_0_INST_INT_IRQN); // 开启UART0中断
-    NVIC_EnableIRQ(UART_1_INST_INT_IRQN); // 开启UART1中断
-    // 定时器和ADC相关中断配置
-    NVIC_ClearPendingIRQ(TIMER_0_INST_INT_IRQN);  // 清除定时器0中断挂起
-    NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN);        // 开启定时器0中断
-    NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
-    OLED_Init();  // 初始化OLED显示屏
-    // 主循环
-    while (1) 
-    {
-		Voltage = Get_battery_volt();//采样小车当前电压
-        BTBufferHandler();    // 处理蓝牙数据缓冲区
-        oled_show();         //  OLED显示更新
-        APP_Show();          //  APP显示处理
+    SYSCFG_DL_init();
+
+    /* 前进速度环测试只使用：左右编码器、5 ms 控制定时器、
+     * TB6612 输出、按键与 OLED。UART、DMA、ADC、灰度输入虽可由 SysConfig 初始化，
+     * 但不启用它们的中断，也不进入其协议处理代码。 */
+    NVIC_ClearPendingIRQ(ENCODERA_INT_IRQN);
+    NVIC_ClearPendingIRQ(ENCODERB_INT_IRQN);
+    NVIC_ClearPendingIRQ(TIMER_0_INST_INT_IRQN);
+    NVIC_EnableIRQ(ENCODERA_INT_IRQN);
+    NVIC_EnableIRQ(ENCODERB_INT_IRQN);
+    NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN);
+
+    OLED_Init();
+    Set_PWM(0, 0);
+
+    while (1) {
+        /* 速度环在 5 ms 中断中执行；主循环仅刷新观测界面。 */
+        oled_show();
     }
 }
 
