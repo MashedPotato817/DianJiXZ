@@ -1,0 +1,504 @@
+% !TeX program = xelatex
+% !TeX encoding = UTF-8
+% ===========================================================================
+% 电赛控制类报告模板 —— 传感器测控 / 物理量闭环类
+% 适用题号参考：2015-B（风力摆）、2015-D（风力悬浮）、2019-K（用电器分析）、
+%               2023-E（运动目标控制）、2025-E（自行瞄准）等
+% 编译：xelatex template_sensor.tex （建议运行两次）
+% ===========================================================================
+% 【模板说明】
+% 本模板针对"传感器采集 → 信号处理 → 闭环控制 → 执行器输出"这一大类
+% 控制题设计。如果你的题目涉及：
+%   - 姿态/角度/位置/力/电容/电流等物理量的精密测量
+%   - 传感器选型、标定与信号调理
+%   - PID/串级 PID/模糊控制等闭环调节
+%   - 电机/舵机/风机/电磁铁/云台等执行器
+%   - 精度分析、误差溯源、重复性测试
+% 直接套用本模板，填空即可。
+% ===========================================================================
+\documentclass[12pt,a4paper,fontset=fandol]{ctexart}
+
+% ---------- 页面设置 ----------
+\usepackage[top=3.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.25}
+
+% ---------- 数学 ----------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---------- 表格 ----------
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+
+% ---------- 图片 ----------
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[font=small]{caption}
+\captionsetup{labelsep=space}
+
+% ---------- 列表 ----------
+\usepackage{enumitem}
+\setlist{nosep}
+
+% ---------- 页眉页脚 ----------
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% ---------- 代码 ----------
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  showstringspaces=false,
+}
+
+% ---------- 绘图 ----------
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,chains}
+
+% ---------- 标题 ----------
+\ctexset{
+  section      = {format = \large\bfseries},
+  subsection   = {format = \normalsize\bfseries},
+}
+
+% ---------- 快捷命令 ----------
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\blank}{\rule{4cm}{0.4pt}}
+
+\begin{document}
+
+% =========================== 封 面 ===========================
+\begin{titlepage}
+  \centering
+  \vspace*{2.2cm}
+  {\zihao{2}\bfseries \blank 年全国大学生电子设计竞赛\par}
+  \vspace{0.5cm}
+  {\zihao{2}\bfseries \blank 赛区（TI杯）\par}
+  \vfill
+  {\zihao{1}\bfseries \blank\par}
+  \vspace{0.7cm}
+  {\zihao{3}\bfseries 题目编号：\blank 题\par}
+  \vfill
+  \begin{tabular}{rl}
+    \zihao{4}参赛队编号：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学校：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学生：& \rule{7cm}{0.4pt}
+  \end{tabular}
+  \vfill
+  {\zihao{4}二〇\blank 年\blank 月\par}
+\end{titlepage}
+
+% =========================== 正 文 ===========================
+\setcounter{page}{1}
+\begin{center}
+  {\zihao{2}\bfseries \blank}
+\end{center}
+
+\begin{abstract}
+\noindent
+% ===== 摘 要（≤300 字）=====
+% 套路：点题 → 系统组成 → 检测与控制原理 → 创新点 → 指标结果
+针对\blank 年全国大学生电子设计竞赛\blank 题中
+\blank{核心任务，如：精确控制风力摆画线 / 悬浮高度稳定控制 / 用电参数测量与识别}的需求，
+设计了一套以\blank{MCU 型号}为主控、以\blank{核心传感器}为检测单元、
+以\blank{执行器}为输出的闭环\blank{控制系统名称}。
+
+系统采用\blank{传感器选型方案}实现\blank{被测量的高精度获取}，
+通过\blank{信号调理/滤波/融合算法}提高信噪比与可靠性；
+控制层采用\blank{控制算法，如：串级 PID / 模糊控制 / 自适应控制}，
+对\blank{被控对象}进行\blank{控制目标描述}。
+
+经实测，系统\blank{量化结果：如 稳态误差 < X\%，响应时间 < Y s，画线长度偏差 < Z mm}，
+满足题目全部基本要求与发挥部分指标。
+本文给出硬件组成、传感器标定方法、控制模型推导和可复现测试方案。
+
+\noindent\textbf{关键词：}\blank{MCU型号}；\blank{传感器类型}；\blank{控制算法}；\blank{被控对象}；\blank{闭环控制}
+\end{abstract}
+
+% =========================== 第 1 章 ===========================
+\section{设计方案与工作原理}
+
+\subsection{预期实现目标定位}
+本设计面向\blank{题号}题规定的任务：
+\begin{itemize}
+  \item 基本要求（1）：\blank{如：风力摆从静止开始，控制画笔画出指定长度的直线}
+  \item 基本要求（2）：\blank{如：切换方向，画出另一条直线}
+  \item 发挥部分（1）：\blank{如：画出规定半径的圆}
+  \item 发挥部分（2）：\blank{如：规定时间内完成多段图形绘制}
+\end{itemize}
+系统指标要求：
+\begin{itemize}
+  \item \blank{精度指标，如：画线长度误差 ≤ ±2.5 cm}
+  \item \blank{时间指标，如：单段画线时间 ≤ 15 s}
+  \item \blank{稳定性指标，如：稳态误差 ≤ ±1°}
+\end{itemize}
+设计须遵守的限制条件：
+\begin{itemize}
+  \item \blank{限制条件1，如：必须使用指定 MCU 系列}
+  \item \blank{限制条件2，如：结构尺寸限制}
+  \item \blank{限制条件3，如：供电方式限制}
+\end{itemize}
+
+\subsection{技术方案分析比较}
+
+\textbf{1. 检测方案论证。}
+方案一：\blank{传感器方案一，如：超声波测距}——
+\blank{优点，如：非接触、成本低}，
+但\blank{缺点，如：精度受温度和反射面影响大、分辨率不足}。
+方案二：\blank{传感器方案二，如：红外 ToF}——
+\blank{优缺点}。
+方案三：\blank{传感器方案三，如：MPU6050 姿态检测 + 互补滤波}——
+\blank{优缺点}。
+\emph{方案选择：}\blank{从精度、响应速度、题目限制等角度论述选择理由}。
+
+\textbf{2. 控制方案论证。}
+方案一：单环 PID。实现简单、调参方便，但\blank{如：对多变量耦合系统控制效果有限}。
+方案二：串级 PID。内环\blank{角速度/速度}快响应，外环\blank{角度/位置}慢调节，
+适合\blank{多时间尺度}系统。
+方案三：\blank{模糊控制 / 自适应控制 / LQR}。
+\blank{优缺点}。
+\emph{方案选择：}\blank{结合系统特点论述选择理由}。
+
+\textbf{3. 执行方案论证。}
+方案一：\blank{如：直流电机 + 螺旋桨（轴流风机）}——
+\blank{优缺点}。
+方案二：\blank{如：舵机 + 推杆}——
+\blank{优缺点}。
+\emph{方案选择：}\blank{从推力/力矩/响应速度/可控性等方面论述}。
+
+\subsection{系统结构工作原理}
+系统由\blank{检测、控制、执行、显示}四部分组成：
+\begin{itemize}
+  \item \textbf{检测单元：}\blank{核心传感器}采集\blank{被测量}，经\blank{信号调理/滤波}后送入 MCU；
+  \item \textbf{控制单元：}\blank{MCU 型号}运行\blank{控制算法}，计算\blank{控制输出量}；
+  \item \textbf{执行单元：}\blank{驱动电路}驱动\blank{执行器}，作用于\blank{被控对象}；
+  \item \textbf{显示与交互：}\blank{OLED/LCD/按键/指示灯}显示系统状态、参数和结果。
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{系统模块组成}
+\begin{tabularx}{\textwidth}{p{2.2cm}p{4cm}Y}
+\toprule
+模块 & 主要器件/接口 & 作用\\
+\midrule
+主控 & \blank{MCU 型号} & \blank{控制算法运算、任务调度}\\
+检测 & \blank{传感器及其接口} & \blank{被测量的高精度采集}\\
+执行 & \blank{驱动芯片 + 执行器} & \blank{将被控量作用到系统}\\
+电源 & \blank{供电方案} & \blank{为各模块提供稳定电源}\\
+人机交互 & \blank{显示/按键/指示灯} & \blank{状态显示、参数设置}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.9\textwidth]{figures/system_diagram.png}
+% \caption{系统总体结构框图}
+% \end{figure}
+
+\subsection{功能指标实现方法}
+\begin{enumerate}
+  \item \textbf{传感器标定与数据获取：}\blank{标定方法：如多点标定→拟合曲线；数据滤波：如滑动平均/互补滤波/卡尔曼滤波}
+  \item \textbf{控制算法实现：}\blank{如串级 PID：内环以角速度为反馈量实现快速镇定，外环以角度为反馈量跟踪目标}
+  \item \textbf{任务调度：}\blank{如有限状态机管理：待机→校准→执行任务1→执行任务2→停机}
+  \item \textbf{安全保护：}\blank{如超限保护、急停、超时自动停止}
+\end{enumerate}
+
+\subsection{测量、控制与分析处理}
+每个控制周期中：
+\begin{enumerate}
+  \item \blank{传感器}数据采集 → \blank{数字滤波} → \blank{数据融合/状态估计}；
+  \item \blank{控制算法}根据\blank{目标值}与\blank{当前估计值}计算偏差；
+  \item 偏差经\blank{控制律}运算后输出\blank{控制量}；
+  \item \blank{执行器}根据控制量改变\blank{被控对象状态}。
+\end{enumerate}
+
+% =========================== 第 2 章 ===========================
+\section{核心部件与电路设计}
+
+\subsection{关键器件性能分析}
+\begin{itemize}
+  \item \textbf{\blank{主控 MCU}：}
+  \blank{内核+主频}，ADC 分辨率\blank{位}，定时器数量\blank{个}，
+  满足\blank{控制频率} Hz 控制与多路\blank{传感器接口}并行需求。
+  \item \textbf{\blank{核心传感器}：}
+  量程：\blank{}，分辨率：\blank{}，精度：\blank{}，输出接口：\blank{如 I²C/SPI/UART/模拟电压}，
+  \blank{其他关键参数}。
+  \item \textbf{\blank{执行器}：}
+  \blank{类型、额定电压/电流、推力/力矩、响应时间}。
+  \item \textbf{\blank{驱动电路}：}
+  \blank{如：MOSFET H 桥 / L298N / TB6612 / 舵机 PWM 驱动}，
+  最大输出\blank{电压/电流}。
+\end{itemize}
+
+\subsection{电路结构工作机理}
+\blank{描述关键信号链路：传感器→信号调理（如放大/滤波/电平转换）→MCU 的 ADC/数字接口→
+控制算法运算→PWM/DA 输出→驱动电路→执行器。}
+电源部分：\blank{电池/适配器供电→稳压模块→各电压轨分配}。
+
+\subsection{被控对象建模与控制律推导}
+
+\subsubsection*{系统动力学/测量模型}
+\blank{根据被控对象物理原理建立数学模型。示例（以风力摆为例）：}
+\begin{equation}
+  J\ddot{\theta} + b\dot{\theta} + mgl\sin\theta = \tau
+  \label{eq:dynamics}
+\end{equation}
+式中 $J$ 为转动惯量，$b$ 为阻尼系数，$m$ 为质量，$l$ 为质心到转轴距离，
+$\theta$ 为摆角，$\tau$ 为风机产生的驱动力矩。
+在小角度近似下 $\sin\theta \approx \theta$，系统简化为二阶线性模型。
+
+\subsubsection*{传感器信号处理}
+\blank{传感器}原始数据经\blank{滤波/融合}处理：
+\begin{equation}
+  \hat{x}(k) = \alpha \cdot x_{\text{raw}}(k) + (1-\alpha) \cdot \hat{x}(k-1)
+  \label{eq:filter}
+\end{equation}
+或采用互补滤波融合加速度计与陀螺仪数据。
+
+\subsubsection*{串级 PID 控制器}
+外环（\blank{角度/位置}）：
+\begin{equation}
+  \dot{\theta}_{\text{target}}(k) = K_{p\_out}\, e_{\theta}(k)
+  \label{eq:outer}
+\end{equation}
+内环（\blank{角速度/速度}）：
+\begin{equation}
+  u(k) = K_{p\_in}\bigl[\dot{\theta}_{\text{target}}(k) - \dot{\theta}(k)\bigr]
+        + K_{i\_in} \sum \dot{e}(k)
+        + K_{d\_in}\bigl[\dot{e}(k) - \dot{e}(k-1)\bigr]
+  \label{eq:inner}
+\end{equation}
+
+\subsection{关键参数与接口}
+\begin{table}[H]
+\centering
+\caption{控制系统关键参数}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{3.6cm}Y}
+\toprule
+参数 & 取值 & 说明\\
+\midrule
+控制周期 & \blank{ms} & \blank{定时中断周期}\\
+\blank{传感器}接口 & \blank{I²C/SPI/UART} & \blank{通信速率、地址}\\
+ADC 采样率 & \blank{Hz} & \blank{分辨率与通道数}\\
+外环 $K_p$ & \blank{} & \blank{角度/位置环比例增益}\\
+内环 $K_p$/$K_i$/$K_d$ & \blank{} & \blank{角速度/速度环 PID 参数}\\
+PWM 频率/分辨率 & \blank{Hz/位} & \blank{执行器驱动信号}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================== 第 3 章 ===========================
+\section{系统软件设计分析}
+
+\subsection{系统总体工作流程}
+上电后执行：
+\begin{enumerate}
+  \item \blank{外设初始化：GPIO、ADC、Timer、PWM、I²C/SPI/UART}
+  \item \blank{传感器自检/零位校准}
+  \item \blank{参数加载（从 EEPROM/Flash 或默认定值）}
+  \item 进入主循环 + 定时中断工作模式
+\end{enumerate}
+
+\begin{itemize}
+  \item \textbf{定时中断（\blank{控制频率}）：}
+  \blank{传感器读取→数据滤波→控制算法→输出更新}
+  \item \textbf{主循环：}
+  \blank{显示刷新、按键扫描、串口指令解析、数据记录}
+\end{itemize}
+
+\subsection{任务状态机设计}
+
+\begin{table}[H]
+\centering
+\caption{任务执行状态机}
+\begin{tabularx}{\textwidth}{p{2.6cm}p{2.5cm}Yp{2.7cm}}
+\toprule
+状态 & 输入/条件 & 主要动作 & 退出条件\\
+\midrule
+\code{IDLE}     & 按键/指令 & 等待启动命令 & 收到启动信号\\
+\code{CALIB}    & \blank{传感器数据} & \blank{零位标定/自动校准} & \blank{标定收敛}\\
+\code{TASK\_1}  & \blank{传感器数据} & \blank{执行基本要求1} & \blank{完成判据}\\
+\code{TASK\_2}  & \blank{传感器数据} & \blank{执行基本要求2} & \blank{完成判据}\\
+\code{TASK\_3}  & \blank{传感器数据} & \blank{执行发挥部分1} & \blank{完成判据}\\
+\code{STOP}     & — & 输出清零、声光提示 & 任务结束\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{关键模块程序设计}
+\begin{itemize}
+  \item \code{\blank{Sensor\_Read()}}：\blank{传感器原始数据读取 + 校验}
+  \item \code{\blank{Sensor\_Filter()}}：\blank{数字滤波/数据融合，输出状态估计值}
+  \item \code{\blank{PID\_Outer()}}：\blank{外环控制计算，输出内环目标}
+  \item \code{\blank{PID\_Inner()}}：\blank{内环控制计算，输出执行器控制量}
+  \item \code{\blank{Task\_Scheduler()}}：\blank{状态转移判断 + 任务参数切换}
+  \item \code{\blank{Output\_Limit()}}：\blank{控制量限幅 + 安全保护}
+\end{itemize}
+
+\subsection{可靠性处理}
+\begin{enumerate}
+  \item \textbf{传感器异常检测：}\blank{如：I²C 通信超时→重试→标记故障；数据超出合理范围→剔除以最近有效值代替}
+  \item \textbf{控制输出安全限幅：}\blank{如：PWM 占空比限幅、积分项上限防饱和}
+  \item \textbf{系统异常保护：}\blank{如：执行器长时间满功率运转→降功率或停机；倾角过大→紧急制动}
+  \item \textbf{数据记录：}\blank{如：关键变量定时记录，用于赛后分析和问题定位}
+\end{enumerate}
+
+% =========================== 第 4 章 ===========================
+\section{竞赛工作环境条件}
+
+\subsection{软件环境}
+\begin{itemize}
+  \item IDE / 编译工具：\blank{如 Keil uVision5 / IAR / CCS}
+  \item 目标工程：\code{\blank{工程名称}}
+  \item 外设配置工具：\blank{如 TI SysConfig / STM32CubeMX}
+  \item 调试工具：\blank{如 串口助手、VOFA+、DataScope、逻辑分析仪、示波器}
+  \item 数据后处理：\blank{如 Python (NumPy/Matplotlib)、Excel、MATLAB}
+\end{itemize}
+
+\subsection{硬件平台与测试条件}
+硬件平台：
+\begin{itemize}
+  \item \blank{主控板}
+  \item \blank{传感器模块列表}（含具体型号）
+  \item \blank{执行器列表}（含具体型号）
+  \item \blank{机械结构/支架材料}
+  \item \blank{供电方案}
+\end{itemize}
+测试仪器：
+\begin{itemize}
+  \item \blank{示波器（品牌型号）}
+  \item \blank{万用表（品牌型号）}
+  \item \blank{其他专用测量设备}
+\end{itemize}
+测试环境：\blank{温度、光照、场地条件等说明}。
+
+\subsection{调试条件与安全事项}
+\begin{enumerate}
+  \item \blank{传感器}安装与标定：确保安装稳固、方向正确，在静止状态下执行零位校准；
+  \item 开环测试：确认执行器方向、极性、量程正常后，再切换到闭环控制；
+  \item 安全事项：\blank{如：风机类注意叶片防护；高压电路注意绝缘；运动部件注意防碰撞}。
+\end{enumerate}
+
+% =========================== 第 5 章 ===========================
+\section{作品成效总结分析}
+
+\subsection{测试方案与数据}
+测试流程按由简到难设计：
+\begin{enumerate}
+  \item \textbf{传感器静态标定：}\blank{多点标定，验证线性度和重复性}
+  \item \textbf{开环阶跃响应：}\blank{施加阶跃控制量，记录响应曲线，辨识系统参数}
+  \item \textbf{闭环阶跃响应：}\blank{施加阶跃目标值，记录超调量、调节时间、稳态误差}
+  \item \textbf{轨迹/任务跟踪：}\blank{完整执行题目要求的任务，记录精度、耗时}
+  \item \textbf{重复性测试：}\blank{每组条件 ≥ 3 次，统计均值和标准差}
+\end{enumerate}
+
+\subsubsection*{传感器标定数据}
+\begin{table}[H]
+\centering
+\caption{\blank{传感器}标定数据}
+\begin{tabularx}{\textwidth}{p{2cm}p{2cm}p{2cm}p{2cm}Y}
+\toprule
+标准值 & 测量值1 & 测量值2 & 测量值3 & 误差/线性度\\
+\midrule
+\blank{} & \blank{} & \blank{} & \blank{} & \blank{}\\
+\blank{} & \blank{} & \blank{} & \blank{} & \blank{}\\
+\blank{} & \blank{} & \blank{} & \blank{} & \blank{}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection*{控制性能测试}
+\begin{table}[H]
+\centering
+\caption{闭环控制性能测试记录}
+\small
+\begin{tabularx}{\textwidth}{p{2.3cm}Yp{1.15cm}p{1.15cm}p{1.15cm}p{1.35cm}}
+\toprule
+测试项目 & 评价指标 & 第1次 & 第2次 & 第3次 & 结论\\
+\midrule
+基本要求（1）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+基本要求（2）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+发挥部分（1）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+发挥部分（2）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{成效与不足分析}
+\subsubsection*{系统成效}
+\blank{逐项对照题目要求，用实测数据支撑达标说明。}
+
+\subsubsection*{存在不足}
+\blank{实事求是分析：（1）传感器在 XX 条件下的精度/漂移问题；（2）执行器的响应/饱和问题；
+（3）机械结构的间隙/摩擦/重心问题等。}
+
+\subsection{创新特色与展望}
+\subsubsection*{创新特色}
+\begin{enumerate}
+  \item \blank{如：采用串级 PID 实现内外环解耦控制，提升系统响应速度与稳定性}
+  \item \blank{如：传感器自标定算法，减少手动校准时间}
+  \item \blank{如：融合多传感器数据的滤波/估计方法}
+\end{enumerate}
+
+\subsubsection*{改进方向}
+\begin{enumerate}
+  \item \blank{如：使用更高精度传感器进一步提高测量分辨率}
+  \item \blank{如：采用模型预测控制（MPC）或 LQR 优化控制品质}
+  \item \blank{如：引入机器学习方法进行在线参数自适应调节}
+  \item \blank{如：结构优化——使用 3D 打印/碳纤维等改善机械特性}
+\end{enumerate}
+
+% =========================== 第 6 章 ===========================
+\section{参考资料及文献}
+\begin{enumerate}[label={[\arabic*]}]
+  \item \blank{年份}年全国大学生电子设计竞赛\blank{题号}题试题。
+  \item \blank{核心传感器数据手册}。
+  \item \blank{MCU 技术参考手册}。
+  \item \blank{相关学术论文或教材（如自动控制原理、传感器技术等）}。
+  \item \blank{网上参考资料（GitHub 开源代码、CSDN 教程等）}。
+\end{enumerate}
+
+% =========================== 第 7 章 ===========================
+\section{附件材料}
+
+\subsection{工程文件与关键源代码}
+工程文件位于 \code{\blank{firmware/工程名/}}。
+
+核心源代码文件：
+\begin{itemize}
+  \item \code{\blank{control.c/h}} — \blank{控制算法（PID/串级 PID）、任务调度}
+  \item \code{\blank{sensor.c/h}} — \blank{传感器驱动、数据滤波与标定}
+  \item \code{\blank{actuator.c/h}} — \blank{执行器驱动、PWM 输出}
+  \item \code{\blank{display.c/h}} — \blank{显示与交互逻辑}
+\end{itemize}
+
+\subsection{核心源代码清单（节选）}
+% \begin{lstlisting}[language=C, caption={串级 PID 控制函数}]
+% // 在此粘贴核心控制代码
+% \end{lstlisting}
+
+\subsection{最终提交前检查清单}
+\begin{itemize}
+  \item[$\square$] \textbf{格式核验：}封面和正文无学校、代码、姓名；页面上方空白 $\ge$ 3cm；A4 纸 6--8 页。
+  \item[$\square$] \textbf{内容核验：}测试仪器均已标注具体品牌型号；每个模块有 $\ge$ 2 个方案对比。
+  \item[$\square$] \textbf{数据核验：}标定数据、测试数据已实测补录，无虚构。
+  \item[$\square$] \textbf{规则核验：}MCU 型号、传感器类型符合题目限制；无禁用器件。
+  \item[$\square$] \textbf{完整性核验：}图、表、公式均有编号；参考文献完整；页码连续。
+  \item[$\square$] \textbf{特殊细节：}公式推导完整、量纲正确；传感器标定曲线或标定数据表完整。
+\end{itemize}
+
+\end{document}

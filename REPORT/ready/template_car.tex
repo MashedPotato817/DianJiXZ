@@ -1,0 +1,495 @@
+% !TeX program = xelatex
+% !TeX encoding = UTF-8
+% ===========================================================================
+% 电赛控制类报告模板 —— 小车巡线 / 自动行驶类
+% 适用题号参考：2024-H、2023-I、2022-C、2021-F、2020-C、2019-A、2018-C
+% 编译：xelatex template_car.tex （建议运行两次）
+% ===========================================================================
+% 【模板说明】
+% 本模板针对"差速/舵机小车 + 巡线/循迹 + 速度闭环 + 状态机调度"这一大类
+% 控制题设计。如果你的题目涉及：
+%   - 黑线/电磁线/色带循迹
+%   - 编码器测速 + PID 速度闭环
+%   - IMU 姿态/航向辅助
+%   - 多点停车、多圈、多路段调度
+%   - 声光提示、无线通信、视觉识别
+% 直接套用本模板，填空即可。
+% ===========================================================================
+\documentclass[12pt,a4paper,fontset=fandol]{ctexart}
+
+% ---------- 页面设置 ----------
+\usepackage[top=3.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.25}
+
+% ---------- 数学 ----------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---------- 表格 ----------
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+
+% ---------- 图片 ----------
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[font=small]{caption}
+\captionsetup{labelsep=space}
+
+% ---------- 列表 ----------
+\usepackage{enumitem}
+\setlist{nosep}
+
+% ---------- 页眉页脚 ----------
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% ---------- 代码 ----------
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  showstringspaces=false,
+}
+
+% ---------- 标题 ----------
+\ctexset{
+  section      = {format = \large\bfseries},
+  subsection   = {format = \normalsize\bfseries},
+}
+
+% ---------- 快捷命令 ----------
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\blank}{\rule{4cm}{0.4pt}}   % 封面横线
+
+\begin{document}
+
+% =========================== 封 面 ===========================
+\begin{titlepage}
+  \centering
+  \vspace*{2.2cm}
+  {\zihao{2}\bfseries \blank 年全国大学生电子设计竞赛\par}
+  \vspace{0.5cm}
+  {\zihao{2}\bfseries \blank 赛区（TI杯）\par}
+  \vfill
+  {\zihao{1}\bfseries \blank\par}          % ← 填写作品名称
+  \vspace{0.7cm}
+  {\zihao{3}\bfseries 题目编号：\blank 题\par}
+  \vfill
+  \begin{tabular}{rl}
+    \zihao{4}参赛队编号：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学校：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学生：& \rule{7cm}{0.4pt}
+  \end{tabular}
+  \vfill
+  {\zihao{4}二〇\blank 年\blank 月\par}
+\end{titlepage}
+
+% =========================== 正 文 ===========================
+\setcounter{page}{1}
+\begin{center}
+  {\zihao{2}\bfseries \blank}             % ← 再次填写作品名称
+\end{center}
+
+\begin{abstract}
+\noindent
+% ===== 摘 要（≤300 字）=====
+% 套路：一句话点题 → 硬件组成 → 控制算法 → 创新点 → 结果指标
+针对\blank 年全国大学生电子设计竞赛\blank 题中
+\blank{核心任务，如：无外部标记的黑线循迹、多点停车、多圈运行}的需求，
+设计了一套以\blank{MCU 型号，如 MSPM0G3507}为主控的差速轮式小车控制系统。
+系统以\blank{传感器，如 8 路灰度/CCD/电磁}获得\blank{偏差信息}，
+以\blank{编码器/IMU}构建\blank{速度/姿态}闭环，
+结合\blank{控制算法，如纯追踪 + 增量式 PI}实现精确循迹与调速。
+任务层采用\blank{路段状态机/有限状态机}，将\blank{巡线、航向对齐、直冲跨越、重捕获、圈数计数}串联，
+实现全部\blank{基本要求 + 发挥部分}的统一调度。
+
+针对\blank{题目特殊难点，如：无标记端点、失线跨越、累计误差}，
+设计了\blank{解决方案，如：多条件融合过点判据 + 位姿快照校正}。
+系统实现了\blank{量化结果，如：XX 秒内完成单圈，连续 X 圈成功率 X\%}。
+本文给出硬件组成、关键控制公式、软件流程和可复现测试方案。
+
+\noindent\textbf{关键词：}\blank{MCU型号}；\blank{自动循迹}；\blank{差速控制}；\blank{控制算法}；\blank{状态机}
+\end{abstract}
+
+% =========================== 第 1 章 ===========================
+\section{设计方案与工作原理}
+
+\subsection{预期实现目标定位}
+本设计面向\blank{题号}题规定的场地与任务：
+\begin{itemize}
+  \item 场地：\blank{场地尺寸、黑线/轨迹形状、关键点位置等}
+  \item 基本要求（1）：\blank{描述}
+  \item 基本要求（2）：\blank{描述}
+  \item 发挥部分（1）：\blank{描述}
+  \item 发挥部分（2）：\blank{描述}
+\end{itemize}
+设计须遵守的限制条件：
+\begin{itemize}
+  \item 必须使用\blank{如 TI MSPM0 系列}MCU 作为主控
+  \item \blank{车体尺寸、供电方式、前进方式等限制}
+  \item \blank{传感器限制，如不得安装摄像头、不得使用 GPS 等}
+\end{itemize}
+
+\subsection{技术方案分析比较}
+
+\textbf{1. 循迹方案论证。}
+方案一：单路/少路红外对管循迹。元件数量少、实现简单，但仅能判断"偏左/偏右"，
+无法获得横向偏差的连续量，在弧线段难以兼顾稳定性与速度。
+方案二：摄像头视觉循迹。信息量最大，可提前预瞄远处轨迹，
+但题目明确禁止安装摄像头（或超出预算/计算能力）。
+方案三：\blank{8 路灰度/CCD 线性传感器阵列}。
+通过\blank{传感器位置的加权质心}形成连续横向偏差信号，
+满足题目传感器限制，计算量小，适合\blank{MCU 型号}的实时处理能力。
+\emph{方案选择：}采用方案三，兼顾\blank{精度与题目限制}。
+
+\textbf{2. 电机控制方案论证。}
+方案一：开环 PWM 调速。实现最简单，但车速随电池电压和负载变化明显，重复性差。
+方案二：位置式 PID。经典算法、调参资料丰富，但对积分饱和敏感，输出限幅后易出现积分累积。
+方案三：增量式 PI。直接输出 PWM 增量而非绝对量，天然抗积分饱和，适合固定周期的速度闭环。
+\emph{方案选择：}采用方案三，\blank{理由：实现简单、抗饱和、适合 200 Hz 固定周期}。
+
+\textbf{3. \blank{失线/过渡段}导航方案论证。}
+方案一：仅依赖灰度传感器——在无线路段完全失效。
+方案二：仅依赖编码器里程计——轮胎打滑导致累积误差。
+方案三：\blank{灰度特征 + 编码器里程 + IMU 航向}多传感器融合，
+以 IMU 在失线段保持航向，在捕获黑线后以灰度修正。
+\emph{方案选择：}采用方案三，多信息源相互校验，提升可靠性。
+
+\subsection{系统结构工作原理}
+系统由感知、控制、执行和提示四部分组成。
+\blank{灰度/CCD 传感器模块}经\blank{接口方式}采样，输出\blank{轨迹位置}；
+双路编码器反馈左右轮瞬时速度；
+\blank{IMU}通过\blank{如 UART 115200 bps}输出\blank{航向与角速度}；
+\blank{MCU 型号}在\blank{控制周期}定时中断内完成采样、状态机、速度闭环与 PWM 刷新；
+\blank{电机驱动芯片}驱动两台\blank{直流减速电机}；
+\blank{OLED/LED/蜂鸣器}显示运行状态并在关键点发出声光提示。
+
+\begin{table}[H]
+\centering
+\caption{系统模块组成}
+\begin{tabularx}{\textwidth}{p{2.2cm}p{4cm}Y}
+\toprule
+模块 & 主要器件/接口 & 作用\\
+\midrule
+主控 & \blank{MCU 型号} & 实时控制、状态机、外设管理\\
+执行 & \blank{驱动芯片 + 电机} & 左右轮独立 PWM 驱动\\
+速度反馈 & \blank{编码器参数} & 轮速与累计里程\\
+循迹 & \blank{传感器型号/数量} & 轨迹横向偏差与捕获状态\\
+姿态 & \blank{IMU 型号，接口参数} & 航向与角速度，失线段辅助\\
+人机交互 & \blank{显示/声光器件} & 状态显示、关键点提示\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.85\textwidth]{figures/track_layout.png}
+% \caption{场地示意图}
+% \end{figure}
+
+\subsection{功能指标实现方法}
+\begin{enumerate}
+  \item \textbf{弧线/直线巡线：}弧线段采用\blank{纯追踪/曲率控制}模型，将横向偏差转换为角速度命令，
+  并根据\blank{偏差大小/黑线覆盖数量}自动降速；直线段保持较高基础速度。
+  \item \textbf{关键点检测与停车：}通过\blank{丢线特征、航向转角、里程累计和位姿邻近}多条件协同确认到达关键点，
+  到达目标点后执行\blank{停车/声光提示/状态切换}。
+  \item \textbf{失线段导航：}利用\blank{IMU 航向角与角速度}构造\blank{PD 航向保持}，
+  设置\blank{最大距离和超时保护}，检测到黑线后连续确认重捕获再切回巡线状态。
+  \item \textbf{多圈/多路段调度：}以\blank{路段状态机}统一管理巡线、对齐、跨越、停车状态，
+  到达已知关键点后调用\blank{位姿快照}修正累计误差。
+\end{enumerate}
+
+\subsection{测量、控制与分析处理}
+每个\blank{控制周期}控制周期中：
+\begin{enumerate}
+  \item 读取编码器脉冲 → 换算左右轮实时速度与累计里程；
+  \item 读取\blank{循迹传感器}状态 → 计算\blank{轨迹位置}与\blank{黑线覆盖数量}；
+  \item 依据当前任务状态生成线速度 $v$ 和角速度 $\omega$ 目标；
+  \item 差速运动学逆解得到左右轮目标速度；
+  \item 两路增量式 PI 分别计算左右 PWM 占空比并刷新输出。
+\end{enumerate}
+\blank{IMU}数据以\blank{更新周期}更新，用于\blank{航向对齐、直冲段保持和位姿积分}。
+
+% =========================== 第 2 章 ===========================
+\section{核心部件与电路设计}
+
+\subsection{关键器件性能分析}
+\begin{itemize}
+  \item \textbf{\blank{主控 MCU 型号}：}\blank{内核+主频}，提供\blank{定时器/PWM/GPIO 中断/UART}等资源，
+  满足\blank{控制频率}控制与多外设并行需求。
+  \item \textbf{\blank{电机驱动芯片}：}\blank{双 H 桥}，可独立控制左右电机方向与 PWM 占空比，
+  \blank{持续/峰值电流}满足电机需求。
+  \item \textbf{编码器：}\blank{线数}霍尔编码器，配合\blank{减速比}减速比，
+  按\blank{倍频方式}计数时每轮一周对应\blank{计数值}个计数；
+  以轮周长 $C = \blank{}$\,m 和\blank{控制频率}周期可换算实时车速。
+  \item \textbf{\blank{循迹传感器}：}\blank{检测原理、分辨率、采样方式}。
+  \item \textbf{\blank{IMU 型号}：}\blank{输出数据类型、帧格式、更新率}。
+\end{itemize}
+
+\subsection{电路结构工作机理}
+电机方向引脚控制\blank{驱动芯片 IN1/IN2}，定时器输出\blank{PWM 频率与范围}。
+\blank{循迹传感器}通过\blank{地址复用/独立 I/O}读取各通道检测值。
+编码器 A/B 相\blank{上升沿/双边沿}触发 GPIO 中断计数。
+\blank{IMU}采用\blank{帧格式（如 0x55 帧头+校验）}解析姿态数据。
+电机电源与 MCU 逻辑电源应\blank{共地/隔离}，并复核\blank{电流能力/抗干扰}。
+
+\subsection{运动学与控制模型}
+
+\subsubsection*{差速运动学}
+设轮距为 $B$、车体线速度为 $v$、角速度为 $\omega$，则左右轮速度目标为：
+\begin{equation}
+  v_L = v - \frac{\omega B}{2}, \qquad v_R = v + \frac{\omega B}{2}
+  \label{eq:kinematic}
+\end{equation}
+
+\subsubsection*{循迹偏差提取}
+\blank{传感器}的加权位置为：
+\begin{equation}
+  y = \frac{\sum(s_i \cdot p_i)}{\sum s_i}
+  \label{eq:weighted}
+\end{equation}
+式中 $s_i$ 为第 $i$ 路检测值（\blank{0/1 二值化或灰度值}），$p_i$ 为该传感器横向坐标。
+
+\subsubsection*{纯追踪曲率控制}
+将横向偏差 $y$ 转换为弧线曲率 $\kappa$ 和角速度指令：
+\begin{equation}
+  \kappa = \frac{2y}{L^2 + y^2}, \qquad
+  \omega = -K_{\text{steer}} \cdot v \cdot \kappa
+  \label{eq:pure_pursuit}
+\end{equation}
+式中 $L$ 为前视距离，$K_{\text{steer}}$ 为转向增益。
+
+\subsubsection*{增量式 PI 速度控制}
+以 $e(k) = v_{\text{target}}(k) - v_{\text{measured}}(k)$ 为速度偏差：
+\begin{equation}
+  \text{PWM}(k) = \text{PWM}(k-1) + K_p\bigl[e(k) - e(k-1)\bigr] + K_i e(k)
+  \label{eq:pi}
+\end{equation}
+输出限幅 $\pm \text{PWM}_{\max}$，防止控制量超出驱动器有效范围。
+
+\subsubsection*{IMU 航向保持（PD）}
+失线段使用 PD 控制保持目标航向 $\psi_{\text{target}}$：
+\begin{equation}
+  \omega = K_{p\psi}(\psi_{\text{target}} - \psi) + K_{d\psi} \dot{\psi}
+  \label{eq:heading_pd}
+\end{equation}
+
+\subsection{关键参数与接口}
+\begin{table}[H]
+\centering
+\caption{控制系统关键参数}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{3.6cm}Y}
+\toprule
+参数 & 取值 & 说明\\
+\midrule
+控制周期 & \blank{如 5\,ms} & 定时中断，控制频率 \blank{如 200\,Hz}\\
+轮距 $B$ & \blank{m} & 差速运动学参数\\
+轮周长 $C$ & \blank{m} & 编码器速度换算\\
+编码器计数 & \blank{/rev} & \blank{线数×倍频×减速比}\\
+基础/弯道速度 & \blank{mm/s} & 分档速度策略\\
+前视距离 $L$ & \blank{m} & 纯追踪参数\\
+$K_p$/$K_i$ & \blank{} & 增量式 PI 参数\\
+PWM 频率与限幅 & \blank{如 10\,kHz，$\pm$7800} & 定时器配置\\
+\blank{IMU}串口 & \blank{如 115200\,bps} & 姿态数据输入\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================== 第 3 章 ===========================
+\section{系统软件设计分析}
+
+\subsection{系统总体工作流程}
+上电后完成\blank{外设初始化（GPIO、Timer、UART、PWM、中断优先级）}和\blank{参数加载}。
+系统采用\blank{"定时中断 + 主循环"}架构：
+\begin{itemize}
+  \item \textbf{\blank{定时中断（控制频率）}：}
+  编码器测速 → \blank{IMU}数据更新 → 任务状态机 →
+  \blank{循迹/导航}计算 → 目标轮速 → PI 输出 → PWM 刷新。
+  \item \textbf{主循环：}
+  \blank{OLED}刷新、串口协议处理、按键扫描、\blank{遥测/DataScope}数据上报。
+\end{itemize}
+
+若\blank{传感器（如 IMU）}离线，系统应\blank{降级处理策略：如暂停依赖该传感器的功能、提示故障}，
+不应将无效数据视作可靠的导航依据。
+
+\subsection{任务状态机设计}
+题目规定\blank{场地特殊约束，如：不得设置额外标记、A/B/C/D 无识别特征}，
+因此\blank{关键点}不能通过\blank{十字黑线/特殊标记}直接识别。
+软件将\blank{任务名称}分解为以下路段状态：
+
+\begin{table}[H]
+\centering
+\caption{任务状态机}
+\small
+\begin{tabularx}{\textwidth}{p{2.6cm}p{2.2cm}Yp{2.5cm}}
+\toprule
+状态 & 输入依据 & 主要动作 & 退出条件\\
+\midrule
+\code{\blank{巡线状态1}} & \blank{轨迹位置、位姿} & \blank{沿轨迹巡线} & \blank{丢线且接近目标点}\\
+\code{\blank{对齐状态}}   & \blank{航向、角速度} & \blank{对齐目标航向} & \blank{航向误差连续满足阈值}\\
+\code{\blank{跨越状态}}   & \blank{航向、重捕获} & \blank{按目标航向前进} & \blank{重捕获轨迹线}\\
+\code{\blank{巡线状态2}} & \blank{轨迹位置、位姿} & \blank{沿轨迹巡线} & \blank{丢线且接近目标点}\\
+\code{STOP}               & \blank{圈数/里程计数}  & \blank{速度清零、声光提示} & \blank{任务完成}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{关键模块程序设计}
+\begin{itemize}
+  \item \code{\blank{Tracking\_GetPos()}}：\blank{循迹传感器采样 → 加权质心计算轨迹位置 → 偏差输出}
+  \item \code{\blank{Encoder\_GetSpeed()}}：\blank{脉冲计数 → 速度换算 → 累计里程}
+  \item \code{\blank{IMU\_GetData()}}：\blank{帧头校验 → 解析欧拉角/角速度 → 超时检测}
+  \item \code{\blank{PurePursuit\_Steer()}}：\blank{偏差 y → 曲率 κ → 角速度 ω}
+  \item \code{\blank{Incremental\_PI()}}：\blank{速度偏差 → PWM 增量 → 限幅输出}
+  \item \code{\blank{Task\_StateMachine()}}：\blank{状态转移条件判断 → 动作执行 → 圈数/里程更新}
+\end{itemize}
+
+\subsection{可靠性处理}
+\begin{enumerate}
+  \item \textbf{传感器抗噪：}\blank{如：灰度连续多次一致才判定丢线/重捕获；IMU 帧头校验+校验和}
+  \item \textbf{状态切换防抖：}\blank{如：航向对齐需连续 N 个周期满足阈值才切换}
+  \item \textbf{超时/距离保护：}\blank{如：失线段设置最大直冲距离 + 对齐超时，避免永久失线}
+  \item \textbf{累计误差抑制：}\blank{如：到达已知关键点后执行位姿快照，将 IMU 积分结果修正为场地坐标}
+  \item \textbf{输出安全限幅：}\blank{如：PWM 限幅 0～PWMmax，速度目标饱和限制}
+\end{enumerate}
+
+% =========================== 第 4 章 ===========================
+\section{竞赛工作环境条件}
+
+\subsection{软件环境}
+\begin{itemize}
+  \item IDE / 编译工具：\blank{如 Keil uVision5}
+  \item 目标工程：\code{\blank{工程名}}
+  \item 外设配置工具：\blank{如 TI SysConfig}
+  \item 调试与可视化：\blank{如 串口助手、VOFA+、DataScope}
+\end{itemize}
+
+\subsection{硬件平台与场地}
+硬件平台包括：
+\begin{itemize}
+  \item \blank{MCU 控制板型号}
+  \item \blank{电机驱动芯片 + 直流减速电机 ×2}
+  \item \blank{编码器参数} ×2
+  \item \blank{循迹传感器型号/配置}
+  \item \blank{IMU 型号}
+  \item \blank{显示模块（OLED/LCD）、LED、蜂鸣器}
+  \item \blank{供电方案（电池类型、容量、电压）}
+\end{itemize}
+测试场地：\blank{场地尺寸、轨迹形状、线宽、颜色、有无额外标记等}。
+
+\subsection{调试条件与安全事项}
+\begin{enumerate}
+  \item 架空/空载状态确认：左右轮方向、PWM 极性、编码器计数符号和急停逻辑；
+  \item 低速调试：完成\blank{循迹传感器}阈值标定、传感器安装高度/位置确认及控制增益整定；
+  \item 电机电源应满足峰值电流需求；调试中避免车轮被障碍物卡死；
+  \item 改动供电或接线后，重新验证共地与极性；上电前检查电池电压。
+\end{enumerate}
+
+% =========================== 第 5 章 ===========================
+\section{作品成效总结分析}
+
+\subsection{测试方案}
+测试流程按由简到难设计：
+\begin{enumerate}
+  \item \textbf{单元测试：}编码器测速准确性、PWM 输出线性度、\blank{循迹传感器}响应一致性；
+  \item \textbf{单段测试：}\blank{如单弧线/单直线巡线，确认轨迹跟踪精度与速度稳定性}；
+  \item \textbf{单圈测试：}\blank{完整一圈，检查路段衔接、航向对齐和声光提示}；
+  \item \textbf{多圈/极限测试：}\blank{连续多圈/规定路线，统计总用时、成功率、停车误差}。
+\end{enumerate}
+每组条件至少重复 \textbf{3 次}，记录电池电压和场地状态。
+测试仪器：\blank{秒表（具体型号）、卷尺（量程/精度）、示波器（Tektronix MDO3024）、万用表（FLUKE 17B+）}。
+
+\begin{table}[H]
+\centering
+\caption{实车测试记录表}
+\small
+\begin{tabularx}{\textwidth}{p{2.3cm}Yp{1.15cm}p{1.15cm}p{1.15cm}p{1.35cm}}
+\toprule
+测试项目 & 评价指标 & 第1次 & 第2次 & 第3次 & 结论\\
+\midrule
+基本要求（1）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+基本要求（2）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+发挥部分（1）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+发挥部分（2）& \blank{指标} & 待实测 & 待实测 & 待实测 & 待判定\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{成效与不足分析}
+\subsubsection*{系统成效}
+\blank{逐项对照题目要求，说明达标情况。用实测数据支撑，如：
+"由表 X 可见，系统单圈用时均值 X 秒，连续 X 圈成功率 X\%，满足题目要求。"}
+
+\subsubsection*{存在不足}
+\blank{实事求是分析问题，如：
+（1）灰度传感器对光照变化敏感，强光/阴影下阈值需重新标定；
+（2）编码器里程计在急加速/打滑时存在累积误差；
+（3）IMU 长时间运行存在航向漂移，需定期在已知点校正。}
+
+\subsection{创新特色与展望}
+\subsubsection*{创新特色}
+\begin{enumerate}
+  \item \blank{"循线优先 + 惯导补偿 + 已知点校正"的三层导航架构}
+  \item \blank{纯追踪曲率控制 + 偏差自适应分档调速}
+  \item \blank{多条件协同过点判据（丢线 + 航向 + 里程 + 位姿邻近）}
+\end{enumerate}
+
+\subsubsection*{改进方向}
+\begin{enumerate}
+  \item \blank{自适应速度规划：根据路段曲率在线调整速度曲线}
+  \item \blank{传感器自动标定：灰度阈值/IMU 零偏在线校准}
+  \item \blank{黑匣子遥测回放：赛后分析误差分布，迭代控制参数}
+\end{enumerate}
+
+% =========================== 第 6 章 ===========================
+\section{参考资料及文献}
+\begin{enumerate}[label={[\arabic*]}]
+  \item \blank{年份}年全国大学生电子设计竞赛\blank{题号}题试题。
+  \item \blank{MCU 型号技术参考手册}，Texas Instruments / STMicroelectronics。
+  \item \blank{电机驱动芯片数据手册}。
+  \item \blank{IMU 使用说明书}。
+  \item \blank{项目内部文档引用，如：docs\_202X/X题路线分解.md}。
+\end{enumerate}
+
+% =========================== 第 7 章 ===========================
+\section{附件材料}
+
+\subsection{工程文件与关键源代码}
+工程文件位于 \code{\blank{firmware/工程名/}}。
+
+核心源代码文件：
+\begin{itemize}
+  \item \code{\blank{control.c/h}} — 控制中断、巡线算法、速度闭环、状态机
+  \item \code{\blank{motor.c/h}}   — 电机 PWM 驱动
+  \item \code{\blank{encoder.c/h}} — 编码器脉冲计数与速度换算
+  \item \code{\blank{sensor.c/h}}  — 循迹传感器驱动与偏差计算
+  \item \code{\blank{imu.c/h}}     — IMU 数据解析与航向输出
+  \item \code{\blank{board.c/h}}   — 板级初始化和引脚映射
+\end{itemize}
+
+\subsection{核心源代码清单（节选）}
+% \begin{lstlisting}[language=C, caption={控制中断主函数}]
+% // 在此粘贴核心控制代码
+% \end{lstlisting}
+
+\subsection{最终提交前检查清单}
+\begin{itemize}
+  \item[$\square$] \textbf{格式核验：}封面和正文无学校、代码、姓名；页面上方空白 $\ge$ 3cm；A4 纸 6--8 页。
+  \item[$\square$] \textbf{内容核验：}测试仪器均已标注具体型号；每个方案均有 $\ge$ 2 个对比方案。
+  \item[$\square$] \textbf{数据核验：}所有实测数据已补录，无虚构。
+  \item[$\square$] \textbf{规则核验：}MCU 型号、传感器、供电、车体尺寸符合题目限制；无禁用器件。
+  \item[$\square$] \textbf{完整性核验：}所有图、表、公式有编号；参考文献完整；页码连续。
+\end{itemize}
+
+\end{document}

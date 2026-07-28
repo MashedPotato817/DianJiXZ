@@ -1,0 +1,419 @@
+% !TeX program = xelatex
+% !TeX encoding = UTF-8
+% ===========================================================================
+% 全国大学生电子设计竞赛 — 控制类通用技术报告模板
+% 编译：xelatex template_general.tex （建议运行两次以更新目录和引用）
+% ===========================================================================
+\documentclass[12pt,a4paper,fontset=fandol]{ctexart}
+
+% ---------- 页面设置（按竞赛要求） ----------
+\usepackage[top=3.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+%   ↑ top=3.5cm 保证上方留出 ≥3cm 空白（含页眉 0.5cm 余量）
+\usepackage{setspace}
+\setstretch{1.25}
+
+% ---------- 数学与符号 ----------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---------- 表格 ----------
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+
+% ---------- 图片 ----------
+\usepackage{graphicx}
+\usepackage{float}
+
+% ---------- 题注 ----------
+\usepackage[font=small]{caption}
+\captionsetup{labelsep=space}
+
+% ---------- 列表 ----------
+\usepackage{enumitem}
+\setlist{nosep}
+
+% ---------- 页眉页脚（页码右下） ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[R]{\thepage}       % 页码在右下
+\renewcommand{\headrulewidth}{0pt}
+
+% ---------- 超链接 ----------
+\usepackage[hidelinks]{hyperref}
+
+% ---------- 代码 ----------
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  showstringspaces=false,
+}
+
+% ---------- 标题格式 ----------
+\ctexset{
+  section      = {format = \large\bfseries},
+  subsection   = {format = \normalsize\bfseries},
+  subsubsection = {format = \normalsize\bfseries},
+}
+
+% ---------- 工具命令 ----------
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\placeholder}[1]{\textcolor{red}{\texttt{<#1>}}}
+%   ↑ 红色占位符，填写后改为正常文字
+
+\usepackage{xcolor}  % 用于 \placeholder 红色占位符高亮
+
+\begin{document}
+
+% =========================== 封 面 ===========================
+\begin{titlepage}
+  \centering
+  \vspace*{2.2cm}
+  {\zihao{2}\bfseries \placeholder{年份}年全国大学生电子设计竞赛\par}
+  \vspace{0.5cm}
+  {\zihao{2}\bfseries \placeholder{赛区}赛区（\placeholder{赞助商}杯）\par}
+  \vfill
+  {\zihao{1}\bfseries \placeholder{作品名称}\par}
+  \vspace{0.7cm}
+  {\zihao{3}\bfseries 题目编号：\placeholder{题号}\par}
+  \vfill
+  \begin{tabular}{rl}
+    \zihao{4}参赛队编号：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学校：& \rule{7cm}{0.4pt}\\[0.55cm]
+    \zihao{4}参赛队学生：& \rule{7cm}{0.4pt}
+  \end{tabular}
+  \vfill
+  {\zihao{4}\placeholder{二零XX年X月}\par}
+\end{titlepage}
+
+% =========================== 正 文 ===========================
+\setcounter{page}{1}
+\begin{center}
+  {\zihao{2}\bfseries \placeholder{作品名称}}
+\end{center}
+
+% ---------- 摘 要 ----------
+\begin{abstract}
+\noindent
+% ===== 以下为摘要正文（≤300字），请替换 =====
+针对\placeholder{题目名称}中\placeholder{核心任务描述}的需求，设计了一套以\placeholder{主控芯片型号}为主控的\placeholder{系统名称}。
+系统采用\placeholder{传感器1}、\placeholder{传感器2}和\placeholder{执行器}构成闭环控制系统。
+控制层采用\placeholder{控制算法名称}实现\placeholder{核心功能}；
+任务层采用\placeholder{状态机/调度策略}将\placeholder{子任务列表}统一调度。
+
+系统实现了\placeholder{基本要求1}、\placeholder{基本要求2}和\placeholder{发挥部分1}，
+\placeholder{量化指标：如误差\textless X\%, 用时\textless Y s, 成功率达Z\%}。
+本文给出硬件组成、关键控制公式、软件流程和可复现的测试方案。
+
+\noindent\textbf{关键词：}\placeholder{关键词1}；\placeholder{关键词2}；\placeholder{关键词3}；\placeholder{关键词4}；\placeholder{关键词5}
+\end{abstract}
+
+% =========================== 第 1 章 ===========================
+\section{设计方案与工作原理}
+
+\subsection{预期实现目标定位}
+% === 替换为你的题目要求分析 ===
+本设计面向\placeholder{题号}题规定的任务：
+\begin{itemize}
+  \item 基本要求（1）：\placeholder{描述基本要求1}
+  \item 基本要求（2）：\placeholder{描述基本要求2}
+  \item 发挥部分（1）：\placeholder{描述发挥部分1}
+  \item 发挥部分（2）：\placeholder{描述发挥部分2}
+\end{itemize}
+设计须遵守以下限制条件：
+\begin{itemize}
+  \item \placeholder{限制条件1，如：必须使用 TI MSPM0 系列 MCU}
+  \item \placeholder{限制条件2，如：不得安装摄像头}
+  \item \placeholder{限制条件3，如：车载电池供电，不可外接电源/设备}
+\end{itemize}
+
+\subsection{技术方案分析比较}
+% === 每个模块至少给出 2~3 个方案，说明各自优劣及最终选择理由 ===
+
+\textbf{1. \placeholder{核心功能}方案论证。}
+方案一：\placeholder{方案一描述}，
+其优点为\placeholder{优点}，缺点为\placeholder{缺点}。
+方案二：\placeholder{方案二描述}，
+其优点为\placeholder{优点}，缺点为\placeholder{缺点}。
+方案三：\placeholder{方案三描述}，
+其优点为\placeholder{优点}，且\placeholder{补充优势}。
+\emph{方案选择：}方案三兼顾\placeholder{性能指标}与\placeholder{实现复杂度}，
+因此\placeholder{最终选择方案三}。
+
+\textbf{2. \placeholder{传感器/检测}方案论证。}
+方案一：\placeholder{方案一描述}。
+方案二：\placeholder{方案二描述}。
+方案三：\placeholder{方案三描述}。
+\emph{方案选择：}\placeholder{从精度、可靠性、成本等方面论述选择理由}。
+
+\textbf{3. \placeholder{控制算法}方案论证。}
+方案一：\placeholder{如开环控制}，\placeholder{优缺点}。
+方案二：\placeholder{如 PID 控制}，\placeholder{优缺点}。
+方案三：\placeholder{如模糊/自适应/串级 PID}，\placeholder{优缺点}。
+\emph{方案选择：}\placeholder{结合题目要求论述选择理由}。
+
+\subsection{系统结构工作原理}
+% === 给出系统总体框图描述 ===
+系统由\placeholder{感知、控制、执行、人机交互}四部分组成。
+\placeholder{传感器部分}负责\placeholder{数据采集}；
+\placeholder{主控芯片}在\placeholder{控制周期}定时中断内完成采样、控制算法运算与输出刷新；
+\placeholder{执行器}通过\placeholder{驱动方式}驱动\placeholder{执行机构}；
+\placeholder{显示/提示模块}显示运行状态。
+
+\begin{table}[H]
+\centering
+\caption{系统模块组成}
+\begin{tabularx}{\textwidth}{p{2.2cm}p{4cm}Y}
+\toprule
+模块 & 主要器件/接口 & 作用\\
+\midrule
+主控 & \placeholder{MCU 型号} & \placeholder{功能描述}\\
+执行 & \placeholder{驱动 + 执行器} & \placeholder{功能描述}\\
+反馈 & \placeholder{传感器} & \placeholder{功能描述}\\
+人机交互 & \placeholder{显示/按键/指示灯} & \placeholder{功能描述}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% 如有场地/系统示意图，取消下面注释
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.85\textwidth]{figures/system_diagram.png}
+% \caption{系统总体框图 / 场地示意图}
+% \end{figure}
+
+\subsection{功能指标实现方法}
+% === 分条说明每个功能/指标如何实现 ===
+\begin{enumerate}
+  \item \textbf{\placeholder{功能1}：}\placeholder{实现方法概述，含关键算法和处理流程}
+  \item \textbf{\placeholder{功能2}：}\placeholder{实现方法概述}
+  \item \textbf{\placeholder{功能3}：}\placeholder{实现方法概述}
+\end{enumerate}
+
+\subsection{测量、控制与分析处理}
+% === 描述控制周期的时序和数据流 ===
+每个\placeholder{控制周期}控制周期中，
+首先\placeholder{读取传感器数据并预处理}，
+随后\placeholder{运行控制算法计算输出量}，
+最后由\placeholder{执行器输出}。
+\placeholder{其他传感器}数据以\placeholder{更新频率}节拍更新，
+用于\placeholder{辅助功能}。
+
+% =========================== 第 2 章 ===========================
+\section{核心部件与电路设计}
+
+\subsection{关键器件性能分析}
+% === 逐一说明关键器件选型依据和性能参数 ===
+\begin{itemize}
+  \item \textbf{\placeholder{主控芯片}：}\placeholder{核心参数：内核、主频、外设资源等}，满足\placeholder{控制频率、外设数量}需求。
+  \item \textbf{\placeholder{传感器1}：}\placeholder{关键指标：量程、精度、分辨率、接口}。
+  \item \textbf{\placeholder{执行器/驱动器}：}\placeholder{关键指标：电压、电流、接口方式}。
+\end{itemize}
+
+\subsection{电路结构工作机理}
+% === 说明关键电路连接和控制方式 ===
+\placeholder{描述关键电路接口和控制信号流向。如：PWM 输出引脚→电机驱动→电机；
+传感器信号→ADC/GPIO/UART→MCU 处理。}
+
+\subsection{运动学/控制模型}
+% === 给出核心数学公式（LaTeX 格式） ===
+设\placeholder{系统状态变量定义}，则系统模型为：
+\begin{equation}
+  \placeholder{核心公式1}
+  \label{eq:key1}
+\end{equation}
+\begin{equation}
+  \placeholder{核心公式2}
+  \label{eq:key2}
+\end{equation}
+
+控制器以\placeholder{误差定义}为输入：
+\begin{equation}
+  u(k) = \placeholder{控制律表达式}
+  \label{eq:controller}
+\end{equation}
+式中，\placeholder{参数说明}。
+
+\subsection{关键参数与接口}
+\begin{table}[H]
+\centering
+\caption{控制系统关键参数}
+\begin{tabularx}{\textwidth}{p{3.2cm}p{3.6cm}Y}
+\toprule
+参数 & 取值 & 说明\\
+\midrule
+控制周期 & \placeholder{如 5\,ms} & \placeholder{说明}\\
+\placeholder{参数1} & \placeholder{取值} & \placeholder{说明}\\
+\placeholder{参数2} & \placeholder{取值} & \placeholder{说明}\\
+\placeholder{参数3} & \placeholder{取值} & \placeholder{说明}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================== 第 3 章 ===========================
+\section{系统软件设计分析}
+
+\subsection{系统总体工作流程}
+% === 描述上电→初始化的流程，以及主循环/中断的职责 ===
+上电后完成\placeholder{外设初始化}和\placeholder{参数配置}。
+系统采用\placeholder{定时中断+主循环}架构：
+\begin{itemize}
+  \item \textbf{定时中断（\placeholder{频率}）：}\placeholder{传感器采样→控制算法→执行器输出}
+  \item \textbf{主循环：}\placeholder{显示刷新、串口通信、按键处理、数据记录}
+\end{itemize}
+
+\subsection{任务状态机设计}
+% === 如果系统有多个状态/阶段，用状态机描述；否则可删除此节 ===
+系统将\placeholder{任务名称}分解为以下状态：
+\begin{table}[H]
+\centering
+\caption{任务状态机}
+\begin{tabularx}{\textwidth}{p{2.6cm}p{2.5cm}Yp{2.7cm}}
+\toprule
+状态 & 输入依据 & 主要动作 & 退出条件\\
+\midrule
+\code{\placeholder{STATE\_1}} & \placeholder{传感器数据} & \placeholder{执行动作} & \placeholder{切换判据}\\
+\code{\placeholder{STATE\_2}} & \placeholder{传感器数据} & \placeholder{执行动作} & \placeholder{切换判据}\\
+\code{\placeholder{STATE\_3}} & \placeholder{传感器数据} & \placeholder{执行动作} & \placeholder{切换判据}\\
+\code{STOP} & — & 输出清零、声光提示 & 任务完成\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{关键模块程序设计}
+% === 列出核心函数/模块的功能说明 ===
+\begin{itemize}
+  \item \code{\placeholder{Module1\_Init()}}：\placeholder{初始化说明}
+  \item \code{\placeholder{Module1\_Process()}}：\placeholder{处理逻辑说明}
+  \item \code{\placeholder{Control\_Loop()}}：\placeholder{控制循环说明}
+  \item \code{\placeholder{Sensor\_Read()}}：\placeholder{传感器读取说明}
+\end{itemize}
+
+\subsection{可靠性处理}
+% === 异常检测、容错、抗干扰措施 ===
+为保障系统可靠性，采取了以下措施：
+\begin{enumerate}
+  \item \textbf{传感器异常检测：}\placeholder{如超时检测、数据范围校验、通信校验}
+  \item \textbf{状态切换防抖：}\placeholder{连续 N 个周期条件满足才切换状态}
+  \item \textbf{输出限幅保护：}\placeholder{PWM/电压/电流限幅范围}
+  \item \textbf{超时/安全停止：}\placeholder{如最大运行时间保护、手动急停}
+\end{enumerate}
+
+% =========================== 第 4 章 ===========================
+\section{竞赛工作环境条件}
+
+\subsection{软件环境}
+\begin{itemize}
+  \item IDE / 编译工具：\placeholder{如 Keil uVision5、IAR、CCS}
+  \item 目标工程：\code{\placeholder{工程名称}}
+  \item 外设配置工具：\placeholder{如 TI SysConfig、STM32CubeMX}
+  \item 调试工具：\placeholder{如串口助手、VOFA+、DataScope、逻辑分析仪}
+\end{itemize}
+
+\subsection{硬件平台与场地}
+硬件平台包括：
+\begin{itemize}
+  \item \placeholder{主控板型号}
+  \item \placeholder{传感器列表及型号}
+  \item \placeholder{执行器列表及型号}
+  \item \placeholder{供电方案}
+\end{itemize}
+测试场地：\placeholder{场地尺寸和制作要求描述}。
+
+\subsection{调试条件与安全事项}
+\begin{enumerate}
+  \item 先在\placeholder{架空/空载}状态确认\placeholder{输出极性、方向、急停逻辑}；
+  \item 再在\placeholder{低速/低功率}下完成\placeholder{参数整定}；
+  \item \placeholder{供电安全注意事项}；
+  \item \placeholder{机械/运动安全注意事项}。
+\end{enumerate}
+
+% =========================== 第 5 章 ===========================
+\section{作品成效总结分析}
+
+\subsection{测试方案}
+% === 从简到难设计测试步骤 ===
+按由简到难的顺序进行测试：
+\begin{enumerate}
+  \item \textbf{单元测试：}\placeholder{各模块独立功能验证}
+  \item \textbf{集成测试：}\placeholder{基本要求逐项验证}
+  \item \textbf{系统测试：}\placeholder{发挥部分和极限条件验证}
+  \item \textbf{重复性测试：}\placeholder{每组条件至少重复 3 次}
+\end{enumerate}
+测试仪器：\placeholder{具体型号，如 Tektronix MDO3024 示波器、FLUKE 17B+ 万用表}。
+
+\begin{table}[H]
+\centering
+\caption{实车/实物测试记录表}
+\small
+\begin{tabularx}{\textwidth}{p{2.3cm}Yp{1.2cm}p{1.2cm}p{1.2cm}p{1.5cm}}
+\toprule
+测试项目 & 评价指标 & 第1次 & 第2次 & 第3次 & 结论\\
+\midrule
+\placeholder{基本要求(1)} & \placeholder{指标} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待判定}\\
+\placeholder{基本要求(2)} & \placeholder{指标} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待判定}\\
+\placeholder{发挥部分(1)} & \placeholder{指标} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待判定}\\
+\placeholder{发挥部分(2)} & \placeholder{指标} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待实测} & \placeholder{待判定}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{成效与不足分析}
+% === 实事求是：讲清楚做到了什么、还有什么问题 ===
+\subsubsection*{系统成效}
+\placeholder{逐项对照题目要求，说明达标情况。使用量化数据支撑结论。}
+
+\subsubsection*{存在不足}
+\placeholder{分析存在的问题：如精度受限、抗干扰不足、特定场景表现不稳定等，说明原因。}
+
+\subsection{创新特色与展望}
+\subsubsection*{创新特色}
+\placeholder{总结本设计的创新点，如：算法改进、结构优化、低成本高精度方案、多传感器融合策略等。}
+
+\subsubsection*{改进方向}
+\placeholder{提出后续可优化的方向，如：自适应参数、机器学习、更高精度传感器等。}
+
+% =========================== 第 6 章 ===========================
+\section{参考资料及文献}
+\begin{enumerate}[label={[\arabic*]}]
+  \item \placeholder{年份}年全国大学生电子设计竞赛\placeholder{赛区}赛区\placeholder{题号}题试题。
+  \item \placeholder{芯片/传感器数据手册}。
+  \item \placeholder{参考书籍、论文或在线资源}。
+  \item \placeholder{项目内部文档引用}。
+\end{enumerate}
+
+% =========================== 第 7 章 ===========================
+\section{附件材料}
+
+\subsection{工程文件与关键源代码}
+工程文件位于\code{\placeholder{固件路径/}}。
+核心源代码文件：
+\begin{itemize}
+  \item \code{\placeholder{control.c}}：\placeholder{功能说明}
+  \item \code{\placeholder{sensor.c}}：\placeholder{功能说明}
+  \item \code{\placeholder{motor.c}}：\placeholder{功能说明}
+\end{itemize}
+
+\subsection{核心源代码清单}
+% === 粘贴关键代码片段（建议不超过 2 页） ===
+%\begin{lstlisting}[language=C, caption={\placeholder{核心控制函数}}]
+%// 在此粘贴关键控制代码
+%\end{lstlisting}
+
+\subsection{最终提交前检查清单}
+\begin{itemize}
+  \item[$\square$] \textbf{格式核验：}封面和正文无学校、代码、姓名；页面上方空白 ≥3cm；A4 纸 6~8 页。
+  \item[$\square$] \textbf{内容核验：}测试仪器均已标注具体型号；每个方案均有 ≥2 个对比方案；公式按 LaTeX 格式。
+  \item[$\square$] \textbf{数据核验：}所有实测数据已补录并复核；无虚构数据。
+  \item[$\square$] \textbf{规则核验：}芯片/器件选型符合题目限制；无禁用的传感器或外部设备。
+  \item[$\square$] \textbf{完整性核验：}摘要、正文、参考文献、附件齐全；页码连续。
+\end{itemize}
+
+\end{document}
