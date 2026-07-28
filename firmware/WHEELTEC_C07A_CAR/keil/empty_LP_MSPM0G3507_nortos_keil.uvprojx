@@ -570,11 +570,6 @@
               <FilePath>..\Hardware\encoder.c</FilePath>
             </File>
             <File>
-              <FileName>CCD.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Hardware\CCD.c</FilePath>
-            </File>
-            <File>
               <FileName>adc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\adc.c</FilePath>

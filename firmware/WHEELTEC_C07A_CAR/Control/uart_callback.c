@@ -163,9 +163,6 @@ void bt_control(uint8_t recv)
                 {
                     case 0x30:  Velocity_KP=Data;break;
                     case 0x31:  Velocity_KI=Data;break;
-                    case 0x32:  CCD_KP=Data;break;//Velocity_Kp=Data;break;
-                    case 0x33:  CCD_KI=Data;break;//Velocity_Ki=Data;break;
-                    case 0x34:  CCD_Vel=Data;break;//Turn_Kp=Data;break;
                     case 0x35:  break;//Turn_Kd=Data;break;
                     case 0x36:  break; //预留
                     case 0x37:  break; //预留

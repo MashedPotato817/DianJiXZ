@@ -13,7 +13,6 @@
 #include "control.h"
 #include "DataScope_DP.h"
 #include "uart_callback.h"
-#include "CCD.h"
 #include "adc.h"
 #define ABS(a)      (a>0 ? a:(-a))
 typedef int32_t  s32;

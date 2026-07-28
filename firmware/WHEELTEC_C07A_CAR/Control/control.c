@@ -19,7 +19,7 @@ All rights reserved
 ***********************************************/
 #include "control.h"
 
-u8 CCD_count,ELE_count;
+u8 ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
 uint16_t Gray_Data[8];
 uint16_t Gray_Raw[8];
@@ -129,10 +129,8 @@ void Gray_Mode(void)
 }
 void TIMER_0_INST_IRQHandler(void)
 {
-    if(DL_TimerA_getPendingInterrupt(TIMER_0_INST))
+    if (DL_TimerG_getPendingInterrupt(TIMER_0_INST) == DL_TIMERG_IIDX_ZERO)
     {
-        if(DL_TIMER_IIDX_ZERO)
-        {
 			
 			Key();
 			LED_Flash(100);
@@ -151,7 +149,6 @@ void TIMER_0_INST_IRQHandler(void)
 			{
 				Set_PWM(-MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
 			}else Set_PWM(0,0);
-		}
     }
 }
 
