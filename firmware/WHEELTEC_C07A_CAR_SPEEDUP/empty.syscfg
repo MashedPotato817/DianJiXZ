@@ -10,7 +10,6 @@
  */
 const ADC12   = scripting.addModule("/ti/driverlib/ADC12", {}, false);
 const ADC121  = ADC12.addInstance();
-const ADC122  = ADC12.addInstance();
 const GPIO    = scripting.addModule("/ti/driverlib/GPIO", {}, false);
 const GPIO1   = GPIO.addInstance();
 const GPIO2   = GPIO.addInstance();
@@ -24,6 +23,10 @@ const GPIO9   = GPIO.addInstance();
 const GPIO10  = GPIO.addInstance();
 const GPIO11  = GPIO.addInstance();
 const GPIO12  = GPIO.addInstance();
+const GPIO13  = GPIO.addInstance();
+const GPIO14  = GPIO.addInstance();
+const GPIO15  = GPIO.addInstance();
+const GPIO16  = GPIO.addInstance();
 const PWM     = scripting.addModule("/ti/driverlib/PWM", {}, false);
 const PWM1    = PWM.addInstance();
 const SYSCTL  = scripting.addModule("/ti/driverlib/SYSCTL");
@@ -33,6 +36,7 @@ const TIMER1  = TIMER.addInstance();
 const UART    = scripting.addModule("/ti/driverlib/UART", {}, false);
 const UART1   = UART.addInstance();
 const UART2   = UART.addInstance();
+const UART3   = UART.addInstance();
 
 /**
  * Write custom configuration values to the imported modules.
@@ -56,14 +60,6 @@ ADC121.sampleTime0                       = "0.006 ms";
 ADC121.enabledInterrupts                 = ["DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED"];
 ADC121.adcPin0Config.$name               = "ti_driverlib_gpio_GPIOPinGeneric0";
 ADC121.adcPin0Config.hideOutputInversion = scripting.forceWrite(false);
-
-ADC122.$name                             = "ADC12_CCD";
-ADC122.repeatMode                        = true;
-ADC122.sampClkDiv                        = "DL_ADC12_CLOCK_DIVIDE_8";
-ADC122.sampleTime0                       = "0.006 ms";
-ADC122.enabledInterrupts                 = ["DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED"];
-ADC122.adcPin0Config.$name               = "ti_driverlib_gpio_GPIOPinGeneric1";
-ADC122.adcPin0Config.hideOutputInversion = scripting.forceWrite(false);
 
 const Board = scripting.addModule("/ti/driverlib/Board", {}, false);
 
@@ -148,6 +144,23 @@ GPIO12.associatedPins[0].$name        = "PIN_23";
 GPIO12.associatedPins[0].assignedPin  = "9";
 GPIO12.associatedPins[0].assignedPort = "PORTA";
 
+GPIO13.$name                         = "GRAY_AD0";
+GPIO13.associatedPins[0].$name       = "AD0";
+GPIO13.associatedPins[0].pin.$assign = "PA27";
+
+GPIO14.$name                         = "GRAY_AD1";
+GPIO14.associatedPins[0].$name       = "AD1";
+GPIO14.associatedPins[0].pin.$assign = "PA12";
+
+GPIO15.$name                         = "GRAY_AD2";
+GPIO15.associatedPins[0].$name       = "AD2";
+GPIO15.associatedPins[0].pin.$assign = "PB16";
+
+GPIO16.$name                         = "GRAY_OUT";
+GPIO16.associatedPins[0].$name       = "OUT";
+GPIO16.associatedPins[0].direction   = "INPUT";
+GPIO16.associatedPins[0].pin.$assign = "PB8";
+
 PWM1.$name                      = "PWM_0";
 PWM1.timerStartTimer            = true;
 PWM1.pwmMode                    = "EDGE_ALIGN_UP";
@@ -177,8 +190,9 @@ TIMER1.peripheral.$assign = "TIMG0";
 
 UART1.$name                    = "UART_0";
 UART1.profile                  = "CONFIG_PROFILE_1";
-UART1.peripheral.rxPin.$assign = "PA11";
-UART1.peripheral.txPin.$assign = "PA10";
+UART1.peripheral.$assign       = "UART0";
+UART1.peripheral.rxPin.$assign = "PA1";
+UART1.peripheral.txPin.$assign = "PA0";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric2";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
 
@@ -196,6 +210,13 @@ UART2.DMA_CHANNEL_RX.addressMode = "f2b";
 UART2.DMA_CHANNEL_RX.srcLength   = "BYTE";
 UART2.DMA_CHANNEL_RX.dstLength   = "BYTE";
 
+UART3.$name                    = "UART_2";
+UART3.peripheral.$assign       = "UART2";
+UART3.peripheral.rxPin.$assign = "PB18";
+UART3.peripheral.txPin.$assign = "PB17";
+UART3.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric8";
+UART3.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric9";
+
 /**
  * Pinmux solution for unlocked pins/peripherals. This ensures that minor changes to the automatic solver in a future
  * version of the tool will not impact the pinmux you originally saw.  These lines can be completely deleted in order to
@@ -203,12 +224,9 @@ UART2.DMA_CHANNEL_RX.dstLength   = "BYTE";
  */
 ADC121.peripheral.$suggestSolution               = "ADC1";
 ADC121.peripheral.adcPin0.$suggestSolution       = "PA15";
-ADC122.peripheral.$suggestSolution               = "ADC0";
-ADC122.peripheral.adcPin0.$suggestSolution       = "PA27";
 Board.peripheral.$suggestSolution                = "DEBUGSS";
 Board.peripheral.swclkPin.$suggestSolution       = "PA20";
 Board.peripheral.swdioPin.$suggestSolution       = "PA19";
 GPIO11.associatedPins[0].pin.$suggestSolution    = "PA22";
 GPIO12.associatedPins[0].pin.$suggestSolution    = "PA9";
-UART1.peripheral.$suggestSolution                = "UART0";
 UART2.DMA_CHANNEL_RX.peripheral.$suggestSolution = "DMA_CH0";

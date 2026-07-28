@@ -56,6 +56,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_TIMER_0_init();
     SYSCFG_DL_UART_0_init();
     SYSCFG_DL_UART_1_init();
+    SYSCFG_DL_UART_2_init();
     SYSCFG_DL_ADC12_VOLTAGE_init();
     SYSCFG_DL_DMA_init();
     SYSCFG_DL_SYSTICK_init();
@@ -96,6 +97,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerG_reset(TIMER_0_INST);
     DL_UART_Main_reset(UART_0_INST);
     DL_UART_Main_reset(UART_1_INST);
+    DL_UART_Main_reset(UART_2_INST);
     DL_ADC12_reset(ADC12_VOLTAGE_INST);
 
 
@@ -106,6 +108,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerG_enablePower(TIMER_0_INST);
     DL_UART_Main_enablePower(UART_0_INST);
     DL_UART_Main_enablePower(UART_1_INST);
+    DL_UART_Main_enablePower(UART_2_INST);
     DL_ADC12_enablePower(ADC12_VOLTAGE_INST);
 
 
@@ -128,6 +131,10 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
         GPIO_UART_1_IOMUX_TX, GPIO_UART_1_IOMUX_TX_FUNC);
     DL_GPIO_initPeripheralInputFunction(
         GPIO_UART_1_IOMUX_RX, GPIO_UART_1_IOMUX_RX_FUNC);
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_UART_2_IOMUX_TX, GPIO_UART_2_IOMUX_TX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_UART_2_IOMUX_RX, GPIO_UART_2_IOMUX_RX_FUNC);
 
     DL_GPIO_initDigitalOutput(OLED_RST_PIN_RST_IOMUX);
 
@@ -137,16 +144,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 
     DL_GPIO_initDigitalOutput(OLED_SDA_PIN_SDA_IOMUX);
 
-    DL_GPIO_initDigitalOutput(GRAY_AD0_IOMUX);
-
-    DL_GPIO_initDigitalOutput(GRAY_AD1_IOMUX);
-
-    DL_GPIO_initDigitalOutput(GRAY_AD2_IOMUX);
-
-    DL_GPIO_initDigitalInputFeatures(GRAY_OUT_IOMUX,
-        DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_DOWN,
-        DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
-
     DL_GPIO_initDigitalInput(KEY_key_IOMUX);
 
     DL_GPIO_initDigitalOutput(LED_led_IOMUX);
@@ -154,6 +151,14 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initDigitalOutput(GPIO_SI_PIN_25_IOMUX);
 
     DL_GPIO_initDigitalOutput(GPIO_CLK_PIN_23_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GRAY_AD0_AD0_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GRAY_AD1_AD1_IOMUX);
+
+    DL_GPIO_initDigitalOutput(GRAY_AD2_AD2_IOMUX);
+
+    DL_GPIO_initDigitalInput(GRAY_OUT_OUT_IOMUX);
 
     DL_GPIO_initDigitalOutput(AIN_AIN1_IOMUX);
 
@@ -175,8 +180,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		OLED_SDA_PIN_SDA_PIN |
 		GPIO_SI_PIN_25_PIN |
 		GPIO_CLK_PIN_23_PIN |
-		GRAY_AD0_PIN |
-		GRAY_AD1_PIN |
+		GRAY_AD0_AD0_PIN |
+		GRAY_AD1_AD1_PIN |
 		AIN_AIN1_PIN |
 		AIN_AIN2_PIN |
 		BIN_BIN1_PIN |
@@ -185,8 +190,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		OLED_SDA_PIN_SDA_PIN |
 		GPIO_SI_PIN_25_PIN |
 		GPIO_CLK_PIN_23_PIN |
-		GRAY_AD0_PIN |
-		GRAY_AD1_PIN |
+		GRAY_AD0_AD0_PIN |
+		GRAY_AD1_AD1_PIN |
 		AIN_AIN1_PIN |
 		AIN_AIN2_PIN |
 		BIN_BIN1_PIN |
@@ -200,11 +205,11 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_clearPins(GPIOB, OLED_RST_PIN_RST_PIN |
 		OLED_DC_PIN_DC_PIN |
 		LED_led_PIN |
-		GRAY_AD2_PIN);
+		GRAY_AD2_AD2_PIN);
     DL_GPIO_enableOutput(GPIOB, OLED_RST_PIN_RST_PIN |
 		OLED_DC_PIN_DC_PIN |
 		LED_led_PIN |
-		GRAY_AD2_PIN);
+		GRAY_AD2_AD2_PIN);
     DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_24_EDGE_RISE |
 		DL_GPIO_PIN_20_EDGE_RISE);
     DL_GPIO_clearInterruptStatus(GPIOB, ENCODERB_E2A_PIN |
@@ -417,6 +422,38 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_1_init(void)
     DL_UART_Main_enable(UART_1_INST);
 }
 
+static const DL_UART_Main_ClockConfig gUART_2ClockConfig = {
+    .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
+    .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
+};
+
+static const DL_UART_Main_Config gUART_2Config = {
+    .mode        = DL_UART_MAIN_MODE_NORMAL,
+    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+    .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
+    .parity      = DL_UART_MAIN_PARITY_NONE,
+    .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
+    .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_UART_2_init(void)
+{
+    DL_UART_Main_setClockConfig(UART_2_INST, (DL_UART_Main_ClockConfig *) &gUART_2ClockConfig);
+
+    DL_UART_Main_init(UART_2_INST, (DL_UART_Main_Config *) &gUART_2Config);
+    /*
+     * Configure baud rate by setting oversampling and baud rate divisors.
+     *  Target baud rate: 9600
+     *  Actual baud rate: 9599.81
+     */
+    DL_UART_Main_setOversampling(UART_2_INST, DL_UART_OVERSAMPLING_RATE_16X);
+    DL_UART_Main_setBaudRateDivisor(UART_2_INST, UART_2_IBRD_40_MHZ_9600_BAUD, UART_2_FBRD_40_MHZ_9600_BAUD);
+
+
+
+    DL_UART_Main_enable(UART_2_INST);
+}
+
 /* ADC12_VOLTAGE Initialization */
 static const DL_ADC12_ClockConfig gADC12_VOLTAGEClockConfig = {
     .clockSel       = DL_ADC12_CLOCK_SYSOSC,
@@ -438,6 +475,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_ADC12_VOLTAGE_init(void)
     DL_ADC12_enableInterrupt(ADC12_VOLTAGE_INST,(DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED));
     DL_ADC12_enableConversions(ADC12_VOLTAGE_INST);
 }
+
 static const DL_DMA_Config gDMA_CH0Config = {
     .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
     .extendedMode   = DL_DMA_NORMAL_MODE,

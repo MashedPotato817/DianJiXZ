@@ -19,21 +19,12 @@ set PROJ_DIR=%PROJ_DIR:'=%
 set SYSCFG_FILE=%~2
 set SYSCFG_FILE=%SYSCFG_FILE:'=%
 
-:: Search for the root of the SDK by going up one directory
-:: However, if we don't find it after 20 times then give up
-set SDK_ROOT=%PROJ_DIR%
-set iter=0
-:sdk_search_loop
-if exist "%SDK_ROOT%\.metadata\product.json" (
-    goto sdk_search_exit
-) else if %iter% geq 20 (
-	@echo "Couldn't find .metadata\product.json"
-) else (
-	set /a iter=%iter%+1
-	set SDK_ROOT=%SDK_ROOT%..\
-	goto sdk_search_loop
+:: 本机 SDK 安装在 C:\ti，工程目录不包含 SDK 元数据。
+set SDK_ROOT=C:\ti\mspm0_sdk_2_01_00_03
+if not exist "%SDK_ROOT%\.metadata\product.json" (
+    echo Couldn't find MSPM0 SDK metadata at %SDK_ROOT%
+    exit /b 1
 )
-:sdk_search_exit
 
 :: Search for the directory containing the project's syscfg file
 :: Going up a directory atleast 5 times but then give up
@@ -53,4 +44,4 @@ if exist %SYSCFG_DIR%\*.syscfg (
 )
 :syscfg_search_exit
 
-%SYSCFG_PATH% -o "%SYSCFG_DIR%" -s "%SDK_ROOT%\.metadata\product.json" --compiler keil "%SYSCFG_DIR%\%SYSCFG_FILE%
+%SYSCFG_PATH% -o "%SYSCFG_DIR%" -s "%SDK_ROOT%\.metadata\product.json" --compiler keil "%SYSCFG_DIR%\%SYSCFG_FILE%"

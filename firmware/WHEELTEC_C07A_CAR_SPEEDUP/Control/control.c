@@ -60,14 +60,14 @@ static const float Gray_Pos_mm[8] = {
 
 static void Gray_Select_Channel(uint8_t channel)
 {
-    if (channel & 0x01) DL_GPIO_setPins(GRAY_AD0_PORT, GRAY_AD0_PIN);
-    else                DL_GPIO_clearPins(GRAY_AD0_PORT, GRAY_AD0_PIN);
+    if (channel & 0x01) DL_GPIO_setPins(GRAY_AD0_PORT, GRAY_AD0_AD0_PIN);
+    else                DL_GPIO_clearPins(GRAY_AD0_PORT, GRAY_AD0_AD0_PIN);
 
-    if (channel & 0x02) DL_GPIO_setPins(GRAY_AD1_PORT, GRAY_AD1_PIN);
-    else                DL_GPIO_clearPins(GRAY_AD1_PORT, GRAY_AD1_PIN);
+    if (channel & 0x02) DL_GPIO_setPins(GRAY_AD1_PORT, GRAY_AD1_AD1_PIN);
+    else                DL_GPIO_clearPins(GRAY_AD1_PORT, GRAY_AD1_AD1_PIN);
 
-    if (channel & 0x04) DL_GPIO_setPins(GRAY_AD2_PORT, GRAY_AD2_PIN);
-    else                DL_GPIO_clearPins(GRAY_AD2_PORT, GRAY_AD2_PIN);
+    if (channel & 0x04) DL_GPIO_setPins(GRAY_AD2_PORT, GRAY_AD2_AD2_PIN);
+    else                DL_GPIO_clearPins(GRAY_AD2_PORT, GRAY_AD2_AD2_PIN);
 }
 
 static int Gray_ToBlack(uint32_t pin_state)
@@ -82,7 +82,7 @@ void Gray_Read_All(void)
     for (i = 0; i < 8; i++) {
         Gray_Select_Channel(i);
         delay_us(50);
-        Gray_Raw[i] = DL_GPIO_readPins(GRAY_OUT_PORT, GRAY_OUT_PIN) ? 1 : 0;
+        Gray_Raw[i] = DL_GPIO_readPins(GRAY_OUT_PORT, GRAY_OUT_OUT_PIN) ? 1 : 0;
         Gray_Data[i] = Gray_ToBlack(Gray_Raw[i]);
     }
 }
@@ -306,7 +306,8 @@ void TIMER_0_INST_IRQHandler(void)
 			MotorB.Motor_Pwm = Incremental_PI_Right(MotorB.Current_Encoder,MotorB.Target_Encoder);
 			if(!Flag_Stop)
 			{
-				Set_PWM(-MotorA.Motor_Pwm,-MotorB.Motor_Pwm);
+				/* A 通道直驱左轮；右电机镜像安装，车辆前进时 B 通道取反。 */
+				Set_PWM(MotorA.Motor_Pwm, -MotorB.Motor_Pwm);
 			}else Set_PWM(0,0);
 		}
     }

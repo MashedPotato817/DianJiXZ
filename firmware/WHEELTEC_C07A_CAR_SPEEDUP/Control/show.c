@@ -102,6 +102,7 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
+#if 0
 void APP_Show(void)
 {
   static u8 flag;
@@ -121,6 +122,33 @@ void APP_Show(void)
       printf("{B%d:%d:%d}$",(int)CCD_Zhongzhi,(int)0,(int)0); //x，y，z轴角度 在APP上面显示波形
                                                                                                                     //可按格式自行增加显示波形，最多可显示五个
 }
+#endif
+
+/* CCD 已移除，APP 波形通道改为当前灰度质心位置。 */
+void APP_Show(void)
+{
+    static u8 flag;
+    int Encoder_Left_Show, Encoder_Right_Show, Voltage_Show;
+
+    Voltage_Show=(Voltage-1000)*2/3;
+    if(Voltage_Show<0) Voltage_Show=0;
+    if(Voltage_Show>100) Voltage_Show=100;
+    Encoder_Right_Show=(int)(Velocity_Right*1.1f);
+    if(Encoder_Right_Show<0) Encoder_Right_Show=-Encoder_Right_Show;
+    Encoder_Left_Show=(int)(Velocity_Left*1.1f);
+    if(Encoder_Left_Show<0) Encoder_Left_Show=-Encoder_Left_Show;
+    flag=!flag;
+    if(PID_Send==1)
+    {
+        printf("{C%d:%d:%d:%d:%d:%d:%d:%d:%d}$",(int)Velocity_KP,(int)Velocity_KI,0,0,0,0,0,0,0);
+        PID_Send=0;
+    }
+    else if(flag==0)
+        printf("{A%d:%d:%d:%d}$",Encoder_Left_Show,Encoder_Right_Show,Voltage_Show,0);
+    else
+        printf("{B%d:%d:%d}$",(int)Gray_Line_Pos_mm,0,0);
+}
+
 /**************************************************************************
 Function: Virtual oscilloscope sends data to upper computer
 Input   : none

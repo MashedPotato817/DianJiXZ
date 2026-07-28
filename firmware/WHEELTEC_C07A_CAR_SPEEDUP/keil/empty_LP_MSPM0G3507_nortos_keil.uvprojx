@@ -72,7 +72,7 @@
           <BeforeMake>
             <RunUserProg1>1</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name>cmd.exe /C "$P../tools/keil/syscfg.bat '$P' empty.syscfg"</UserProg1Name>
+            <UserProg1Name>cmd.exe /C ""$P../tools/keil/syscfg.bat" "$P" empty.syscfg"</UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
@@ -371,7 +371,7 @@
             <TextAddressRange>0x00000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
-            <ScatterFile>.\mspm0g3507.sct</ScatterFile>
+            <ScatterFile>..\source\ti\devices\msp\m0p\linker_files\keil\mspm0g3507.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc>../source/ti/driverlib/lib/keil/m0p/mspm0g1x0x_g3x0x/driverlib.a</Misc>
@@ -568,11 +568,6 @@
               <FileName>encoder.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Hardware\encoder.c</FilePath>
-            </File>
-            <File>
-              <FileName>CCD.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Hardware\CCD.c</FilePath>
             </File>
             <File>
               <FileName>adc.c</FileName>
