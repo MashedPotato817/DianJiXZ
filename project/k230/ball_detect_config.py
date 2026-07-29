@@ -25,7 +25,7 @@ CIRCLE_R_MIN = 6
 CIRCLE_R_MAX = 45
 
 # 时序筛选：至少连续检测到 STABLE_FRAMES 帧才置 valid=1；
-# 连续 LOST_FRAMES 帧未检测到，或一次跳变过大时置 valid=0。
+# 连续 LOST_FRAMES 帧未检测到才置 valid=0；短暂漏检保持最近一次有效位置。
 STABLE_FRAMES = 3
 LOST_FRAMES = 3
 MAX_CENTER_JUMP_PX = 28
@@ -45,3 +45,7 @@ CALIBRATION_READY = False
 UART_BAUDRATE = 115200
 SEND_PERIOD_MS = 50
 LOG_PERIOD_FRAMES = 30
+
+# K230 本地检测日志。仅记录应用输出，不捕获 CanMV 固件启动时的系统日志。
+ENABLE_LOG_FILE = True
+LOG_FOLDER_PATH = "/data/ball_detect_preview/"

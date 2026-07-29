@@ -1,12 +1,12 @@
 # K230 小球检测与 UART 输出
 
-> 当前相机和摆杆尚未固定，`x_mm` 的像素—毫米标定暂缓。本文件中的 UART 帧可用于验证传输与解帧，但未标定的视觉位置不得用于舵机闭环。
+> 相机、摆杆和小球运动平面已机械固定，可开始 `x_mm` 的像素—毫米标定。本文件中的 UART 帧可用于验证传输与解帧；在未完成标定前，视觉位置不得用于舵机闭环。
 
 未标定时，`ball_detect_config.py` 中的 `CALIBRATION_READY` 必须保持 `False`。此时 `k230_ball_detect_uart.py` 仍以 20 Hz 发送 `$K230,BALL,0.0,0,<seq>#`，用于验证 UART 链路和 MSPM0 解帧；只有机械固定并完成标定后，才能改为 `True` 并发送真实 `x_mm` 与 `valid`。
 
 纯视觉预览入口：`k230_ball_detect_preview.py`；UART 入口：`k230_ball_detect_uart.py`；参数：`ball_detect_config.py`。
 
-当前仅验证视觉时，上传 `k230_ball_detect_preview.py` 和 `ball_detect_config.py`，在 CanMV IDE 运行预览脚本。IDE 画面中：蓝线是标定中心，绿圈与红十字是候选球，左上角 `BALL OK` 表示连续确认有效，`BALL LOST` 表示未确认或丢球。
+当前仅验证视觉时，上传 `k230_ball_detect_preview.py` 和 `ball_detect_config.py`，在 CanMV IDE 运行预览脚本。IDE 画面中：蓝线是标定中心，绿圈与红十字是候选球，左上角 `BALL OK` 表示连续确认有效，`BALL LS` 表示未确认或丢球。
 
 它使用 `cv_lite.grayscale_find_circles()` 检测灰度图中的小球，并发送已经验证的 UART 帧：
 

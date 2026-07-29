@@ -104,6 +104,7 @@ def main():
     valid_streak = 0
     lost_streak = LOST_FRAMES
     previous = None
+    last_valid_x_mm = 0.0
     last_send_ms = time.ticks_ms()
     frame_count = 0
 
@@ -122,12 +123,15 @@ def main():
                         detected = None
 
             if detected is None:
-                valid_streak = 0
                 lost_streak += 1
                 if lost_streak >= LOST_FRAMES:
+                    valid_streak = 0
                     previous = None
-                x_mm = 0.0
-                valid = 0
+                    x_mm = 0.0
+                    valid = 0
+                else:
+                    x_mm = last_valid_x_mm
+                    valid = 1 if valid_streak >= STABLE_FRAMES else 0
             else:
                 center_x, center_y, source = detected
                 previous = (center_x, center_y)
@@ -136,6 +140,8 @@ def main():
                 x_mm = clamp((center_x - IMAGE_CENTER_X) * MM_PER_PIXEL,
                              -MAX_POSITION_MM, MAX_POSITION_MM)
                 valid = 1 if valid_streak >= STABLE_FRAMES else 0
+                if valid:
+                    last_valid_x_mm = x_mm
 
             now_ms = time.ticks_ms()
             if time.ticks_diff(now_ms, last_send_ms) >= SEND_PERIOD_MS:

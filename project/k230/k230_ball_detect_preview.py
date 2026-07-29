@@ -20,8 +20,11 @@ from ball_detect_config import (BALL_ROI, CIRCLE_ACCUMULATOR,
                                 IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
-                                STABLE_FRAMES)
+                                STABLE_FRAMES, ENABLE_LOG_FILE,
+                                LOG_FOLDER_PATH)
 
+now = time.localtime()
+LOG_FILE_PATH = LOG_FOLDER_PATH + "%04d%02d%02d_%02d%02d%02d.txt" % (now[0], now[1], now[2], now[3], now[4], now[5])
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
@@ -29,6 +32,20 @@ DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
 
 def clamp(value, lower, upper):
     return max(lower, min(upper, value))
+
+
+def log_timestamp():
+    """使用 K230 系统时钟；未校时设备上的日期仅表示日志顺序。"""
+    now = time.localtime()
+    return "%04d-%02d-%02d %02d:%02d:%02d" % (now[0], now[1], now[2], now[3], now[4], now[5])
+
+
+def log_message(text, log_file):
+    line = "[%s] %s" % (log_timestamp(), text)
+    print(line)
+    if log_file is not None:
+        log_file.write(line + "\n")
+        log_file.flush()
 
 
 def find_circle(frame, previous):
@@ -58,7 +75,19 @@ def find_circle(frame, previous):
 
 def main():
     sensor = None
+    log_file = None
     try:
+        if ENABLE_LOG_FILE:
+            try:
+                # /data 下的日志目录首次使用时不存在，先创建再打开本次运行的文件。
+                try:
+                    os.mkdir(LOG_FOLDER_PATH)
+                except OSError:
+                    pass
+                log_file = open(LOG_FILE_PATH, "a")
+                log_message("--- BALL preview start ---", log_file)
+            except OSError as error:
+                print("log file disabled:", error)
         sensor = Sensor(width=1280, height=960, fps=30)
         sensor.reset()
         sensor.set_framesize(w=DISPLAY_WIDTH, h=DISPLAY_HEIGHT,
@@ -72,11 +101,14 @@ def main():
                      height=DISPLAY_HEIGHT, to_ide=True)
         MediaManager.init()
         sensor.run()
-        print("K230 BALL preview started: cv_lite circle detection")
+        log_message("K230 BALL preview started: cv_lite circle detection",
+                    log_file)
 
         previous = None
+        filtered_center_x = None
         valid_streak = 0
         lost_streak = LOST_FRAMES
+        last_valid_x_mm = 0.0
         frame_count = 0
         clock = time.clock()
 
@@ -86,6 +118,8 @@ def main():
             display_frame = sensor.snapshot(chn=CAM_CHN_ID_0)
             detect_frame = sensor.snapshot(chn=CAM_CHN_ID_1)
             ball = find_circle(detect_frame, previous)
+            center_x = None
+            center_y = None
 
             if ball is not None and previous is not None:
                 dx = ball[0] - previous[0]
@@ -94,20 +128,33 @@ def main():
                     ball = None
 
             if ball is None:
-                valid_streak = 0
                 lost_streak += 1
                 if lost_streak >= LOST_FRAMES:
+                    valid_streak = 0
                     previous = None
-                x_mm = 0.0
-                valid = 0
+                    filtered_center_x = None
+                    x_mm = 0.0
+                    valid = 0
+                else:
+                    # 短暂漏检时保持最近一次已确认位置，避免 valid 单帧抖动。
+                    x_mm = last_valid_x_mm
+                    valid = 1 if valid_streak >= STABLE_FRAMES else 0
             else:
                 center_x, center_y, radius = ball
                 previous = (center_x, center_y)
+                if filtered_center_x is None:
+                    filtered_center_x = float(center_x)
+                else:
+                    # 仅用于显示和静止标定的多帧平均，不改变原始圆心检测结果。
+                    filtered_center_x = (0.2 * center_x +
+                                         0.8 * filtered_center_x)
                 valid_streak += 1
                 lost_streak = 0
                 x_mm = clamp((center_x - IMAGE_CENTER_X) * MM_PER_PIXEL,
                              -MAX_POSITION_MM, MAX_POSITION_MM)
                 valid = 1 if valid_streak >= STABLE_FRAMES else 0
+                if valid:
+                    last_valid_x_mm = x_mm
 
                 draw_x = center_x * DISPLAY_SCALE
                 draw_y = center_y * DISPLAY_SCALE
@@ -123,22 +170,35 @@ def main():
                                     IMAGE_CENTER_X * DISPLAY_SCALE,
                                     DISPLAY_HEIGHT, color=(0, 0, 255),
                                     thickness=1)
-            status = "BALL %s x=%+.1fmm fps=%.1f" % (
-                "OK" if valid else "LOST", x_mm, clock.fps())
+            if center_x is None:
+                if valid:
+                    status = "BALL HD x=%+.2fmm" % x_mm
+                else:
+                    status = "BALL LS fps=%.1f" % clock.fps()
+            else:
+                status = "BALL %s px=%d avg=%.2f x=%+.2fmm" % (
+                    "OK" if valid else "HD", center_x,
+                    filtered_center_x, x_mm)
             display_frame.draw_string_advanced(8, 8, 24, status,
                                                color=(255, 255, 0))
             Display.show_image(display_frame, 0, 0)
 
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
-                print("ball: x_mm=%.1f valid=%d fps=%.1f" %
-                      (x_mm, valid, clock.fps()))
+                log_message("ball: center_px=%s center_px_avg=%s "
+                            "reference_px=%d x_mm=%.2f valid=%d fps=%.1f" %
+                            (str(center_x), str(filtered_center_x),
+                             IMAGE_CENTER_X, x_mm, valid, clock.fps()),
+                            log_file)
             gc.collect()
     finally:
         if sensor is not None:
             sensor.stop()
         Display.deinit()
         MediaManager.deinit()
+        if log_file is not None:
+            log_message("--- BALL preview stop ---", log_file)
+            log_file.close()
 
 
 if __name__ == "__main__":
