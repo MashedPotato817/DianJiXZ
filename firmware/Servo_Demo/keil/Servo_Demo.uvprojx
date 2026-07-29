@@ -7,23 +7,23 @@
 
   <Targets>
     <Target>
-      <TargetName>K230_UART_Demo</TargetName>
+      <TargetName>Servo_Demo</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pCCUsed>6210000::V6.21::ARMCLANG</pCCUsed>
+      <pCCUsed>6140000::V6.14::ARMCLANG</pCCUsed>
       <uAC6>1</uAC6>
       <TargetOption>
         <TargetCommonOption>
-          <Device>ARMCM0</Device>
-          <Vendor>ARM</Vendor>
-          <PackID>ARM.CMSIS.5.9.0</PackID>
-          <PackURL>http://www.keil.com/pack/</PackURL>
-          <Cpu>IRAM(0x20000000,0x00020000) IROM(0x00000000,0x00040000) CPUTYPE("Cortex-M0") CLOCK(12000000) ESEL ELITTLE</Cpu>
+          <Device>MSPM0G3507</Device>
+          <Vendor>Texas Instruments</Vendor>
+          <PackID>TexasInstruments.MSPM0G1X0X_G3X0X_DFP.1.3.1</PackID>
+          <PackURL>https://software-dl.ti.com/msp430/esd/MSPM0-CMSIS/MSPM0G1X0X_G3X0X/latest/exports/</PackURL>
+          <Cpu>IRAM(0x20000000,0x00008000) IRAM2(0x20200000,0x00008000) IROM(0x00000000,0x00020000) IROM2(0x00400000,0x00020000) CPUTYPE("Cortex-M0+") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
-          <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000)</FlashDriverDll>
+          <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC8000 -FN1 -FF0MSPM0G_MainFlash_128KB -FS00 -FL020000 -FP0($$Device:MSPM0G3507$02_Flash_Programming\FlashARM\MSPM0G_MainFlash_128KB.FLM))</FlashDriverDll>
           <DeviceId>0</DeviceId>
-          <RegisterFile>$$Device:ARMCM0$Device\ARM\ARMCM0\Include\ARMCM0.h</RegisterFile>
+          <RegisterFile></RegisterFile>
           <MemoryEnv></MemoryEnv>
           <Cmp></Cmp>
           <Asm></Asm>
@@ -33,7 +33,7 @@
           <SLE66CMisc></SLE66CMisc>
           <SLE66AMisc></SLE66AMisc>
           <SLE66LinkerMisc></SLE66LinkerMisc>
-          <SFDFile></SFDFile>
+          <SFDFile>$$Device:MSPM0G3507$03_SVD\MSPM0G350x.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
           <BinPath></BinPath>
@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\Objects\</OutputDirectory>
-          <OutputName>K230_UART_Demo</OutputName>
+          <OutputName>Servo_Demo</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
@@ -70,7 +70,7 @@
             <nStopU2X>0</nStopU2X>
           </BeforeCompile>
           <BeforeMake>
-            <RunUserProg1>1</RunUserProg1>
+            <RunUserProg1>0</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
             <UserProg1Name>D:\ti\mspm0_sdk_2_01_00_03\mspm0_sdk_2_01_00_03\tools\keil\syscfg.bat</UserProg1Name>
             <UserProg2Name></UserProg2Name>
@@ -174,7 +174,7 @@
             <AdsLsxf>1</AdsLsxf>
             <RvctClst>0</RvctClst>
             <GenPPlst>0</GenPPlst>
-            <AdsCpuType>"Cortex-M0"</AdsCpuType>
+            <AdsCpuType>"Cortex-M0+"</AdsCpuType>
             <RvctDeviceName></RvctDeviceName>
             <mOS>0</mOS>
             <uocRom>0</uocRom>
@@ -187,15 +187,15 @@
             <RvdsMve>0</RvdsMve>
             <RvdsCdeCp>0</RvdsCdeCp>
             <nBranchProt>0</nBranchProt>
-            <hadIRAM2>0</hadIRAM2>
-            <hadIROM2>0</hadIROM2>
+            <hadIRAM2>1</hadIRAM2>
+            <hadIROM2>1</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
-            <EndSel>1</EndSel>
+            <useUlib>1</useUlib>
+            <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <nSecure>0</nSecure>
-            <RoSelD>3</RoSelD>
-            <RwSelD>3</RwSelD>
+            <RoSelD>4</RoSelD>
+            <RwSelD>4</RwSelD>
             <CodeSel>0</CodeSel>
             <OptFeed>0</OptFeed>
             <NoZi1>0</NoZi1>
@@ -211,8 +211,8 @@
             <Ra1Chk>0</Ra1Chk>
             <Ra2Chk>0</Ra2Chk>
             <Ra3Chk>0</Ra3Chk>
-            <Im1Chk>1</Im1Chk>
-            <Im2Chk>0</Im2Chk>
+            <Im1Chk>0</Im1Chk>
+            <Im2Chk>1</Im2Chk>
             <OnChipMemories>
               <Ocm1>
                 <Type>0</Type>
@@ -247,12 +247,12 @@
               <IRAM>
                 <Type>0</Type>
                 <StartAddress>0x20000000</StartAddress>
-                <Size>0x20000</Size>
+                <Size>0x8000</Size>
               </IRAM>
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x0</StartAddress>
-                <Size>0x40000</Size>
+                <Size>0x20000</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -277,12 +277,12 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x0</StartAddress>
-                <Size>0x40000</Size>
+                <Size>0x20000</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
-                <StartAddress>0x0</StartAddress>
-                <Size>0x0</Size>
+                <StartAddress>0x400000</StartAddress>
+                <Size>0x20000</Size>
               </OCR_RVCT5>
               <OCR_RVCT6>
                 <Type>0</Type>
@@ -302,12 +302,12 @@
               <OCR_RVCT9>
                 <Type>0</Type>
                 <StartAddress>0x20000000</StartAddress>
-                <Size>0x20000</Size>
+                <Size>0x8000</Size>
               </OCR_RVCT9>
               <OCR_RVCT10>
                 <Type>0</Type>
-                <StartAddress>0x0</StartAddress>
-                <Size>0x0</Size>
+                <StartAddress>0x20200000</StartAddress>
+                <Size>0x8000</Size>
               </OCR_RVCT10>
             </OnChipMemories>
             <RvctStartVector></RvctStartVector>
@@ -368,8 +368,8 @@
             <noStLib>0</noStLib>
             <RepFail>1</RepFail>
             <useFile>0</useFile>
-            <TextAddressRange></TextAddressRange>
-            <DataAddressRange></DataAddressRange>
+            <TextAddressRange>0x00000000</TextAddressRange>
+            <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
             <ScatterFile>.\mspm0g3507.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
@@ -385,11 +385,6 @@
           <GroupName>Source</GroupName>
           <Files>
             <File>
-              <FileName>uart_demo.syscfg</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\uart_demo.syscfg</FilePath>
-            </File>
-            <File>
               <FileName>startup_mspm0g350x_uvision.s</FileName>
               <FileType>2</FileType>
               <FilePath>startup_mspm0g350x_uvision.s</FilePath>
@@ -400,9 +395,14 @@
               <FilePath>..\ti_msp_dl_config.c</FilePath>
             </File>
             <File>
-              <FileName>uart_demo.c</FileName>
+              <FileName>servo_test.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\uart_demo.c</FilePath>
+              <FilePath>..\servo_test.c</FilePath>
+            </File>
+            <File>
+              <FileName>servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\servo.c</FilePath>
             </File>
           </Files>
         </Group>
