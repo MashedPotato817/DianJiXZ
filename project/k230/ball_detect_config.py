@@ -30,10 +30,13 @@ STABLE_FRAMES = 3
 LOST_FRAMES = 3
 MAX_CENTER_JUMP_PX = 28
 
-# CALIBRATION: 图像横坐标到摆杆横向位置的线性初值。
-# 小球在 IMAGE_CENTER_X 时 x_mm=0；图像向右为正。
-IMAGE_CENTER_X = FRAME_WIDTH // 2
-MM_PER_PIXEL = 0.50
+# CALIBRATION: 图像横坐标到摆杆横向位置的线性映射。
+# 本轮三点静态实测（-50/0/+50 mm）有效帧中位数线性拟合：
+# x_mm = (px - 160.365) * 0.540652，图像向右为正。
+# 该值仅用于预览复测；补齐五点、每点三次重复测量并评估总误差前，
+# 不得将其用于闭环控制。
+IMAGE_CENTER_X = 160.365
+MM_PER_PIXEL = 0.540652
 MAX_POSITION_MM = 150.0
 
 # 相机和摆杆完成固定并通过本 README 的标定步骤前必须保持 False。

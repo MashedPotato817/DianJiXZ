@@ -28,6 +28,7 @@ LOG_FILE_PATH = LOG_FOLDER_PATH + "%04d%02d%02d_%02d%02d%02d.txt" % (now[0], now
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
+CENTER_LINE_X = int(IMAGE_CENTER_X * DISPLAY_SCALE)
 
 
 def clamp(value, lower, upper):
@@ -166,8 +167,8 @@ def main():
                                          thickness=2)
 
             # 蓝线为标定的摆杆中心；绿圈/红十字为当前候选球。
-            display_frame.draw_line(IMAGE_CENTER_X * DISPLAY_SCALE, 0,
-                                    IMAGE_CENTER_X * DISPLAY_SCALE,
+            display_frame.draw_line(CENTER_LINE_X, 0,
+                                    CENTER_LINE_X,
                                     DISPLAY_HEIGHT, color=(0, 0, 255),
                                     thickness=1)
             if center_x is None:
@@ -186,7 +187,7 @@ def main():
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
                 log_message("ball: center_px=%s center_px_avg=%s "
-                            "reference_px=%d x_mm=%.2f valid=%d fps=%.1f" %
+                            "reference_px=%.3f x_mm=%.2f valid=%d fps=%.1f" %
                             (str(center_x), str(filtered_center_x),
                              IMAGE_CENTER_X, x_mm, valid, clock.fps()),
                             log_file)
