@@ -44,10 +44,11 @@ extern float Gray_Line_Pos_mm;
 
 /* 8 路灰度基础巡线参数 */
 #define GRAY_BLACK_LEVEL             1       /* 白底=0，黑线=1 */
-#define GRAY_BASE_SPEED_MM_S         45.0f    /* 低速验证巡线方向，确认后再逐级提速 */
+#define GRAY_BASE_SPEED_MM_S         45.0f    /* 首次实车验证速度，确认方向后再提高 */
 #define GRAY_SENSOR_SPAN_MM          85.0f   /* 8 个传感器中心的总跨距 */
 #define GRAY_SENSOR_PITCH_MM         (GRAY_SENSOR_SPAN_MM / 7.0f)
 #define GRAY_SENSOR_FORWARD_MM       134.0f   /* 灰度传感器至左右轮中心中点的前向实测距离 */
+#define GRAY_CENTER_OFFSET_MM        0.0f    /* 居中时 OLED P 的实测静态偏差补偿 */
 #define GRAY_STEER_GAIN              1.70f
 #define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 低速阶段限制转向速度 */
 #define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */

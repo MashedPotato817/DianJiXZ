@@ -111,7 +111,7 @@ void Gray_Mode(void)
 
     line_seen = 1;
     lost_search_angle = 0;
-    Gray_Line_Pos_mm = pos_sum / black_count;
+    Gray_Line_Pos_mm = pos_sum / black_count - GRAY_CENTER_OFFSET_MM;
     Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
     y_m = Gray_Line_Pos_mm / 1000.0f;
