@@ -36,6 +36,11 @@ IMAGE_CENTER_X = FRAME_WIDTH // 2
 MM_PER_PIXEL = 0.50
 MAX_POSITION_MM = 150.0
 
+# 相机和摆杆完成固定并通过本 README 的标定步骤前必须保持 False。
+# False 时 UART 脚本仍发送标准 BALL 帧用于链路验证，但固定发送
+# x_mm=0.0、valid=0，禁止未标定视觉值进入主控闭环。
+CALIBRATION_READY = False
+
 # UART1: IO40=TX, IO41=RX，已与 MSPM0 UART2 通信验证。
 UART_BAUDRATE = 115200
 SEND_PERIOD_MS = 50

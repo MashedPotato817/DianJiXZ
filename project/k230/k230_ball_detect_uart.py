@@ -23,7 +23,8 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 FRAME_WIDTH, IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
-                                SEND_PERIOD_MS, STABLE_FRAMES, UART_BAUDRATE)
+                                SEND_PERIOD_MS, STABLE_FRAMES, UART_BAUDRATE,
+                                CALIBRATION_READY)
 
 
 def clamp(value, lower, upper):
@@ -139,18 +140,31 @@ def main():
             now_ms = time.ticks_ms()
             if time.ticks_diff(now_ms, last_send_ms) >= SEND_PERIOD_MS:
                 sequence += 1
+                if CALIBRATION_READY:
+                    tx_x_mm = x_mm
+                    tx_valid = valid
+                else:
+                    tx_x_mm = 0.0
+                    tx_valid = 0
                 uart.write(("$K230,BALL,%.1f,%d,%d#\r\n" %
-                            (x_mm, valid, sequence)).encode())
+                            (tx_x_mm, tx_valid, sequence)).encode())
                 last_send_ms = now_ms
 
             # 清空 MSPM0 心跳与 ACK，避免 K230 接收 FIFO 积累。
             if uart.any():
-                uart.read()
+                response = uart.read()
+                if response:
+                    print("RX:", response)
+                    if b"$MSPM0,ACK#" in response:
+                        print("MSPM0 BALL frame acknowledged")
+                    if b"$MSPM0,HELLO#" in response:
+                        print("MSPM0 heartbeat received")
 
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
-                print("ball: source=%s x_mm=%.1f valid=%d seq=%d" %
-                      (source, x_mm, valid, sequence))
+                print("vision: source=%s x_mm=%.1f valid=%d | "
+                      "uart: x_mm=%.1f valid=%d seq=%d" %
+                      (source, x_mm, valid, tx_x_mm, tx_valid, sequence))
             gc.collect()
     finally:
         sensor.stop()
