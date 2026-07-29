@@ -1,5 +1,7 @@
 # K230 小球检测与 UART 输出
 
+> 当前相机和摆杆尚未固定，`x_mm` 的像素—毫米标定暂缓。本文件中的 UART 帧可用于验证传输与解帧，但未标定的视觉位置不得用于舵机闭环。
+
 纯视觉预览入口：`k230_ball_detect_preview.py`；UART 入口：`k230_ball_detect_uart.py`；参数：`ball_detect_config.py`。
 
 当前仅验证视觉时，上传 `k230_ball_detect_preview.py` 和 `ball_detect_config.py`，在 CanMV IDE 运行预览脚本。IDE 画面中：蓝线是标定中心，绿圈与红十字是候选球，左上角 `BALL OK` 表示连续确认有效，`BALL LOST` 表示未确认或丢球。

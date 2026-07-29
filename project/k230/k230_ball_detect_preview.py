@@ -125,7 +125,8 @@ def main():
                                     thickness=1)
             status = "BALL %s x=%+.1fmm fps=%.1f" % (
                 "OK" if valid else "LOST", x_mm, clock.fps())
-            display_frame.draw_string(8, 8, status, color=(255, 255, 0), scale=2)
+            display_frame.draw_string_advanced(8, 8, 24, status,
+                                               color=(255, 255, 0))
             Display.show_image(display_frame, 0, 0)
 
             frame_count += 1
