@@ -25,7 +25,7 @@
    K230 控制台同时应显示一次 `MSPM0 BALL frame acknowledged`；该 ACK 不依赖 5 ms 时基。
 4. 停止 K230 脚本或断开 TX 后，最多 100 ms 内确认 `g_ball_position.valid=0`、`timed_out=1`。
 
-通过以上四项仅证明 UART0 收发与解帧可用，不代表视觉识别、舵机或控球闭环已验证。
+通过以上四项仅证明 UART2 收发与解帧可用，不代表视觉识别、舵机或控球闭环已验证。
 
 ## 回传线单向验证
 

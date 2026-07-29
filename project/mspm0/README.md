@@ -6,26 +6,29 @@
 
 - 已继承：Keil 工程、`empty.syscfg`、TI DriverLib、TB6612 双电机、双编码器、OLED、按键、电池采样、8 路灰度巡线、5 ms 控制中断。
 - 新增模块：`Hardware/servo.*`、`Hardware/k230_link.*`、`Control/ball_control.*`、`Control/ball_task.*`。
-- 尚未改动：`empty.syscfg` 和 `ti_msp_dl_config.c/h`。这是有意保留的安全边界，避免在未知舵机信号引脚时误占用 UART、编码器或电机 PWM 资源。Keil 的自动 SysConfig 预构建命令已关闭：原脚本依赖未随项目提供的 SDK `product.json`，且不能正确处理含空格的本机路径；当前构建使用已复制的生成文件。
+- 当前 `empty.syscfg` 及生成文件已包含 UART0、UART1、UART2；应用代码实际使用 UART2 连接 K230。舵机 50 Hz PWM 尚未配置。禁止手改 `ti_msp_dl_config.c/h`；引脚变化必须修改 `empty.syscfg` 后重新生成。Keil 的自动 SysConfig 预构建命令仍关闭，当前构建直接使用仓库内生成文件。
 
 ## 模块职责
 
 | 目录 | 模块 | 责任 |
 | --- | --- | --- |
-| `Hardware/` | `motor`、`encoder`、`oled` 等 | 已验证底盘外设驱动 |
+| `Hardware/` | `motor`、`encoder`、`oled` 等 | 当前底盘外设驱动；可运行但巡线稳定性未达标 |
 | `Hardware/servo` | 摆杆舵机角度命令、限幅、后续 PWM 映射 |
-| `Hardware/k230_link` | 小球位置数据接口；待 K230 程序确认串口帧格式 |
-| `Control/control` | 原有 5 ms 底盘速度闭环与灰度巡线 |
-| `Control/ball_control` | 小球 x 方向位置闭环，输出摆杆目标角度 |
-| `Control/ball_task` | H 题任务状态：单圈、居中稳定、行驶保持与指定点保持 |
+| `Hardware/k230_link` | UART2 ASCII 解帧、100 ms 超时和链路诊断；实物收包待验证 |
+| `Control/control` | 5 ms 灰度巡线、左右轮目标、编码器测速和增量式 PI |
+| `Control/ball_control` | 小球 x 方向 PD 骨架；当前 `kp=kd=0`，未接入调度 |
+| `Control/ball_task` | H 题状态枚举与状态存取；尚无任务推进逻辑 |
 
 ## 必须确认后才能接入硬件闭环
 
 1. 舵机型号、信号线接到 MSPM0 的具体引脚，以及其机械零位、有效转角、50 Hz 脉宽范围。
-2. K230 与 MSPM0 的 UART 连接（当前底座 UART0 为 PA0/PA1，UART1 为 PB6/PB7），并确定小球坐标系、单位和数据帧格式。
+2. K230 软件接口已固定为 UART2（PB18 RX、PB17 TX、115200）和
+   `$K230,BALL,<x_mm>,<valid>,<seq>#`；仍需确认实物交叉接线、共地、坐标系和发送端格式。
 3. 摆杆单自由度还是双自由度。当前 `ball_control` 仅预留沿杆方向的一维小球位置闭环。
 
-确认引脚后，用 TI SysConfig GUI 打开 `empty.syscfg`，添加独立的 50 Hz TimerA PWM 通道和 K230 UART 配置，重新生成 `ti_msp_dl_config.c/h`；完成后再恢复 Keil 的 SysConfig 预构建流程。
+确认舵机引脚后，用 TI SysConfig GUI 打开 `empty.syscfg`，添加独立的 50 Hz
+TimerA PWM 通道并重新生成 `ti_msp_dl_config.c/h`。不要重复新增 K230 UART；
+UART2 已存在。是否恢复 Keil 的 SysConfig 预构建流程，应在本机 SDK 路径可复现后再决定。
 
 ## 验证状态
 

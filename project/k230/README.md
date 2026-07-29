@@ -4,18 +4,21 @@
 
 项目级入口见 [../README.md](../README.md)，主控接口与验收顺序见 [../topic/software_workflow.md](../topic/software_workflow.md)。
 
-## 预期目录
+## 当前接手入口
 
 ```text
 k230/
 ├── README.md
-├── src/            # CanMV 视觉程序
-├── calibration/    # 像素到毫米的标定数据与脚本
-├── samples/        # 受控采集的图片/视频说明，不提交大体积原始素材
-└── protocol/       # 串口帧定义、抓包样例和联调记录
+├── k230_ball_detect_preview.py   # 仅视觉预览
+├── k230_ball_detect_uart.py      # 视觉识别并发送 UART 帧
+├── k230_uart_ball_test.py        # 固定位置帧发送联调
+├── k230_uart_rx_test.py          # MSPM0 回传方向联调
+├── ball_detect_config.py         # ROI、阈值、标定和 UART 参数
+└── protocol/uart0_ball_min_test.md # 文件名沿用旧称，内容实际为 UART2
 ```
 
-只有在实际需要时再创建上述子目录和文件；不要为了凑目录提交空文件。
+先用固定帧脚本验证 UART2，再运行视觉预览，最后才启用视觉结果发送；不要把串口、
+识别和控球三个问题混在一次测试中。
 
 ## 视觉端输出要求
 
@@ -27,13 +30,17 @@ k230/
 | `valid` | `1` 表示当前帧可靠检测到小球，`0` 表示丢球、遮挡或置信度不足 |
 | `seq` 或 `timestamp_ms` | 递增帧序号或时间戳，用于主控判断延迟和丢帧 |
 
-首轮联调建议使用容易抓包的 ASCII 帧：
+当前 K230 与 MSPM0 代码共同使用以下 ASCII 帧：
 
 ```text
 $K230,BALL,<x_mm>,<valid>,<seq>#
 ```
 
-这只是建议格式，不是已冻结协议。开始 MSPM0 解帧前，必须在 `protocol/` 中写入最终帧格式、字段范围、校验方式、帧率和超时策略。
+当前软件接口为 K230 UART1（IO40 TX、IO41 RX）连接 MSPM0 UART2
+（PB18 RX、PB17 TX），115200、8N1、两端共地。MSPM0 已实现解帧和
+100 ms 超时；完整实物收包结果仍须按
+[`protocol/uart0_ball_min_test.md`](protocol/uart0_ball_min_test.md) 记录。
+如需变更协议，必须同步修改两端代码、协议文档和抓包样例。
 
 ## 开发顺序
 
@@ -49,7 +56,8 @@ $K230,BALL,<x_mm>,<valid>,<seq>#
 - 连续 60 秒输出位置数据，帧格式无丢字节、无字段越界；
 - 遮挡或丢球时在约定超时内输出 `valid=0` 或停止有效帧；
 - 在摆杆全行程内，毫米坐标方向正确，标定误差满足后续 1 cm 控球目标的预算；
-- 主控收到无效或超时数据时能安全停车、舵机回中位。
+- 最终系统应在无效或超时数据时安全停车、舵机回中位；当前任务推进和舵机 PWM
+  尚未接入，因此该项尚未实现。
 
 ## 注意事项
 
