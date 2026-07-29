@@ -1,6 +1,19 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 语言偏好
+
+### 规则
+
+所有与用户的交流、生成的文档、代码注释、回答等，默认使用**简体中文**。除非用户明确要求使用其他语言。
+
+### 范围
+
+- 所有代码注释和文档字符串
+- 所有回答和解释
+- 所有生成的文档文件
+- 所有提交信息
+
+用户使用英文提问时，也默认优先使用中文回答。涉及文档、注释等产出物同样使用中文。
 
 ## 项目定位
 
