@@ -18,6 +18,7 @@ Update：2021-04-29
 All rights reserved
 ***********************************************/
 #include "control.h"
+#include "k230_link.h"
 
 u8 ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
@@ -131,9 +132,15 @@ void TIMER_0_INST_IRQHandler(void)
 {
     if (DL_TimerG_getPendingInterrupt(TIMER_0_INST) == DL_TIMERG_IIDX_ZERO)
     {
+			K230_Link_Tick5ms();
 			
 			Key();
-			LED_Flash(100);
+			/* 联调：慢闪=未发，2 Hz=已发无字节，0.5 Hz=收到原始字节，常亮=已解帧。 */
+			if (K230_Link_HasValidFrame() != 0U) LED_ON();
+			else if (K230_Link_IsLocalLoopbackDetected() != 0U) LED_OFF();
+			else if (K230_Link_HasRxBytes() != 0U) LED_Flash(200);
+			else if (K230_Link_HasTxAttempt() != 0U) LED_Flash(50);
+			else                                LED_Flash(100);
 			Get_Velocity_From_Encoder(Get_Encoder_countA,Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
 			if(Run_Mode==0)

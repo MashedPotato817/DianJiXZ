@@ -216,6 +216,12 @@ UART2.DMA_CHANNEL_RX.srcLength   = "BYTE";
 UART2.DMA_CHANNEL_RX.dstLength   = "BYTE";
 
 UART3.$name                    = "UART_2";
+UART3.targetBaudRate           = 115200;
+UART3.enableFIFO               = true;
+UART3.rxFifoThreshold          = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART3.enableDMARX              = false;
+UART3.enableDMATX              = false;
+UART3.enableInternalLoopback   = false;
 UART3.peripheral.$assign       = "UART2";
 UART3.peripheral.rxPin.$assign = "PB18";
 UART3.peripheral.txPin.$assign = "PB17";
