@@ -189,7 +189,12 @@ TIMER1.interrupts         = ["ZERO"];
 TIMER1.peripheral.$assign = "TIMG0";
 
 UART1.$name                    = "UART_0";
-UART1.profile                  = "CONFIG_PROFILE_1";
+UART1.targetBaudRate           = 115200;
+UART1.enableFIFO               = true;
+UART1.rxFifoThreshold          = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART1.enableDMARX              = false;
+UART1.enableDMATX              = false;
+UART1.enableInternalLoopback   = false;
 UART1.peripheral.$assign       = "UART0";
 UART1.peripheral.rxPin.$assign = "PA1";
 UART1.peripheral.txPin.$assign = "PA0";
