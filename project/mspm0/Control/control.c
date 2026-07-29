@@ -43,6 +43,12 @@ static const float Gray_Pos_mm[8] = {
      3.5f * GRAY_SENSOR_PITCH_MM
 };
 
+/* 由内向外：3/4=0.5，2/5=0.7，1/6=0.9，0/7=1.0。 */
+static const float Gray_Weight[8] = {
+    1.0f, 0.9f, 0.7f, 0.5f,
+    0.5f, 0.7f, 0.9f, 1.0f
+};
+
 static void Gray_Select_Channel(uint8_t channel)
 {
     if (channel & 0x01) DL_GPIO_setPins(GRAY_AD0_PORT, GRAY_AD0_AD0_PIN);
@@ -78,6 +84,7 @@ void Gray_Mode(void)
     static float last_search_move_z;
     static uint8_t line_seen;
     float pos_sum = 0;
+    float weight_sum = 0;
     int black_count = 0;
     uint8_t black_mask = 0;
     float y_m;
@@ -88,7 +95,8 @@ void Gray_Mode(void)
     Gray_Read_All();
     for (i = 0; i < 8; i++) {
         if (Gray_Data[i]) {
-            pos_sum += Gray_Pos_mm[i];
+            pos_sum += Gray_Pos_mm[i] * Gray_Weight[i];
+            weight_sum += Gray_Weight[i];
             black_count++;
             black_mask |= (uint8_t)(1U << i);
         }
@@ -113,7 +121,7 @@ void Gray_Mode(void)
 
     line_seen = 1;
     lost_search_angle = 0;
-    Gray_Line_Pos_mm = pos_sum / black_count - GRAY_CENTER_OFFSET_MM;
+    Gray_Line_Pos_mm = pos_sum / weight_sum - GRAY_CENTER_OFFSET_MM;
     /* 物理居中组合 00001000、00010000、00011000 明确直走。 */
     if ((black_mask != 0U) &&
         ((black_mask & (uint8_t)(~GRAY_CENTER_SENSOR_MASK)) == 0U)) Gray_Line_Pos_mm = 0;
