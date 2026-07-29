@@ -33,6 +33,7 @@ int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
 
 static const float Gray_Pos_mm[8] = {
+    /* 对应直接权重 -7、-5、-3、-1、+1、+3、+5、+7。 */
     -3.5f * GRAY_SENSOR_PITCH_MM,
     -2.5f * GRAY_SENSOR_PITCH_MM,
     -1.5f * GRAY_SENSOR_PITCH_MM,
@@ -41,12 +42,6 @@ static const float Gray_Pos_mm[8] = {
      1.5f * GRAY_SENSOR_PITCH_MM,
      2.5f * GRAY_SENSOR_PITCH_MM,
      3.5f * GRAY_SENSOR_PITCH_MM
-};
-
-/* 由内向外：3/4=0.5，2/5=0.7，1/6=0.9，0/7=1.0。 */
-static const float Gray_Weight[8] = {
-    1.0f, 0.9f, 0.7f, 0.5f,
-    0.5f, 0.7f, 0.9f, 1.0f
 };
 
 static void Gray_Select_Channel(uint8_t channel)
@@ -80,48 +75,41 @@ void Gray_Read_All(void)
 
 void Gray_Mode(void)
 {
-    static float lost_search_angle;
-    static float last_search_move_z;
     static uint8_t line_seen;
+    static float last_valid_move_z;
     float pos_sum = 0;
-    float weight_sum = 0;
     int black_count = 0;
     uint8_t black_mask = 0;
     float y_m;
     float lookahead_m;
     float curvature;
+    float max_angular_speed;
     uint8_t i;
 
     Gray_Read_All();
     for (i = 0; i < 8; i++) {
         if (Gray_Data[i]) {
-            pos_sum += Gray_Pos_mm[i] * Gray_Weight[i];
-            weight_sum += Gray_Weight[i];
+            pos_sum += Gray_Pos_mm[i];
             black_count++;
             black_mask |= (uint8_t)(1U << i);
         }
     }
 
     if (black_count == 0) {
-        Gray_Line_Pos_mm = 0;
-        /* 首次上电未识别到黑线、无有效搜线方向或已搜满一圈时停车 */
-        if ((!line_seen) || (last_search_move_z == 0.0f) ||
-            (lost_search_angle >= GRAY_LOST_SEARCH_MAX_ANGLE_RAD)) {
+        /* 连续环线全白表示弯道未跟上：保持最后有效转向继续追回。 */
+        if (line_seen) {
+            Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
+            Move_Z = last_valid_move_z;
+        } else {
             Move_X = 0;
             Move_Z = 0;
-        } else {
-            /* 丢线后停止前进，沿最后一次有效偏线方向低速原地搜线 */
-            Move_X = 0;
-            Move_Z = last_search_move_z;
-            lost_search_angle += GRAY_LOST_SEARCH_ANGULAR_SPEED / Frequency;
         }
         Get_Target_Encoder(Move_X, Move_Z);
         return;
     }
 
     line_seen = 1;
-    lost_search_angle = 0;
-    Gray_Line_Pos_mm = pos_sum / weight_sum - GRAY_CENTER_OFFSET_MM;
+    Gray_Line_Pos_mm = pos_sum / black_count - GRAY_CENTER_OFFSET_MM;
     /* 物理居中组合 00001000、00010000、00011000 明确直走。 */
     if ((black_mask != 0U) &&
         ((black_mask & (uint8_t)(~GRAY_CENTER_SENSOR_MASK)) == 0U)) Gray_Line_Pos_mm = 0;
@@ -132,12 +120,10 @@ void Gray_Mode(void)
     curvature = (2.0f * y_m) / (lookahead_m * lookahead_m + y_m * y_m);
     Move_Z = -GRAY_STEER_GAIN * Move_X * curvature;
 
-    if (Move_Z > GRAY_MAX_ANGULAR_SPEED) Move_Z = GRAY_MAX_ANGULAR_SPEED;
-    if (Move_Z < -GRAY_MAX_ANGULAR_SPEED) Move_Z = -GRAY_MAX_ANGULAR_SPEED;
-
-    /* 仅在存在偏线时更新搜线方向，居中直线不覆盖最近一次转向方向 */
-    if (Move_Z > 0.0f) last_search_move_z = GRAY_LOST_SEARCH_ANGULAR_SPEED;
-    else if (Move_Z < 0.0f) last_search_move_z = -GRAY_LOST_SEARCH_ANGULAR_SPEED;
+    max_angular_speed = GRAY_MAX_COMMAND_CURVATURE * Move_X;
+    if (Move_Z > max_angular_speed) Move_Z = max_angular_speed;
+    if (Move_Z < -max_angular_speed) Move_Z = -max_angular_speed;
+    last_valid_move_z = Move_Z;
 
     Get_Target_Encoder(Move_X, Move_Z);
 }
@@ -186,13 +172,26 @@ void Get_Velocity_From_Encoder(int Encoder1,int Encoder2)
 	//Retrieves the original data of the encoder
 	//获取编码器的原始数据
 	static float Filtered_SpeedA = 0.0f, Filtered_SpeedB = 0.0f;
-	float Encoder_A_pr, Encoder_B_pr, raw_speedA, raw_speedB;
+	static int Encoder_WindowA[SPEED_WINDOW_SIZE] = {0};
+	static int Encoder_WindowB[SPEED_WINDOW_SIZE] = {0};
+	static int Encoder_SumA = 0, Encoder_SumB = 0;
+	static uint8_t Window_Index = 0, Window_Count = 0;
+	float sample_frequency, raw_speedA, raw_speedB;
 	OriginalEncoder.A = Encoder1;
 	OriginalEncoder.B = Encoder2;
-	Encoder_A_pr = OriginalEncoder.A;
-	Encoder_B_pr = -OriginalEncoder.B;
-	raw_speedA =  Encoder_A_pr * Frequency * Perimeter / CPR;
-	raw_speedB =  Encoder_B_pr * Frequency * Perimeter / CPR;
+
+	Encoder_SumA -= Encoder_WindowA[Window_Index];
+	Encoder_SumB -= Encoder_WindowB[Window_Index];
+	Encoder_WindowA[Window_Index] = OriginalEncoder.A;
+	Encoder_WindowB[Window_Index] = -OriginalEncoder.B;
+	Encoder_SumA += Encoder_WindowA[Window_Index];
+	Encoder_SumB += Encoder_WindowB[Window_Index];
+	Window_Index = (uint8_t)((Window_Index + 1U) % SPEED_WINDOW_SIZE);
+	if (Window_Count < SPEED_WINDOW_SIZE) Window_Count++;
+
+	sample_frequency = Frequency / (float)Window_Count;
+	raw_speedA = Encoder_SumA * sample_frequency * Perimeter / CPR;
+	raw_speedB = Encoder_SumB * sample_frequency * Perimeter / CPR;
 
 	Filtered_SpeedA = SPEED_FILTER_ALPHA * raw_speedA + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedA;
 	Filtered_SpeedB = SPEED_FILTER_ALPHA * raw_speedB + (1.0f - SPEED_FILTER_ALPHA) * Filtered_SpeedB;

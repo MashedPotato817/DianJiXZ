@@ -38,6 +38,7 @@ extern float Gray_Line_Pos_mm;
 #define MULTIPLY_FACTOR              2
 #define GEAR_RATIO                   28
 #define CPR                          (MULTIPLY_FACTOR * ENCODER_LINES * GEAR_RATIO)  /* 728 */
+#define SPEED_WINDOW_SIZE            4U      /* 4×5 ms 滑动测速窗口 */
 #define SPEED_FILTER_ALPHA           0.4f    /* 一阶低通滤波系数 */
 #define PI_DEADBAND                  0.005f  /* PI 死区 (m/s) */
 #define PWM_MAX                      7800
@@ -50,10 +51,8 @@ extern float Gray_Line_Pos_mm;
 #define GRAY_SENSOR_FORWARD_MM       134.0f   /* 灰度传感器至左右轮中心中点的前向实测距离 */
 #define GRAY_CENTER_OFFSET_MM        0.0f    /* 居中时 OLED P 的实测静态偏差补偿 */
 #define GRAY_CENTER_SENSOR_MASK      0x18U   /* 通道 3/4：00011000，单灯或双灯均视为居中 */
-#define GRAY_STEER_GAIN              1.70f
-#define GRAY_MAX_ANGULAR_SPEED       0.40f    /* 抑制二值灰度跳变放大的转向冲击 */
-#define GRAY_LOST_SEARCH_ANGULAR_SPEED 0.50f  /* 丢线原地搜线角速度上限 */
-#define GRAY_LOST_SEARCH_MAX_ANGLE_RAD (2.0f * PI) /* 最多搜线一圈 */
+#define GRAY_STEER_GAIN              1.30f    /* 降低直线离散灯位切换造成的左右摆动 */
+#define GRAY_MAX_COMMAND_CURVATURE   3.20f    /* 最小指令半径约 0.31 m，兼容 r=0.4~0.5 m 操场弯道 */
 //电机速度控制相关参数结构体
 typedef struct  
 {
