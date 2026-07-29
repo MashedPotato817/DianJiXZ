@@ -79,6 +79,7 @@ void Gray_Mode(void)
     static uint8_t line_seen;
     float pos_sum = 0;
     int black_count = 0;
+    uint8_t black_mask = 0;
     float y_m;
     float lookahead_m;
     float curvature;
@@ -89,6 +90,7 @@ void Gray_Mode(void)
         if (Gray_Data[i]) {
             pos_sum += Gray_Pos_mm[i];
             black_count++;
+            black_mask |= (uint8_t)(1U << i);
         }
     }
 
@@ -112,6 +114,9 @@ void Gray_Mode(void)
     line_seen = 1;
     lost_search_angle = 0;
     Gray_Line_Pos_mm = pos_sum / black_count - GRAY_CENTER_OFFSET_MM;
+    /* 物理居中组合 00001000、00010000、00011000 明确直走。 */
+    if ((black_mask != 0U) &&
+        ((black_mask & (uint8_t)(~GRAY_CENTER_SENSOR_MASK)) == 0U)) Gray_Line_Pos_mm = 0;
     Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
     y_m = Gray_Line_Pos_mm / 1000.0f;
