@@ -605,11 +605,6 @@
               <FilePath>..\Control\DataScope_DP.C</FilePath>
             </File>
             <File>
-              <FileName>uart_callback.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Control\uart_callback.c</FilePath>
-            </File>
-            <File>
               <FileName>ball_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Control\ball_control.c</FilePath>

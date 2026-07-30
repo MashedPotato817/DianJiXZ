@@ -41,6 +41,7 @@
 #include "ti_msp_dl_config.h"
 
 DL_TimerA_backupConfig gPWM_0Backup;
+DL_TimerA_backupConfig gPWM_1Backup;
 
 /*
  *  ======== SYSCFG_DL_init ========
@@ -53,15 +54,16 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     /* Module-Specific Initializations*/
     SYSCFG_DL_SYSCTL_init();
     SYSCFG_DL_PWM_0_init();
+    SYSCFG_DL_PWM_1_init();
     SYSCFG_DL_TIMER_0_init();
     SYSCFG_DL_UART_0_init();
     SYSCFG_DL_UART_1_init();
     SYSCFG_DL_UART_2_init();
     SYSCFG_DL_ADC12_VOLTAGE_init();
-    SYSCFG_DL_DMA_init();
     SYSCFG_DL_SYSTICK_init();
     /* Ensure backup structures have no valid state */
 	gPWM_0Backup.backupRdy 	= false;
+	gPWM_1Backup.backupRdy 	= false;
 
 
 
@@ -75,6 +77,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_saveConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_saveConfiguration(PWM_0_INST, &gPWM_0Backup);
+	retStatus &= DL_TimerA_saveConfiguration(PWM_1_INST, &gPWM_1Backup);
 
     return retStatus;
 }
@@ -85,6 +88,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_restoreConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_restoreConfiguration(PWM_0_INST, &gPWM_0Backup, false);
+	retStatus &= DL_TimerA_restoreConfiguration(PWM_1_INST, &gPWM_1Backup, false);
 
     return retStatus;
 }
@@ -94,6 +98,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_GPIO_reset(GPIOA);
     DL_GPIO_reset(GPIOB);
     DL_TimerA_reset(PWM_0_INST);
+    DL_TimerA_reset(PWM_1_INST);
     DL_TimerG_reset(TIMER_0_INST);
     DL_UART_Main_reset(UART_0_INST);
     DL_UART_Main_reset(UART_1_INST);
@@ -101,16 +106,15 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_ADC12_reset(ADC12_VOLTAGE_INST);
 
 
-
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
     DL_TimerA_enablePower(PWM_0_INST);
+    DL_TimerA_enablePower(PWM_1_INST);
     DL_TimerG_enablePower(TIMER_0_INST);
     DL_UART_Main_enablePower(UART_0_INST);
     DL_UART_Main_enablePower(UART_1_INST);
     DL_UART_Main_enablePower(UART_2_INST);
     DL_ADC12_enablePower(ADC12_VOLTAGE_INST);
-
 
     delay_cycles(POWER_STARTUP_DELAY);
 }
@@ -122,6 +126,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_enableOutput(GPIO_PWM_0_C0_PORT, GPIO_PWM_0_C0_PIN);
     DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_0_C1_IOMUX,GPIO_PWM_0_C1_IOMUX_FUNC);
     DL_GPIO_enableOutput(GPIO_PWM_0_C1_PORT, GPIO_PWM_0_C1_PIN);
+    DL_GPIO_initPeripheralOutputFunction(GPIO_PWM_1_C0_IOMUX,GPIO_PWM_1_C0_IOMUX_FUNC);
+    DL_GPIO_enableOutput(GPIO_PWM_1_C0_PORT, GPIO_PWM_1_C0_PIN);
 
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_UART_0_IOMUX_TX, GPIO_UART_0_IOMUX_TX_FUNC);
@@ -302,6 +308,47 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_0_init(void) {
 
 
 }
+/*
+ * Timer clock configuration to be sourced by  / 1 (80000000 Hz)
+ * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
+ *   1000000 Hz = 80000000 Hz / (1 * (79 + 1))
+ */
+static const DL_TimerA_ClockConfig gPWM_1ClockConfig = {
+    .clockSel = DL_TIMER_CLOCK_BUSCLK,
+    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
+    .prescale = 79U
+};
+
+static const DL_TimerA_PWMConfig gPWM_1Config = {
+    .pwmMode = DL_TIMER_PWM_MODE_EDGE_ALIGN,
+    .period = 20000,
+    .isTimerWithFourCC = true,
+    .startTimer = DL_TIMER_START,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_PWM_1_init(void) {
+
+    DL_TimerA_setClockConfig(
+        PWM_1_INST, (DL_TimerA_ClockConfig *) &gPWM_1ClockConfig);
+
+    DL_TimerA_initPWMMode(
+        PWM_1_INST, (DL_TimerA_PWMConfig *) &gPWM_1Config);
+
+    DL_TimerA_setCaptureCompareOutCtl(PWM_1_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
+		DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
+		DL_TIMERA_CAPTURE_COMPARE_0_INDEX);
+
+    DL_TimerA_setCaptCompUpdateMethod(PWM_1_INST, DL_TIMER_CC_UPDATE_METHOD_IMMEDIATE, DL_TIMERA_CAPTURE_COMPARE_0_INDEX);
+    DL_TimerA_setCaptureCompareValue(PWM_1_INST, 20000, DL_TIMER_CC_0_INDEX);
+
+    DL_TimerA_enableClock(PWM_1_INST);
+
+
+    
+    DL_TimerA_setCCPDirection(PWM_1_INST , DL_TIMER_CC0_OUTPUT );
+
+
+}
 
 
 
@@ -401,21 +448,17 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_1_init(void)
     DL_UART_Main_init(UART_1_INST, (DL_UART_Main_Config *) &gUART_1Config);
     /*
      * Configure baud rate by setting oversampling and baud rate divisors.
-     *  Target baud rate: 9600
-     *  Actual baud rate: 9599.81
+     *  Target baud rate: 115200
+     *  Actual baud rate: 115190.78
      */
     DL_UART_Main_setOversampling(UART_1_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(UART_1_INST, UART_1_IBRD_40_MHZ_9600_BAUD, UART_1_FBRD_40_MHZ_9600_BAUD);
+    DL_UART_Main_setBaudRateDivisor(UART_1_INST, UART_1_IBRD_40_MHZ_115200_BAUD, UART_1_FBRD_40_MHZ_115200_BAUD);
 
 
-    /* Configure Interrupts */
-    DL_UART_Main_enableInterrupt(UART_1_INST,
-                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_RX);
-    /* Setting the Interrupt Priority */
-    NVIC_SetPriority(UART_1_INST_INT_IRQN, 1);
-
-    /* Configure DMA Receive Event */
-    DL_UART_Main_enableDMAReceiveEvent(UART_1_INST, DL_UART_DMA_INTERRUPT_RX);
+    /* Configure FIFOs */
+    DL_UART_Main_enableFIFOs(UART_1_INST);
+    DL_UART_Main_setRXFIFOThreshold(UART_1_INST, DL_UART_RX_FIFO_LEVEL_ONE_ENTRY);
+    DL_UART_Main_setTXFIFOThreshold(UART_1_INST, DL_UART_TX_FIFO_LEVEL_1_2_EMPTY);
 
     DL_UART_Main_enable(UART_1_INST);
 }
@@ -477,26 +520,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_ADC12_VOLTAGE_init(void)
     DL_ADC12_enableInterrupt(ADC12_VOLTAGE_INST,(DL_ADC12_INTERRUPT_MEM0_RESULT_LOADED));
     DL_ADC12_enableConversions(ADC12_VOLTAGE_INST);
 }
-
-static const DL_DMA_Config gDMA_CH0Config = {
-    .transferMode   = DL_DMA_SINGLE_TRANSFER_MODE,
-    .extendedMode   = DL_DMA_NORMAL_MODE,
-    .destIncrement  = DL_DMA_ADDR_INCREMENT,
-    .srcIncrement   = DL_DMA_ADDR_UNCHANGED,
-    .destWidth      = DL_DMA_WIDTH_BYTE,
-    .srcWidth       = DL_DMA_WIDTH_BYTE,
-    .trigger        = UART_1_INST_DMA_TRIGGER,
-    .triggerType    = DL_DMA_TRIGGER_TYPE_EXTERNAL,
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_DMA_CH0_init(void)
-{
-    DL_DMA_initChannel(DMA, DMA_CH0_CHAN_ID , (DL_DMA_Config *) &gDMA_CH0Config);
-}
-SYSCONFIG_WEAK void SYSCFG_DL_DMA_init(void){
-    SYSCFG_DL_DMA_CH0_init();
-}
-
 
 SYSCONFIG_WEAK void SYSCFG_DL_SYSTICK_init(void)
 {

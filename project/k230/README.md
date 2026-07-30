@@ -16,7 +16,7 @@
 | --- | --- |
 | `k230_ball_detect_preview.py` | 纯视觉预览。使用双通道相机，叠加检测结果到 CanMV IDE/LCD；不使用 UART。 |
 | `ball_detect_config.py` | 圆检测、时序筛选、像素到毫米标定和 UART 参数。 |
-| `k230_ball_detect_uart.py` | 在预览验证通过后，发送 BALL 帧给 MSPM0。 |
+| `k230_ball_detect_uart.py` | 发送 BALL 帧给 MSPM0，并在 CanMV IDE/LCD 显示同帧检测预览。 |
 | `ball_detect_uart.md` | 参数标定与 UART 联调补充说明。 |
 | `k230_uart_ball_test.py` | 不使用相机的固定 BALL 帧通信测试。 |
 | `k230_uart_rx_test.py` | 仅验证 MSPM0 到 K230 的回传线。 |
@@ -85,7 +85,7 @@ x_mm = (px - 160.365) * 0.540652
 
 三个标定点的内部拟合残差 RMSE 为 `0.088 mm`；它不包含人工放置、尺量、透视和整数像素量化误差，不能当作系统精度。`CALIBRATION_READY` 必须继续保持 `False`。
 
-> 机械已固定，现可执行本节；在完成并记录标定结果前，仍不得据 `x_mm` 判断真实位置或驱动舵机。
+> 机械已固定，现可执行本节；在完成并记录标定结果前，仍不得据 `x_mm` 判断真实位置或作出正式控制/精度结论。若明确授权低幅度联调，可临时打开 `UART_ALLOW_UNCALIBRATED`；该模式必须保留舵机小脉宽限幅、失帧回中位，并在联调后关闭。
 
 白色内壁安装后，先保持 `CALIBRATION_READY = False`，并按下列方法重新采样：
 
@@ -130,8 +130,8 @@ $K230,BALL,<x_mm>,<valid>,<seq>#\r\n
 接线如下：
 
 ```text
-K230 IO40 / UART1_TX  -> MSPM0 PB18 / UART2_RX
-K230 IO41 / UART1_RX  <- MSPM0 PB17 / UART2_TX
+K230 IO40 / UART1_TX  -> MSPM0 PB7 / UART1_RX
+K230 IO41 / UART1_RX  <- MSPM0 PB6 / UART1_TX
 K230 GND              <-> MSPM0 GND
 ```
 

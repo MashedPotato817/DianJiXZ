@@ -73,9 +73,9 @@ static void K230_SendString(const char *text)
 {
     g_tx_attempted = 1U;
     while (*text != '\0') {
-        while (DL_UART_Main_isTXFIFOFull(UART_2_INST)) {
+        while (DL_UART_Main_isTXFIFOFull(UART_1_INST)) {
         }
-        DL_UART_Main_transmitData(UART_2_INST, (uint8_t)*text++);
+        DL_UART_Main_transmitData(UART_1_INST, (uint8_t)*text++);
     }
 }
 
@@ -86,7 +86,7 @@ static void K230_ParseLine(const char *line)
     uint32_t valid;
     uint32_t seq;
 
-    /* UART2 PB17->PB18 本地回环的最短令牌，排除长帧字段解析干扰。 */
+    /* UART1 PB6->PB7 本地回环的最短令牌，排除长帧字段解析干扰。 */
     if ((text[0] == '$') && (text[1] == 'L') && (text[2] == '#') &&
         (text[3] == '\0')) {
         g_local_loopback_detected = 1U;
@@ -177,15 +177,15 @@ void K230_Link_Init(void)
     g_rx_ring_write = 0U;
     g_rx_bytes = 0U;
     g_rx_overruns = 0U;
-    while (!DL_UART_Main_isRXFIFOEmpty(UART_2_INST)) {
-        (void)DL_UART_Main_receiveData(UART_2_INST);
+    while (!DL_UART_Main_isRXFIFOEmpty(UART_1_INST)) {
+        (void)DL_UART_Main_receiveData(UART_1_INST);
     }
     /* 最小联调上电即发一次，避免首帧诊断依赖 5 ms 时基。 */
     K230_SendString("$L#");
     K230_SendString("$MSPM0,HELLO#\r\n");
-    NVIC_ClearPendingIRQ(UART_2_INST_INT_IRQN);
-    NVIC_EnableIRQ(UART_2_INST_INT_IRQN);
-    DL_UART_Main_enableInterrupt(UART_2_INST, DL_UART_MAIN_INTERRUPT_RX);
+    NVIC_ClearPendingIRQ(UART_1_INST_INT_IRQN);
+    NVIC_EnableIRQ(UART_1_INST_INT_IRQN);
+    DL_UART_Main_enableInterrupt(UART_1_INST, DL_UART_MAIN_INTERRUPT_RX);
 }
 
 void K230_Link_Tick5ms(void)
@@ -215,18 +215,18 @@ void K230_Link_Process(void)
     }
 }
 
-void K230_Link_UART2_IRQHandler(void)
+void K230_Link_UART1_IRQHandler(void)
 {
     uint8_t next_write;
 
-    while (!DL_UART_Main_isRXFIFOEmpty(UART_2_INST)) {
+    while (!DL_UART_Main_isRXFIFOEmpty(UART_1_INST)) {
         next_write = (uint8_t)((g_rx_ring_write + 1U) &
                                (K230_RX_RING_SIZE - 1U));
         if (next_write == g_rx_ring_read) {
-            (void)DL_UART_Main_receiveData(UART_2_INST);
+            (void)DL_UART_Main_receiveData(UART_1_INST);
             g_rx_overruns++;
         } else {
-            g_rx_ring[g_rx_ring_write] = DL_UART_Main_receiveData(UART_2_INST);
+            g_rx_ring[g_rx_ring_write] = DL_UART_Main_receiveData(UART_1_INST);
             g_rx_ring_write = next_write;
             g_rx_bytes++;
         }

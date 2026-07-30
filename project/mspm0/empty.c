@@ -31,6 +31,8 @@
  */
 #include "board.h"
 #include "k230_link.h"
+#include "servo.h"
+#include "ball_control.h"
 u8 Car_Mode=Diff_Car;
 int Motor_Left,Motor_Right;                 //电机PWM变量 应是Motor的
 u8 PID_Send;            //延时和调参相关变量
@@ -39,9 +41,9 @@ float Velocity_Left,Velocity_Right; //车轮速度(mm/s)
 u16 test_num,show_cnt;
 float Voltage=0;
 
-void UART2_IRQHandler(void)
+void UART1_IRQHandler(void)
 {
-    K230_Link_UART2_IRQHandler();
+    K230_Link_UART1_IRQHandler();
 }
 
 int main(void)
@@ -51,25 +53,23 @@ int main(void)
     // 清除所有外设的中断挂起状态
     NVIC_ClearPendingIRQ(ENCODERA_INT_IRQN);    // 编码器A中断
     NVIC_ClearPendingIRQ(ENCODERB_INT_IRQN);    // 编码器B中断
-    NVIC_ClearPendingIRQ(UART_1_INST_INT_IRQN);  // UART1串口中断
     // 使能各外设的中断
     NVIC_EnableIRQ(ENCODERA_INT_IRQN);    // 开启编码器A中断
     NVIC_EnableIRQ(ENCODERB_INT_IRQN);    // 开启编码器B中断
-    NVIC_EnableIRQ(UART_1_INST_INT_IRQN); // 开启UART1中断
     // 定时器和ADC相关中断配置
     NVIC_ClearPendingIRQ(TIMER_0_INST_INT_IRQN);  // 清除定时器0中断挂起
     NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN);        // 开启定时器0中断
     NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
     OLED_Init();  // 初始化OLED显示屏
-    K230_Link_Init();  // UART2 轮询接收 K230 最小联调帧
+    K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
+    Servo_Init();      // 上电先输出受限的机械中位 1500 us
+    Ball_Control_Init(); /* 默认未使能，待确认方向后再显式打开。 */
     // 主循环
     while (1) 
     {
 		K230_Link_Process();
 		Voltage = Get_battery_volt();//采样小车当前电压
-        BTBufferHandler();    // 处理蓝牙数据缓冲区
         oled_show();         //  OLED显示更新
-        APP_Show();          //  APP显示处理
     }
 }
 

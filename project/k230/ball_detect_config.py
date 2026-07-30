@@ -13,11 +13,11 @@ BALL_MIN_ASPECT = 0.65
 BALL_MAX_ASPECT = 1.50
 
 # 圆检测参数。横向保留全范围，避免限制小球全行程；
-# 由白管预览画面将小球轨迹的纵向中心约束在 y=85–139 px
+# 由白管预览画面将小球轨迹的纵向中心约束在 y=95–149 px
 # 在管子上下保留余量。
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
-BALL_ROI = (0, 85, FRAME_WIDTH, 55)
+BALL_ROI = (0, 95, FRAME_WIDTH, 55)
 # cv_lite 无 ROI 参数。True 时先复制有效运动带，再在其上执行霍夫圆检测；
 # 需在 K230 上与 False 的全图模式比较 FPS，异常时可立即回退。
 CIRCLE_USE_ROI_CROP = True
@@ -45,11 +45,15 @@ MM_PER_PIXEL = 0.540652
 MAX_POSITION_MM = 150.0
 
 # 相机和摆杆完成固定并通过本 README 的标定步骤前必须保持 False。
-# False 时 UART 脚本仍发送标准 BALL 帧用于链路验证，但固定发送
-# x_mm=0.0、valid=0，禁止未标定视觉值进入主控闭环。
+# 它表示位置映射尚不能作为正式控制/精度结果使用。
 CALIBRATION_READY = False
 
-# UART1: IO40=TX, IO41=RX，已与 MSPM0 UART2 通信验证。
+# 临时联调开关：仅在已确认舵机中位、方向和小幅限位后，才可置 True。
+# True 时 UART 发送当前临时映射的 x_mm 与 valid，供低幅度闭环验证；
+# 不改变 CALIBRATION_READY，也绝不能作为标定完成或性能达标的依据。
+UART_ALLOW_UNCALIBRATED = True
+
+# UART1: IO40=TX, IO41=RX，接 MSPM0 UART1（PB7=RX, PB6=TX）。
 UART_BAUDRATE = 115200
 SEND_PERIOD_MS = 50
 LOG_PERIOD_FRAMES = 30

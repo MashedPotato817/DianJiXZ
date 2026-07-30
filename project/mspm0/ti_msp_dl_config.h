@@ -95,6 +95,18 @@ extern "C" {
 #define GPIO_PWM_0_C1_IOMUX_FUNC                     IOMUX_PINCM16_PF_TIMA1_CCP1
 #define GPIO_PWM_0_C1_IDX                                    DL_TIMER_CC_1_INDEX
 
+/* Defines for PWM_1 */
+#define PWM_1_INST                                                         TIMA0
+#define PWM_1_INST_IRQHandler                                   TIMA0_IRQHandler
+#define PWM_1_INST_INT_IRQN                                     (TIMA0_INT_IRQn)
+#define PWM_1_INST_CLK_FREQ                                              1000000
+/* GPIO defines for channel 0 */
+#define GPIO_PWM_1_C0_PORT                                                 GPIOA
+#define GPIO_PWM_1_C0_PIN                                          DL_GPIO_PIN_8
+#define GPIO_PWM_1_C0_IOMUX                                      (IOMUX_PINCM19)
+#define GPIO_PWM_1_C0_IOMUX_FUNC                     IOMUX_PINCM19_PF_TIMA0_CCP0
+#define GPIO_PWM_1_C0_IDX                                    DL_TIMER_CC_0_INDEX
+
 
 
 /* Defines for TIMER_0 */
@@ -132,9 +144,9 @@ extern "C" {
 #define GPIO_UART_1_IOMUX_TX                                     (IOMUX_PINCM23)
 #define GPIO_UART_1_IOMUX_RX_FUNC                      IOMUX_PINCM24_PF_UART1_RX
 #define GPIO_UART_1_IOMUX_TX_FUNC                      IOMUX_PINCM23_PF_UART1_TX
-#define UART_1_BAUD_RATE                                                  (9600)
-#define UART_1_IBRD_40_MHZ_9600_BAUD                                       (260)
-#define UART_1_FBRD_40_MHZ_9600_BAUD                                        (27)
+#define UART_1_BAUD_RATE                                                (115200)
+#define UART_1_IBRD_40_MHZ_115200_BAUD                                      (21)
+#define UART_1_FBRD_40_MHZ_115200_BAUD                                      (45)
 /* Defines for UART_2 */
 #define UART_2_INST                                                        UART2
 #define UART_2_INST_IRQHandler                                  UART2_IRQHandler
@@ -164,12 +176,6 @@ extern "C" {
 #define ADC12_VOLTAGE_ADCMEM_0_REF_VOLTAGE_V                                     3.3
 #define GPIO_ADC12_VOLTAGE_C0_PORT                                         GPIOA
 #define GPIO_ADC12_VOLTAGE_C0_PIN                                 DL_GPIO_PIN_15
-
-
-
-/* Defines for DMA_CH0 */
-#define DMA_CH0_CHAN_ID                                                      (0)
-#define UART_1_INST_DMA_TRIGGER                              (DMA_UART1_RX_TRIG)
 
 
 
@@ -301,12 +307,12 @@ void SYSCFG_DL_initPower(void);
 void SYSCFG_DL_GPIO_init(void);
 void SYSCFG_DL_SYSCTL_init(void);
 void SYSCFG_DL_PWM_0_init(void);
+void SYSCFG_DL_PWM_1_init(void);
 void SYSCFG_DL_TIMER_0_init(void);
 void SYSCFG_DL_UART_0_init(void);
 void SYSCFG_DL_UART_1_init(void);
 void SYSCFG_DL_UART_2_init(void);
 void SYSCFG_DL_ADC12_VOLTAGE_init(void);
-void SYSCFG_DL_DMA_init(void);
 
 void SYSCFG_DL_SYSTICK_init(void);
 

@@ -1,6 +1,6 @@
-# K230 到 MSPM0 UART2 最小联调脚本（CanMV MicroPython）
-# 接线：K230 IO40/TX -> MSPM0 PB18/UART2_RX
-#       K230 IO41/RX <- MSPM0 PB17/UART2_TX
+# K230 到 MSPM0 UART1 最小联调脚本（CanMV MicroPython）
+# 接线：K230 IO40/TX -> MSPM0 PB7/UART1_RX
+#       K230 IO41/RX <- MSPM0 PB6/UART1_TX
 
 import time
 from machine import FPIOA, UART

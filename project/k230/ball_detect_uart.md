@@ -1,10 +1,12 @@
 # K230 小球检测与 UART 输出
 
-> 相机、摆杆和小球运动平面已机械固定，可开始 `x_mm` 的像素—毫米标定。本文件中的 UART 帧可用于验证传输与解帧；在未完成标定前，视觉位置不得用于舵机闭环。
+> 相机、摆杆和小球运动平面已机械固定，可开始 `x_mm` 的像素—毫米标定。本文件中的 UART 帧可用于验证传输与解帧；在未完成标定前，视觉位置默认不得用于舵机闭环。
 
-未标定时，`ball_detect_config.py` 中的 `CALIBRATION_READY` 必须保持 `False`。此时 `k230_ball_detect_uart.py` 仍以 20 Hz 发送 `$K230,BALL,0.0,0,<seq>#`，用于验证 UART 链路和 MSPM0 解帧；只有机械固定并完成标定后，才能改为 `True` 并发送真实 `x_mm` 与 `valid`。
+未标定时，`ball_detect_config.py` 中的 `CALIBRATION_READY` 必须保持 `False`。默认情况下，`k230_ball_detect_uart.py` 仍以 20 Hz 发送 `$K230,BALL,0.0,0,<seq>#`，用于验证 UART 链路和 MSPM0 解帧。
 
-纯视觉预览入口：`k230_ball_detect_preview.py`；UART 入口：`k230_ball_detect_uart.py`；参数：`ball_detect_config.py`。
+本轮已授权低幅度闭环联调，可临时设置 `UART_ALLOW_UNCALIBRATED=True`：脚本会发送当前临时映射的 `x_mm` 和检测 `valid`，控制端必须保持小脉宽限幅与失帧回中位。该开关**不等于完成标定**；联调后应恢复为 `False`，正式闭环与性能结论仍以五点标定结果为准。
+
+纯视觉预览入口：`k230_ball_detect_preview.py`；UART 入口：`k230_ball_detect_uart.py`。UART 脚本也会在 CanMV IDE/LCD 显示同帧预览，便于联调时核对 `OK/HD/LS`、`x_mm` 与串口输出；参数：`ball_detect_config.py`。
 
 当前仅验证视觉时，上传 `k230_ball_detect_preview.py` 和 `ball_detect_config.py`，在 CanMV IDE 运行预览脚本。IDE 画面中：蓝线是标定中心，绿圈与红十字是候选球，左上角 `BALL OK` 表示连续确认有效，`BALL LS` 表示未确认或丢球。
 
@@ -14,7 +16,7 @@
 $K230,BALL,<x_mm>,<valid>,<seq>#\r\n
 ```
 
-接线保持不变：K230 IO40 到 MSPM0 PB18，K230 IO41 到 PB17，两板共地。
+接线：K230 IO40 到 MSPM0 PB7，K230 IO41 到 PB6，两板共地。
 
 首次运行前必须标定 `ball_detect_config.py`：
 

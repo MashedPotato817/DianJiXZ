@@ -19,6 +19,7 @@ All rights reserved
 ***********************************************/
 #include "control.h"
 #include "k230_link.h"
+#include "ball_control.h"
 
 u8 ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
@@ -31,6 +32,11 @@ Motor_parameter MotorA,MotorB;				//左右电机相关变量
 float Velocity_KP=400,Velocity_KI=300;	
 int Run_Mode=1;//小车运行模式
 u8 Flag_Stop=1;//小车启动标志位
+
+/* 本题 UART1 专用于 K230，未编译蓝牙回调模块时保持底盘遥控量为静止。 */
+int Flag_Left = 0;
+int Flag_Right = 0;
+int Flag_Direction = 0;
 
 static const float Gray_Pos_mm[8] = {
     -3.5f * GRAY_SENSOR_PITCH_MM,
@@ -130,9 +136,13 @@ void Gray_Mode(void)
 }
 void TIMER_0_INST_IRQHandler(void)
 {
+    K230_BallPosition ball_position;
+
     if (DL_TimerG_getPendingInterrupt(TIMER_0_INST) == DL_TIMERG_IIDX_ZERO)
     {
 			K230_Link_Tick5ms();
+			K230_Link_GetPosition(&ball_position);
+			Ball_Control_Step(&ball_position, 0.005f);
 			
 			Key();
 			/* 联调：慢闪=未发，2 Hz=已发无字节，0.5 Hz=收到原始字节，常亮=已解帧。 */

@@ -19,6 +19,8 @@ All rights reserved
 ***********************************************/
 #include "show.h"
 #include "control.h"
+#include "k230_link.h"
+#include "servo.h"
 /**************************************************************************
 Function: OLED display
 Input   : none
@@ -27,7 +29,7 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
-void oled_show(void)
+static void oled_show_legacy(void)
 {
      u8 i;
      int gray_pos_show;
@@ -94,6 +96,57 @@ void oled_show(void)
         OLED_Refresh_Gram();
 		
 }
+
+/*
+ * 当前联调页：UART1 已分配给 K230，因此 OLED 专门显示闭环关键量。
+ * K230 无有效帧（包括超时）时，不显示上一帧位置，避免误判为有效数据。
+ */
+void oled_show(void)
+{
+    K230_BallPosition position;
+    uint16_t pulse_us;
+    uint16_t duty_x100;
+    int x_tenths;
+
+    K230_Link_GetPosition(&position);
+    pulse_us = Servo_GetPulseUs();
+    /* 20 ms 周期：775 表示 7.75%。 */
+    duty_x100 = (uint16_t)(((uint32_t)pulse_us * 10000U + 10000U) / 20000U);
+
+    memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
+    OLED_ShowString(0, 0, "PWM:");
+    OLED_ShowNumber(28, 0, pulse_us, 4, 12);
+    OLED_ShowString(54, 0, "us");
+
+    OLED_ShowString(0, 12, "DUTY:");
+    OLED_ShowNumber(34, 12, duty_x100 / 100U, 2, 12);
+    OLED_ShowString(46, 12, ".");
+    OLED_ShowNumber(52, 12, duty_x100 % 100U, 2, 12);
+    OLED_ShowString(64, 12, "%");
+
+    OLED_ShowString(0, 28, "K230:");
+    OLED_ShowString(36, 28, position.valid ? "OK" : "LS");
+
+    OLED_ShowString(0, 44, "X:");
+    if (position.valid == 0U) {
+        OLED_ShowString(18, 44, "--.-mm");
+    } else {
+        x_tenths = (int)(position.x_mm * 10.0f);
+        if (x_tenths < 0) {
+            OLED_ShowString(18, 44, "-");
+            x_tenths = -x_tenths;
+        } else {
+            OLED_ShowString(18, 44, "+");
+        }
+        OLED_ShowNumber(24, 44, (uint32_t)x_tenths / 10U, 3, 12);
+        OLED_ShowString(42, 44, ".");
+        OLED_ShowNumber(48, 44, (uint32_t)x_tenths % 10U, 1, 12);
+        OLED_ShowString(54, 44, "mm");
+    }
+
+    OLED_Refresh_Gram();
+}
+
 /**************************************************************************
 Function: Send data to APP
 Input   : none
