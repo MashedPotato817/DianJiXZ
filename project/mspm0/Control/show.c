@@ -95,31 +95,28 @@ void oled_show(void)
 		
 }
 /**************************************************************************
-Function: Send data to APP
+Function: Send telemetry to ESP32-C3
 Input   : none
 Output  : none
-函数功能：向APP发送数据
+函数功能：主循环节拍向 ESP32-C3 发送巡线遥测帧（经 UART1）
 入口参数：无
 返回  值：无
+帧格式：$D,<G>,<P>,<Z>,<LT>,<RT>,<LS>,<RS>\n
+  G  =8路灰度掩码(bit0=通道0)  P=软化后线位置(mm)  Z=角速度(mrad/s)
+  LT/RT=左右目标速度(mm/s)     LS/RS=左右实际速度(mm/s)
 **************************************************************************/
 void APP_Show(void)
 {
-  static u8 flag;
-    int Encoder_Left_Show,Encoder_Right_Show,Voltage_Show;
-    Voltage_Show=(Voltage-1000)*2/3;        if(Voltage_Show<0)Voltage_Show=0;if(Voltage_Show>100) Voltage_Show=100;   //对电压数据进行处理
-    Encoder_Right_Show=Velocity_Right*1.1; if(Encoder_Right_Show<0) Encoder_Right_Show=-Encoder_Right_Show;           //对编码器数据就行数据处理便于图形化
-    Encoder_Left_Show=Velocity_Left*1.1;  if(Encoder_Left_Show<0) Encoder_Left_Show=-Encoder_Left_Show;
-    flag=!flag;
-    if(PID_Send==1)         //发送PID参数,在APP调参界面显示
-    {
-        printf("{C%d:%d:%d:%d:%d:%d:%d:%d:%d}$",(int)Velocity_KP,(int)Velocity_KI,(int)0,(int)0,(int)0,(int)0,0,0,0);//打印到APP上面
-        PID_Send=0;
-    }
-   else if(flag==0)     // 发送电池电压，速度，角度等参数，在APP首页显示
-        printf("{A%d:%d:%d:%d}$",(int)Encoder_Left_Show,(int)Encoder_Right_Show,(int)Voltage_Show,(int)0); //打印到APP上面
-     else                               //发送小车姿态角，在波形界面显示
-      printf("{B%d:%d:%d}$",(int)Gray_Line_Pos_mm,(int)0,(int)0); //发送灰度线位置，单位 mm
-                                                                                                                    //可按格式自行增加显示波形，最多可显示五个
+    uint8_t g = 0, i;
+    for (i = 0; i < 8; i++) if (Gray_Raw[i]) g |= (uint8_t)(1U << i);  /* 打包8路灰度掩码 */
+    printf("$D,%d,%d,%d,%d,%d,%d,%d\n",
+           g,
+           (int)Gray_Line_Pos_mm,
+           (int)(Move_Z * 1000.0f),
+           (int)(MotorA.Target_Encoder * 1000.0f),
+           (int)(MotorB.Target_Encoder * 1000.0f),
+           (int)(MotorA.Current_Encoder * 1000.0f),
+           (int)(MotorB.Current_Encoder * 1000.0f));
 }
 /**************************************************************************
 Function: Virtual oscilloscope sends data to upper computer
