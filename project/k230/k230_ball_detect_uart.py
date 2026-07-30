@@ -19,7 +19,8 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 BALL_MAX_ASPECT, BALL_ROI, CIRCLE_ACCUMULATOR,
                                 CIRCLE_CANNY_HIGH, CIRCLE_DP,
                                 CIRCLE_MIN_DISTANCE, CIRCLE_R_MAX,
-                                CIRCLE_R_MIN, DETECT_MODE, FRAME_HEIGHT,
+                                CIRCLE_R_MIN, CIRCLE_USE_ROI_CROP,
+                                DETECT_MODE, FRAME_HEIGHT,
                                 FRAME_WIDTH, IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
@@ -49,17 +50,25 @@ def find_blob_center(frame):
 
 def find_circle_center(frame, previous):
     # cv_lite 仅接收灰度 ndarray，返回扁平列表 [x, y, r, ...]。
+    roi_x, roi_y, roi_w, roi_h = BALL_ROI
+    if CIRCLE_USE_ROI_CROP:
+        circle_frame = frame.copy(roi=BALL_ROI)
+        image_height, image_width = roi_h, roi_w
+    else:
+        circle_frame = frame
+        image_height, image_width = FRAME_HEIGHT, FRAME_WIDTH
+        roi_x, roi_y = 0, 0
+
     raw_circles = cv_lite.grayscale_find_circles(
-        [FRAME_HEIGHT, FRAME_WIDTH], frame.to_numpy_ref(), CIRCLE_DP,
+        [image_height, image_width], circle_frame.to_numpy_ref(), CIRCLE_DP,
         CIRCLE_MIN_DISTANCE, CIRCLE_CANNY_HIGH, CIRCLE_ACCUMULATOR,
         CIRCLE_R_MIN, CIRCLE_R_MAX)
     circles = []
-    roi_x, roi_y, roi_w, roi_h = BALL_ROI
     for index in range(0, len(raw_circles) - 2, 3):
-        center_x = raw_circles[index]
-        center_y = raw_circles[index + 1]
-        if (roi_x <= center_x < roi_x + roi_w and
-                roi_y <= center_y < roi_y + roi_h):
+        center_x = raw_circles[index] + roi_x
+        center_y = raw_circles[index + 1] + roi_y
+        if (BALL_ROI[0] <= center_x < BALL_ROI[0] + BALL_ROI[2] and
+                BALL_ROI[1] <= center_y < BALL_ROI[1] + BALL_ROI[3]):
             circles.append((center_x, center_y))
     if not circles:
         return None

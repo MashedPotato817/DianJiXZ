@@ -18,6 +18,9 @@ BALL_MAX_ASPECT = 1.50
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
 BALL_ROI = (0, 85, FRAME_WIDTH, 55)
+# cv_lite 无 ROI 参数。True 时先复制有效运动带，再在其上执行霍夫圆检测；
+# 需在 K230 上与 False 的全图模式比较 FPS，异常时可立即回退。
+CIRCLE_USE_ROI_CROP = True
 # cv_lite.grayscale_find_circles() 参数。
 CIRCLE_DP = 1
 CIRCLE_MIN_DISTANCE = 20

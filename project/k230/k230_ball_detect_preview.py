@@ -16,7 +16,8 @@ from media.sensor import CAM_CHN_ID_0, CAM_CHN_ID_1, Sensor
 from ball_detect_config import (BALL_ROI, CIRCLE_ACCUMULATOR,
                                 CIRCLE_CANNY_HIGH, CIRCLE_DP,
                                 CIRCLE_MIN_DISTANCE, CIRCLE_R_MAX,
-                                CIRCLE_R_MIN, FRAME_HEIGHT, FRAME_WIDTH,
+                                CIRCLE_R_MIN, CIRCLE_USE_ROI_CROP,
+                                FRAME_HEIGHT, FRAME_WIDTH,
                                 IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
@@ -55,17 +56,27 @@ def log_message(text, log_file):
 
 
 def find_circle(frame, previous):
+    roi_x, roi_y, roi_w, roi_h = BALL_ROI
+    if CIRCLE_USE_ROI_CROP:
+        # cv_lite 无 ROI 参数；裁剪后只在有效运动带内做霍夫变换。
+        circle_frame = frame.copy(roi=BALL_ROI)
+        image_height, image_width = roi_h, roi_w
+    else:
+        circle_frame = frame
+        image_height, image_width = FRAME_HEIGHT, FRAME_WIDTH
+        roi_x, roi_y = 0, 0
+
     raw_circles = cv_lite.grayscale_find_circles(
-        [FRAME_HEIGHT, FRAME_WIDTH], frame.to_numpy_ref(), CIRCLE_DP,
+        [image_height, image_width], circle_frame.to_numpy_ref(), CIRCLE_DP,
         CIRCLE_MIN_DISTANCE, CIRCLE_CANNY_HIGH, CIRCLE_ACCUMULATOR,
         CIRCLE_R_MIN, CIRCLE_R_MAX)
-    roi_x, roi_y, roi_w, roi_h = BALL_ROI
     circles = []
     for index in range(0, len(raw_circles) - 2, 3):
-        x = raw_circles[index]
-        y = raw_circles[index + 1]
+        x = raw_circles[index] + roi_x
+        y = raw_circles[index + 1] + roi_y
         radius = raw_circles[index + 2]
-        if roi_x <= x < roi_x + roi_w and roi_y <= y < roi_y + roi_h:
+        if BALL_ROI[0] <= x < BALL_ROI[0] + BALL_ROI[2] and \
+           BALL_ROI[1] <= y < BALL_ROI[1] + BALL_ROI[3]:
             circles.append((x, y, radius))
     if not circles:
         return None
@@ -197,23 +208,30 @@ def main():
                                          color=(255, 255, 0), thickness=1)
             if center_x is None:
                 if valid:
+                    state = "HD"
                     status = "BALL HD x=%+.2fmm" % x_mm
                 else:
-                    status = "BALL LS fps=%.1f" % clock.fps()
+                    state = "LS"
+                    status = "BALL LS"
             else:
+                state = "OK" if valid else "HD"
                 status = "BALL %s px=%d avg=%.2f x=%+.2fmm" % (
-                    "OK" if valid else "HD", center_x,
+                    state, center_x,
                     filtered_center_x, x_mm)
             display_frame.draw_string_advanced(8, 8, 24, status,
                                                color=(255, 255, 0))
+            # FPS 固定单独显示，所有 OK / HD / LS 状态下均可见。
+            display_frame.draw_string_advanced(DISPLAY_WIDTH - 168, 8, 24,
+                                               "FPS:%.1f" % clock.fps(),
+                                               color=(0, 255, 0))
             Display.show_image(display_frame, 0, 0)
 
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
-                log_message("ball: center_px=%s center_py=%s radius_px=%s "
+                log_message("ball: state=%s center_px=%s center_py=%s radius_px=%s "
                             "center_px_avg=%s reference_px=%.3f x_mm=%.2f "
                             "valid=%d fps=%.1f roi=%s" %
-                            (str(center_x), str(center_y), str(radius),
+                            (state, str(center_x), str(center_y), str(radius),
                              str(filtered_center_x),
                              IMAGE_CENTER_X, x_mm, valid, clock.fps(),
                              str(BALL_ROI)),
