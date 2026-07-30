@@ -29,6 +29,11 @@ DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
 CENTER_LINE_X = int(IMAGE_CENTER_X * DISPLAY_SCALE)
+# 按当前像素—毫米映射绘制静态标定参考线，用于白色管壁实测。
+MINUS_50_LINE_X = int((IMAGE_CENTER_X - 50.0 / MM_PER_PIXEL) *
+                       DISPLAY_SCALE)
+PLUS_50_LINE_X = int((IMAGE_CENTER_X + 50.0 / MM_PER_PIXEL) *
+                      DISPLAY_SCALE)
 
 
 def clamp(value, lower, upper):
@@ -166,11 +171,23 @@ def main():
                                          color=(255, 0, 0), size=20,
                                          thickness=2)
 
-            # 蓝线为标定的摆杆中心；绿圈/红十字为当前候选球。
+            # 蓝线为标定中心，青/紫线分别为 -50/+50 mm 参考位置。
+            display_frame.draw_line(MINUS_50_LINE_X, 0,
+                                    MINUS_50_LINE_X, DISPLAY_HEIGHT,
+                                    color=(0, 255, 255), thickness=1)
+            display_frame.draw_string_advanced(MINUS_50_LINE_X + 4, 36, 16,
+                                               "-50", color=(0, 255, 255))
             display_frame.draw_line(CENTER_LINE_X, 0,
                                     CENTER_LINE_X,
                                     DISPLAY_HEIGHT, color=(0, 0, 255),
                                     thickness=1)
+            display_frame.draw_string_advanced(CENTER_LINE_X + 4, 36, 16,
+                                               "0", color=(0, 0, 255))
+            display_frame.draw_line(PLUS_50_LINE_X, 0,
+                                    PLUS_50_LINE_X, DISPLAY_HEIGHT,
+                                    color=(255, 0, 255), thickness=1)
+            display_frame.draw_string_advanced(PLUS_50_LINE_X + 4, 36, 16,
+                                               "+50", color=(255, 0, 255))
             if center_x is None:
                 if valid:
                     status = "BALL HD x=%+.2fmm" % x_mm

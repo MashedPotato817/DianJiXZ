@@ -52,7 +52,7 @@ print("cv_lite OK")
 2. 在 CanMV IDE 打开并运行 `k230_ball_detect_preview.py`。
 3. 查看 IDE 预览：
 
-   - 蓝线：`IMAGE_CENTER_X` 对应的摆杆中心；
+   - 青线 / 蓝线 / 紫线：按当前标定映射绘制的 `-50 mm / 0 / +50 mm` 参考位置；
    - 绿圈和红十字：当前小球候选；
    - `BALL OK`：连续检测达到 `STABLE_FRAMES`，结果有效；
    - `BALL HD`：候选尚在连续确认中，或短暂漏检时保持上次有效位置；
