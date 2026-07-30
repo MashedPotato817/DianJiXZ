@@ -80,4 +80,8 @@ firmware/WHEELTEC_C07A_CAR_SPEEDUP/.metadata/.tirex/package.tirex.json
 **/det_results/
 firmware/Medicine_Cart/log.md
 
-/firmware/demo2/
+firmware/demo2/
+
+# 参考资料
+reference/
+project/k230/log/
