@@ -61,6 +61,17 @@ UART_BAUDRATE = 115200
 SEND_PERIOD_MS = 50
 LOG_PERIOD_FRAMES = 30
 
+# 终端默认只保留启动、一次 ACK 和低频摘要；避免 MSPM0 心跳/RX 原始字节刷屏。
+# 排查串口异常时才临时打开，测试完成后恢复 False。
+ENABLE_UART_RX_DEBUG = False
+# 端口、模式等启动配置仅在排查部署配置时显示，日常运行保持 False。
+ENABLE_STARTUP_CONFIG_LOG = False
+# 日常终端只输出状态变化；TXT 仍保留低频样本供调参。
+# 打开后才将同一摘要同步显示到终端。
+ENABLE_CONSOLE_SUMMARY = False
+ENABLE_LOG_SUMMARY = True
+LOG_SUMMARY_PERIOD_MS = 1000
+
 # K230 本地检测日志。仅记录应用输出，不捕获 CanMV 固件启动时的系统日志。
 ENABLE_LOG_FILE = True
 LOG_FOLDER_PATH = "/data/ball_detect_preview/"

@@ -23,12 +23,16 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 CIRCLE_CANNY_HIGH, CIRCLE_DP,
                                 CIRCLE_MIN_DISTANCE, CIRCLE_R_MAX,
                                 CIRCLE_R_MIN, CIRCLE_USE_ROI_CROP,
-                                DETECT_MODE, FRAME_HEIGHT,
-                                FRAME_WIDTH, IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
+                                DETECT_MODE, ENABLE_CONSOLE_SUMMARY,
+                                ENABLE_LOG_SUMMARY,
+                                ENABLE_STARTUP_CONFIG_LOG,
+                                ENABLE_UART_RX_DEBUG, FRAME_HEIGHT,
+                                FRAME_WIDTH, IMAGE_CENTER_X,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
                                 EDGE_LOST_PIXEL_MARGIN,
-                                SEND_PERIOD_MS, STABLE_FRAMES, UART_BAUDRATE,
+                                LOG_SUMMARY_PERIOD_MS, SEND_PERIOD_MS,
+                                STABLE_FRAMES, UART_BAUDRATE,
                                 CALIBRATION_READY, UART_ALLOW_UNCALIBRATED,
                                 ENABLE_LOG_FILE, LOG_FOLDER_PATH)
 
@@ -56,11 +60,12 @@ def log_timestamp():
            (now[0], now[1], now[2], now[3], now[4], now[5])
 
 
-def log_message(text, log_file):
-    """终端与文件输出保持一致，文件不可用时仍保留终端信息。"""
+def log_message(text, log_file, to_console=True, to_file=True):
+    """按需输出到终端和 TXT；常规运行避免将诊断流写入两端。"""
     line = "[%s] %s" % (log_timestamp(), text)
-    print(line)
-    if log_file is not None:
+    if to_console:
+        print(line)
+    if to_file and log_file is not None:
         log_file.write(line + "\n")
         log_file.flush()
 
@@ -158,9 +163,11 @@ def main():
         MediaManager.init()
         sensor.run()
 
-        log_message("K230 BALL detection started", log_file)
-        log_message("mode=%s, UART1 IO40/IO41, %d baud" %
-                    (DETECT_MODE, UART_BAUDRATE), log_file)
+        log_message("K230 BALL UART started", log_file)
+        # 保留部署配置打印入口；日常运行不需要反复关注这些固定参数。
+        if ENABLE_STARTUP_CONFIG_LOG:
+            log_message("config: mode=%s UART1 IO40/IO41 %d baud" %
+                        (DETECT_MODE, UART_BAUDRATE), log_file)
         if (CALIBRATION_READY == False) and UART_ALLOW_UNCALIBRATED:
             log_message("WARNING: temporary uncalibrated UART position mode",
                         log_file)
@@ -172,7 +179,11 @@ def main():
         last_valid_x_mm = 0.0
         last_valid_center_x = None
         last_send_ms = time.ticks_ms()
-        frame_count = 0
+        last_summary_ms = last_send_ms
+        last_reported_state = None
+        tx_x_mm = 0.0
+        tx_valid = 0
+        tx_edge_direction = 0
         clock = time.clock()
 
         while True:
@@ -264,6 +275,12 @@ def main():
                                                color=(0, 255, 0))
             Display.show_image(display_frame, 0, 0)
 
+            # 终端只在状态实际改变时提醒。运行中的连续数值保留给 TXT 摘要。
+            if state != last_reported_state:
+                log_message("STATE %s VIS=%+.1f valid=%d" %
+                            (state, x_mm, valid), log_file)
+                last_reported_state = state
+
             now_ms = time.ticks_ms()
             if time.ticks_diff(now_ms, last_send_ms) >= SEND_PERIOD_MS:
                 sequence += 1
@@ -284,21 +301,25 @@ def main():
             if uart.any():
                 response = uart.read()
                 if response:
-                    log_message("RX: %s" % response, log_file)
+                    # 原始回包和心跳会显著降低终端可读性，仅在排查链路时打开。
+                    if ENABLE_UART_RX_DEBUG:
+                        log_message("RX: %s" % response, log_file)
                     if b"$MSPM0,ACK#" in response:
-                        log_message("MSPM0 BALL frame acknowledged", log_file)
-                    if b"$MSPM0,HELLO#" in response:
-                        log_message("MSPM0 heartbeat received", log_file)
+                        log_message("LINK ACK", log_file)
 
-            frame_count += 1
-            if frame_count % LOG_PERIOD_FRAMES == 0:
-                log_message("vision: source=%s x_mm=%.1f valid=%d | "
-                            "uart: x_mm=%.1f valid=%d edge=%d seq=%d mode=%s" %
-                            (source, x_mm, valid, tx_x_mm, tx_valid,
-                             tx_edge_direction, sequence,
-                             "cal" if CALIBRATION_READY else
-                             ("temp" if UART_ALLOW_UNCALIBRATED else "safe")),
-                            log_file)
+            # 视觉帧与 UART 发送周期不同。摘要明确区分 VIS（当前画面）和
+            # TX（最近一次已发送帧），避免把二者的瞬时差异误判为串口错误。
+            if ENABLE_LOG_SUMMARY and \
+                    time.ticks_diff(now_ms, last_summary_ms) >= \
+                    LOG_SUMMARY_PERIOD_MS:
+                tx_age_ms = time.ticks_diff(now_ms, last_send_ms)
+                log_message("BALL %s VIS=%+.1f/%d TX=%+.1f/%d edge=%+d "
+                            "seq=%d age=%dms fps=%.1f" %
+                            (state, x_mm, valid, tx_x_mm, tx_valid,
+                             tx_edge_direction, sequence, tx_age_ms,
+                             clock.fps()), log_file,
+                            to_console=ENABLE_CONSOLE_SUMMARY)
+                last_summary_ms = now_ms
             gc.collect()
     finally:
         if sensor is not None:
