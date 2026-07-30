@@ -1,0 +1,15 @@
+# 根目录已统一忽略 Objects、HEX、AXF、日志等编译产物；
+# 本文件补充各 IDE 的工程用户状态，保留可复现的工程与 SysConfig 源文件。
+
+# Keil uVision 用户会话与本地插件状态
+keil/*.uvoptx
+keil/.vscode/
+
+# IAR 用户会话与本地构建目录
+iar/*.ewd
+iar/Debug/
+iar/settings/
+
+# GCC / TI Clang 本地构建目录
+gcc/Debug/
+ticlang/Debug/
