@@ -51,8 +51,10 @@ extern float Gray_Line_Pos_mm;
 #define GRAY_SENSOR_FORWARD_MM       134.0f   /* 灰度传感器至左右轮中心中点的前向实测距离 */
 #define GRAY_CENTER_OFFSET_MM        0.0f    /* 居中时 OLED P 的实测静态偏差补偿 */
 #define GRAY_CENTER_SENSOR_MASK      0x18U   /* 通道 3/4：00011000，单灯或双灯均视为居中 */
-#define GRAY_STEER_GAIN              1.30f    /* 降低直线离散灯位切换造成的左右摆动 */
+#define GRAY_STEER_GAIN              1.30f   /* 降低直线离散灯位切换造成的左右摆动 */
 #define GRAY_MAX_COMMAND_CURVATURE   3.20f    /* 最小指令半径约 0.31 m，兼容 r=0.4~0.5 m 操场弯道 */
+#define GRAY_CENTER_DEADBAND_MM      16.0f   /* 中心死区，压制相邻灯组合(±12mm)引起的直道自激摆动 */
+#define GRAY_STEER_FILTER_ALPHA      1.00f   /* Move_Z 一阶低通；死区已破自激，此处回退为 1.0(关闭)以隔离验证 */
 //电机速度控制相关参数结构体
 typedef struct  
 {

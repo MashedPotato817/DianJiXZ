@@ -113,12 +113,17 @@ void Gray_Mode(void)
     /* 物理居中组合 00001000、00010000、00011000 明确直走。 */
     if ((black_mask != 0U) &&
         ((black_mask & (uint8_t)(~GRAY_CENTER_SENSOR_MASK)) == 0U)) Gray_Line_Pos_mm = 0;
+    /* 中心死区：相邻灯组合(2+3、4+5)质心约 ±12mm，落在死区内视为直走，破除直道自激摆动。 */
+    if (Gray_Line_Pos_mm > -GRAY_CENTER_DEADBAND_MM &&
+        Gray_Line_Pos_mm <  GRAY_CENTER_DEADBAND_MM) Gray_Line_Pos_mm = 0;
     Move_X = GRAY_BASE_SPEED_MM_S / 1000.0f;
 
     y_m = Gray_Line_Pos_mm / 1000.0f;
     lookahead_m = GRAY_SENSOR_FORWARD_MM / 1000.0f;
     curvature = (2.0f * y_m) / (lookahead_m * lookahead_m + y_m * y_m);
     Move_Z = -GRAY_STEER_GAIN * Move_X * curvature;
+    /* 一阶低通：灯位跳变时让角速度指令平滑过渡，复用 last_valid_move_z 作为滤波状态 */
+    Move_Z = GRAY_STEER_FILTER_ALPHA * Move_Z + (1.0f - GRAY_STEER_FILTER_ALPHA) * last_valid_move_z;
 
     max_angular_speed = GRAY_MAX_COMMAND_CURVATURE * Move_X;
     if (Move_Z > max_angular_speed) Move_Z = max_angular_speed;
