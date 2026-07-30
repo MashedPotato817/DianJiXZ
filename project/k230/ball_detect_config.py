@@ -12,10 +12,12 @@ BALL_MAX_PIXELS = 5000
 BALL_MIN_ASPECT = 0.65
 BALL_MAX_ASPECT = 1.50
 
-# 圆检测参数。应把 ROI 收紧到摆杆可见区域，排除背景上的圆形物体。
+# 圆检测参数。横向保留全范围，避免限制小球全行程；
+# 由白管预览画面将小球轨迹的纵向中心约束在 y=85–139 px
+# 在管子上下保留余量。
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
-BALL_ROI = (0, 0, FRAME_WIDTH, FRAME_HEIGHT)
+BALL_ROI = (0, 85, FRAME_WIDTH, 55)
 # cv_lite.grayscale_find_circles() 参数。
 CIRCLE_DP = 1
 CIRCLE_MIN_DISTANCE = 20

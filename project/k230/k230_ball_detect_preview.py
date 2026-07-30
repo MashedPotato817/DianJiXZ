@@ -126,6 +126,7 @@ def main():
             ball = find_circle(detect_frame, previous)
             center_x = None
             center_y = None
+            radius = None
 
             if ball is not None and previous is not None:
                 dx = ball[0] - previous[0]
@@ -188,6 +189,12 @@ def main():
                                     color=(255, 0, 255), thickness=1)
             display_frame.draw_string_advanced(PLUS_50_LINE_X + 4, 36, 16,
                                                "+50", color=(255, 0, 255))
+            roi_x, roi_y, roi_w, roi_h = BALL_ROI
+            display_frame.draw_rectangle(roi_x * DISPLAY_SCALE,
+                                         roi_y * DISPLAY_SCALE,
+                                         roi_w * DISPLAY_SCALE,
+                                         roi_h * DISPLAY_SCALE,
+                                         color=(255, 255, 0), thickness=1)
             if center_x is None:
                 if valid:
                     status = "BALL HD x=%+.2fmm" % x_mm
@@ -203,10 +210,13 @@ def main():
 
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
-                log_message("ball: center_px=%s center_px_avg=%s "
-                            "reference_px=%.3f x_mm=%.2f valid=%d fps=%.1f" %
-                            (str(center_x), str(filtered_center_x),
-                             IMAGE_CENTER_X, x_mm, valid, clock.fps()),
+                log_message("ball: center_px=%s center_py=%s radius_px=%s "
+                            "center_px_avg=%s reference_px=%.3f x_mm=%.2f "
+                            "valid=%d fps=%.1f roi=%s" %
+                            (str(center_x), str(center_y), str(radius),
+                             str(filtered_center_x),
+                             IMAGE_CENTER_X, x_mm, valid, clock.fps(),
+                             str(BALL_ROI)),
                             log_file)
             gc.collect()
     finally:
