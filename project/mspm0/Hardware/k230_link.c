@@ -69,6 +69,24 @@ static uint8_t K230_ParseFloat(const char **text, float *value)
     return 1U;
 }
 
+static uint8_t K230_ParseEdgeDirection(const char **text, int8_t *value)
+{
+    uint32_t magnitude;
+    int8_t sign = 1;
+
+    if (**text == '-') {
+        sign = -1;
+        (*text)++;
+    } else if (**text == '+') {
+        (*text)++;
+    }
+    if ((K230_ParseUnsigned(text, &magnitude) == 0U) || (magnitude > 1U)) {
+        return 0U;
+    }
+    *value = (int8_t)((int32_t)sign * (int32_t)magnitude);
+    return 1U;
+}
+
 static void K230_SendString(const char *text)
 {
     g_tx_attempted = 1U;
@@ -85,6 +103,7 @@ static void K230_ParseLine(const char *line)
     float x_mm;
     uint32_t valid;
     uint32_t seq;
+    int8_t edge_direction = 0;
 
     /* UART1 PB6->PB7 本地回环的最短令牌，排除长帧字段解析干扰。 */
     if ((text[0] == '$') && (text[1] == 'L') && (text[2] == '#') &&
@@ -113,13 +132,24 @@ static void K230_ParseLine(const char *line)
     text += 11;
     if ((K230_ParseFloat(&text, &x_mm) == 0U) || (*text++ != ',') ||
         (K230_ParseUnsigned(&text, &valid) == 0U) || (*text++ != ',') ||
-        (K230_ParseUnsigned(&text, &seq) == 0U) || (*text != '#') ||
-        (text[1] != '\0') || (valid > 1U)) {
+        (K230_ParseUnsigned(&text, &seq) == 0U) || (valid > 1U)) {
+        g_diagnostics.parse_errors++;
+        return;
+    }
+    if (*text == ',') {
+        text++;
+        if (K230_ParseEdgeDirection(&text, &edge_direction) == 0U) {
+            g_diagnostics.parse_errors++;
+            return;
+        }
+    }
+    if ((*text != '#') || (text[1] != '\0')) {
         g_diagnostics.parse_errors++;
         return;
     }
 
-    K230_Link_UpdatePosition(x_mm, 0.0f, (uint8_t)valid, g_now_ms);
+    K230_Link_UpdatePosition(x_mm, 0.0f, (uint8_t)valid, edge_direction,
+                             g_now_ms);
     g_last_frame_ms = g_now_ms;
     g_diagnostics.last_seq = seq;
     g_diagnostics.valid_frames++;
@@ -159,6 +189,7 @@ void K230_Link_Init(void)
     g_ball_position.x_mm = 0.0f;
     g_ball_position.y_mm = 0.0f;
     g_ball_position.valid = 0U;
+    g_ball_position.edge_direction = 0;
     g_ball_position.timestamp_ms = 0U;
     g_diagnostics.rx_bytes = 0U;
     g_diagnostics.rx_overruns = 0U;
@@ -211,6 +242,7 @@ void K230_Link_Process(void)
     if ((g_diagnostics.timed_out == 0U) &&
         ((uint32_t)(g_now_ms - g_last_frame_ms) > K230_LINK_TIMEOUT_MS)) {
         g_ball_position.valid = 0U;
+        g_ball_position.edge_direction = 0;
         g_diagnostics.timed_out = 1U;
     }
 }
@@ -234,11 +266,12 @@ void K230_Link_UART1_IRQHandler(void)
 }
 
 void K230_Link_UpdatePosition(float x_mm, float y_mm, uint8_t valid,
-                              uint32_t timestamp_ms)
+                              int8_t edge_direction, uint32_t timestamp_ms)
 {
     g_ball_position.x_mm = x_mm;
     g_ball_position.y_mm = y_mm;
     g_ball_position.valid = valid;
+    g_ball_position.edge_direction = edge_direction;
     g_ball_position.timestamp_ms = timestamp_ms;
 }
 

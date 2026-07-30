@@ -36,7 +36,7 @@ uint16_t Servo_GetPulseUs(void)
 
 void Servo_ApplyHardware(void)
 {
-    float pulse = (float)SERVO_PULSE_NEUTRAL_US +
+    float pulse = (float)SERVO_PULSE_MIN_US +
                   g_servo_target_angle_deg * SERVO_US_PER_DEG;
 
     if (pulse > (float)SERVO_PULSE_MAX_US) {

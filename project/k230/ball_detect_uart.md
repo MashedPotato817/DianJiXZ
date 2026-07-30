@@ -13,8 +13,10 @@
 它使用 `cv_lite.grayscale_find_circles()` 检测灰度图中的小球，并发送已经验证的 UART 帧：
 
 ```text
-$K230,BALL,<x_mm>,<valid>,<seq>#\r\n
+$K230,BALL,<x_mm>,<valid>,<seq>,<edge>#\r\n
 ```
+
+`edge` 为可选的边缘丢失方向：`-1` 表示最后可靠球心靠近画面左边缘后丢失，`+1` 表示右边缘，`0` 表示正常或普通漏检。M0 仅在 `valid=0` 且 `edge` 非零时执行限时向中心恢复；旧的五字段测试帧仍兼容。
 
 接线：K230 IO40 到 MSPM0 PB7，K230 IO41 到 PB6，两板共地。
 

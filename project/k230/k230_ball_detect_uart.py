@@ -27,6 +27,7 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 FRAME_WIDTH, IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
+                                EDGE_LOST_PIXEL_MARGIN,
                                 SEND_PERIOD_MS, STABLE_FRAMES, UART_BAUDRATE,
                                 CALIBRATION_READY, UART_ALLOW_UNCALIBRATED,
                                 ENABLE_LOG_FILE, LOG_FOLDER_PATH)
@@ -169,6 +170,7 @@ def main():
         lost_streak = LOST_FRAMES
         previous = None
         last_valid_x_mm = 0.0
+        last_valid_center_x = None
         last_send_ms = time.ticks_ms()
         frame_count = 0
         clock = time.clock()
@@ -181,6 +183,7 @@ def main():
             source = "none"
             center_x = None
             center_y = None
+            edge_direction = 0
 
             if detected is not None:
                 center_x, center_y, source = detected
@@ -198,8 +201,15 @@ def main():
                 if lost_streak >= LOST_FRAMES:
                     valid_streak = 0
                     previous = None
-                    x_mm = 0.0
+                    # 位置值保留到最后一次可靠检测，供 MSPM0 判断边缘恢复方向。
+                    x_mm = last_valid_x_mm
                     valid = 0
+                    if last_valid_center_x is not None:
+                        if last_valid_center_x < EDGE_LOST_PIXEL_MARGIN:
+                            edge_direction = -1
+                        elif last_valid_center_x >= \
+                                FRAME_WIDTH - EDGE_LOST_PIXEL_MARGIN:
+                            edge_direction = 1
                 else:
                     x_mm = last_valid_x_mm
                     valid = 1 if valid_streak >= STABLE_FRAMES else 0
@@ -213,6 +223,7 @@ def main():
                 valid = 1 if valid_streak >= STABLE_FRAMES else 0
                 if valid:
                     last_valid_x_mm = x_mm
+                    last_valid_center_x = center_x
 
             if center_x is not None:
                 display_frame.draw_cross(center_x * DISPLAY_SCALE,
@@ -259,11 +270,14 @@ def main():
                 if CALIBRATION_READY or UART_ALLOW_UNCALIBRATED:
                     tx_x_mm = x_mm
                     tx_valid = valid
+                    tx_edge_direction = edge_direction
                 else:
                     tx_x_mm = 0.0
                     tx_valid = 0
-                uart.write(("$K230,BALL,%.1f,%d,%d#\r\n" %
-                            (tx_x_mm, tx_valid, sequence)).encode())
+                    tx_edge_direction = 0
+                uart.write(("$K230,BALL,%.1f,%d,%d,%d#\r\n" %
+                            (tx_x_mm, tx_valid, sequence,
+                             tx_edge_direction)).encode())
                 last_send_ms = now_ms
 
             # 清空 MSPM0 心跳与 ACK，避免 K230 接收 FIFO 积累。
@@ -279,8 +293,9 @@ def main():
             frame_count += 1
             if frame_count % LOG_PERIOD_FRAMES == 0:
                 log_message("vision: source=%s x_mm=%.1f valid=%d | "
-                            "uart: x_mm=%.1f valid=%d seq=%d mode=%s" %
-                            (source, x_mm, valid, tx_x_mm, tx_valid, sequence,
+                            "uart: x_mm=%.1f valid=%d edge=%d seq=%d mode=%s" %
+                            (source, x_mm, valid, tx_x_mm, tx_valid,
+                             tx_edge_direction, sequence,
                              "cal" if CALIBRATION_READY else
                              ("temp" if UART_ALLOW_UNCALIBRATED else "safe")),
                             log_file)

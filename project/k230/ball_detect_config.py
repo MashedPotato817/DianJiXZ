@@ -34,6 +34,9 @@ CIRCLE_R_MAX = 45
 STABLE_FRAMES = 3
 LOST_FRAMES = 3
 MAX_CENTER_JUMP_PX = 28
+# 仅供“球从相机视野边缘离开”恢复策略使用。连续丢失前，最后可靠球心
+# 落在图像左右各 24 px 内时，才报告 edge=-1 / +1；中途漏检保持 edge=0。
+EDGE_LOST_PIXEL_MARGIN = 24
 
 # CALIBRATION: 图像横坐标到摆杆横向位置的线性映射。
 # 本轮三点静态实测（-50/0/+50 mm）有效帧中位数线性拟合：

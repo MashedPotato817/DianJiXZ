@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* UART1 最小联调协议：$K230,BALL,<x_mm>,<valid>,<seq># */
+/* 兼容基础帧 $K230,BALL,<x_mm>,<valid>,<seq>#；视觉帧可追加 <edge>。 */
 #define K230_LINK_TIMEOUT_MS 100U
 
 /* K230 输出的小球位置：摆杆中心为 0，右侧为正，单位 mm。 */
@@ -11,6 +11,7 @@ typedef struct {
     float x_mm;
     float y_mm;
     uint8_t valid;
+    int8_t edge_direction; /* -1 左侧离开视野，+1 右侧离开，0 非边缘或正常。 */
     uint32_t timestamp_ms;
 } K230_BallPosition;
 
@@ -30,7 +31,7 @@ void K230_Link_UART1_IRQHandler(void);
 /* 5 ms 定时中断调用：提供链路时间基准。 */
 void K230_Link_Tick5ms(void);
 void K230_Link_UpdatePosition(float x_mm, float y_mm, uint8_t valid,
-                              uint32_t timestamp_ms);
+                              int8_t edge_direction, uint32_t timestamp_ms);
 void K230_Link_GetPosition(K230_BallPosition *position);
 void K230_Link_GetDiagnostics(K230_LinkDiagnostics *diagnostics);
 /* 最小联调 LED 指示：至少接收过一帧合法 BALL 数据时返回 1。 */
