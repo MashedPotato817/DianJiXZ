@@ -329,7 +329,7 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
     if (error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) {
         /*
          * 中心容差内不再套用 RUN 的 12 度动摩擦下限。
-         * 仍有速度时只用 2~4 度低强度阻尼，避免刚过中心就被大力反推。
+         * 2~8 度阻尼随速度连续增长：低速不反推过度，高速仍能制动。
          */
         if (Ball_Control_Abs(
                 g_ball_control.filtered_velocity_mm_s) <=
@@ -341,9 +341,9 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
             g_ball_control.phase = BALL_CONTROL_PHASE_BRAKE;
             g_ball_control.phase_before_hold =
                 BALL_CONTROL_PHASE_BRAKE;
-            output = g_ball_control.kp * error +
-                     g_ball_control.kd *
-                     g_ball_control.filtered_velocity_mm_s;
+            output =
+                BALL_CONTROL_CAPTURE_DAMP_KD_DEG_S_PER_MM *
+                g_ball_control.filtered_velocity_mm_s;
             if ((g_ball_control.filtered_velocity_mm_s > 0.0f) &&
                 (output < BALL_CONTROL_CAPTURE_DAMP_MIN_DEG)) {
                 output = BALL_CONTROL_CAPTURE_DAMP_MIN_DEG;
@@ -433,6 +433,11 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
              g_ball_control.filtered_velocity_mm_s;
 
     if (g_ball_control.phase == BALL_CONTROL_PHASE_RUN) {
+        /*
+         * RUN_MIN 为 0：不再用固定 12 度维持推动。
+         * 这里只阻止尚未到达制动切换面时提前反向，允许输出自然降到 0；
+         * 若球在中心外重新停住，前面的 STALL 分支会再次进入 ACC。
+         */
         if ((error_direction > 0) &&
             (output < BALL_CONTROL_RUN_MIN_DEG)) {
             output = BALL_CONTROL_RUN_MIN_DEG;

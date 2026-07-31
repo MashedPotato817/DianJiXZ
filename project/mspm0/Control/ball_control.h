@@ -49,7 +49,7 @@ typedef struct {
 #define BALL_CONTROL_VELOCITY_CONFIRM_MM_S (12.0f)
 #define BALL_CONTROL_VELOCITY_STALL_MM_S    (8.0f)
 #define BALL_CONTROL_VELOCITY_STOP_MM_S     (8.0f)
-#define BALL_CONTROL_VELOCITY_CONFIRM_FRAMES (2U)
+#define BALL_CONTROL_VELOCITY_CONFIRM_FRAMES (1U)
 #define BALL_CONTROL_MAX_SAMPLE_PERIOD_MS  (250U)
 
 /* 非目标静止时连续施力，不在档位之间回中。 */
@@ -59,11 +59,16 @@ typedef struct {
 #define BALL_CONTROL_ACCEL_STEP_MS          (300U)
 #define BALL_CONTROL_ACCEL_TIMEOUT_MS      (1200U)
 
-/* 已滚动后保持动摩擦，再按估算制动距离反向制动。 */
-#define BALL_CONTROL_RUN_MIN_DEG            (12.0f)
+/*
+ * 首帧确认回中运动后立即撤掉脱困强推力。
+ * RUN 不设固定同向下限，只保留位置/速度 PD；若中心外再次停住，
+ * 由 STALL 判断重新进入 ACC，而不是持续给球增加动能。
+ */
+#define BALL_CONTROL_RUN_MIN_DEG             (0.0f)
 #define BALL_CONTROL_BRAKE_MIN_DEG           (6.0f)
+#define BALL_CONTROL_CAPTURE_DAMP_KD_DEG_S_PER_MM (0.08f)
 #define BALL_CONTROL_CAPTURE_DAMP_MIN_DEG    (2.0f)
-#define BALL_CONTROL_CAPTURE_DAMP_MAX_DEG    (4.0f)
+#define BALL_CONTROL_CAPTURE_DAMP_MAX_DEG    (8.0f)
 #define BALL_CONTROL_BRAKE_ACCEL_MM_S2     (250.0f)
 #define BALL_CONTROL_BRAKE_MARGIN_MM         (2.0f)
 #define BALL_CONTROL_NORMAL_MAX_DEG         (20.0f)
