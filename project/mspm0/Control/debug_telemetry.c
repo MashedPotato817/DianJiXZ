@@ -7,7 +7,8 @@
 
 /*
  * ctrl:
- * 0=OFF, 1=CAP, 2=ACC, 3=RUN, 4=BRK, 5=EDGE, 6=FLT, 7=HOLD, 8=LOST.
+ * 0=OFF, 1=CAP, 2=ACC, 3=RUN, 4=BRK, 5=EDGE, 6=FLT, 7=HOLD, 8=LOST,
+ * 9=PASS.
  * wheel_encA_raw/wheel_encB_raw 是 dt_ms 时间窗内的底盘轮编码器累计增量，
  * 不是舵机角度。wheel_enc_valid=0 时仅用于观察悬空输入或电气干扰。
  */

@@ -173,6 +173,9 @@ void oled_show(void)
         case BALL_CONTROL_PHASE_LOST:
             OLED_ShowString(36, 56, "LOST");
             break;
+        case BALL_CONTROL_PHASE_PASS:
+            OLED_ShowString(36, 56, "PASS");
+            break;
         case BALL_CONTROL_PHASE_OFF:
         default:
             OLED_ShowString(36, 56, "OFF ");

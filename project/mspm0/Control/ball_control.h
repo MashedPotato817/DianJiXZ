@@ -12,7 +12,8 @@ typedef enum {
     BALL_CONTROL_PHASE_EDGE = 5,
     BALL_CONTROL_PHASE_FAULT = 6,
     BALL_CONTROL_PHASE_HOLD = 7,
-    BALL_CONTROL_PHASE_LOST = 8
+    BALL_CONTROL_PHASE_LOST = 8,
+    BALL_CONTROL_PHASE_PASS = 9
 } Ball_ControlPhase;
 
 typedef struct {
@@ -26,6 +27,7 @@ typedef struct {
     float trim_angle_deg;
     float last_command_angle_deg;
     float last_output_deg;
+    float pass_target_abs_mm;
     uint32_t last_timestamp_ms;
     uint32_t last_valid_control_ms;
     uint32_t control_now_ms;
@@ -37,13 +39,14 @@ typedef struct {
     uint8_t velocity_confirm_frames;
     uint8_t accel_level;
     int8_t motion_direction;
+    int8_t correction_start_direction;
     Ball_ControlPhase phase;
     Ball_ControlPhase phase_before_hold;
 } Ball_Control;
 
 #define BALL_CONTROL_ENABLE_DEFAULT   (1U)
-#define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)
-#define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)
+#define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)   //Kp
+#define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)  //Kd
 #define BALL_CONTROL_TARGET_TOLERANCE_MM    (2.0f)
 #define BALL_CONTROL_VELOCITY_FILTER_ALPHA  (0.45f)
 #define BALL_CONTROL_VELOCITY_CONFIRM_MM_S (12.0f)
@@ -72,6 +75,19 @@ typedef struct {
 #define BALL_CONTROL_BRAKE_ACCEL_MM_S2     (250.0f)
 #define BALL_CONTROL_BRAKE_MARGIN_MM         (2.0f)
 #define BALL_CONTROL_NORMAL_MAX_DEG         (20.0f)
+
+/*
+ * 首次过零后不立即反向 ACC，而是先用有限阻尼完成一次受控过零。
+ * 目标反侧距离取本轮起始误差的 20%，并限制在 3~8 mm。
+ */
+#define BALL_CONTROL_PASS_TARGET_RATIO        (0.20f)
+#define BALL_CONTROL_PASS_TARGET_MIN_MM       (3.0f)
+#define BALL_CONTROL_PASS_TARGET_MAX_MM       (8.0f)
+#define BALL_CONTROL_PASS_DAMP_KD_DEG_S_PER_MM (0.05f)
+#define BALL_CONTROL_PASS_DAMP_MIN_DEG        (2.0f)
+#define BALL_CONTROL_PASS_DAMP_SOFT_MAX_DEG   (4.0f)
+#define BALL_CONTROL_PASS_DAMP_HARD_MAX_DEG   (6.0f)
+#define BALL_CONTROL_PASS_MIN_HOLD_MS       (150U)
 
 /*
  * 90 度只是上电种子，不是假定不变的物理平衡点。

@@ -67,6 +67,7 @@ static void Ball_Control_UpdateTrim(float error, float velocity,
         (g_ball_control.phase == BALL_CONTROL_PHASE_EDGE) ||
         (g_ball_control.phase == BALL_CONTROL_PHASE_HOLD) ||
         (g_ball_control.phase == BALL_CONTROL_PHASE_LOST) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_PASS) ||
         (g_ball_control.phase == BALL_CONTROL_PHASE_FAULT)) {
         return;
     }
@@ -91,10 +92,23 @@ static void Ball_Control_ClearMotion(Ball_ControlPhase phase)
     g_ball_control.velocity_confirm_frames = 0U;
     g_ball_control.accel_level = 0U;
     g_ball_control.motion_direction = 0;
+    g_ball_control.correction_start_direction = 0;
+    g_ball_control.pass_target_abs_mm = 0.0f;
 }
 
 static void Ball_Control_StartAccel(float error)
 {
+    float start_abs;
+
+    if (g_ball_control.correction_start_direction == 0) {
+        g_ball_control.correction_start_direction =
+            (error > 0.0f) ? 1 : -1;
+        start_abs = Ball_Control_Abs(error);
+        g_ball_control.pass_target_abs_mm = Ball_Control_Clamp(
+            BALL_CONTROL_PASS_TARGET_RATIO * start_abs,
+            BALL_CONTROL_PASS_TARGET_MIN_MM,
+            BALL_CONTROL_PASS_TARGET_MAX_MM);
+    }
     g_ball_control.phase = BALL_CONTROL_PHASE_ACCEL;
     g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_ACCEL;
     g_ball_control.phase_start_ms = g_ball_control.control_now_ms;
@@ -120,6 +134,70 @@ static float Ball_Control_GetAccelOutput(void)
         output = BALL_CONTROL_ACCEL_MAX_DEG;
     }
     return (float)g_ball_control.motion_direction * output;
+}
+
+static void Ball_Control_StartPass(void)
+{
+    g_ball_control.phase = BALL_CONTROL_PHASE_PASS;
+    g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_PASS;
+    g_ball_control.phase_start_ms = g_ball_control.control_now_ms;
+    g_ball_control.velocity_confirm_frames = 0U;
+    g_ball_control.accel_level = 0U;
+    g_ball_control.motion_direction = 0;
+}
+
+static void Ball_Control_HandlePass(float error, float error_abs,
+                                    uint8_t new_sample)
+{
+    float pass_velocity;
+    float output;
+    float output_limit;
+    uint32_t pass_elapsed_ms;
+
+    pass_velocity =
+        -(float)g_ball_control.correction_start_direction *
+        g_ball_control.filtered_velocity_mm_s;
+    pass_elapsed_ms =
+        g_ball_control.control_now_ms - g_ball_control.phase_start_ms;
+
+    /*
+     * 仍沿原方向穿过中心时，只做速度阻尼，不允许立即施加反向20度ACC。
+     * 达到规划反侧距离后把阻尼上限从4度提高到6度，避免高速跑远。
+     */
+    output_limit =
+        (error_abs >= g_ball_control.pass_target_abs_mm) ?
+        BALL_CONTROL_PASS_DAMP_HARD_MAX_DEG :
+        BALL_CONTROL_PASS_DAMP_SOFT_MAX_DEG;
+    output =
+        BALL_CONTROL_PASS_DAMP_KD_DEG_S_PER_MM *
+        g_ball_control.filtered_velocity_mm_s;
+    if ((g_ball_control.filtered_velocity_mm_s > 0.0f) &&
+        (output < BALL_CONTROL_PASS_DAMP_MIN_DEG)) {
+        output = BALL_CONTROL_PASS_DAMP_MIN_DEG;
+    } else if ((g_ball_control.filtered_velocity_mm_s < 0.0f) &&
+               (output > -BALL_CONTROL_PASS_DAMP_MIN_DEG)) {
+        output = -BALL_CONTROL_PASS_DAMP_MIN_DEG;
+    }
+    output = Ball_Control_Limit(output, output_limit);
+
+    /*
+     * 至少保持150ms，覆盖当前85ms中位视觉间隔。确认原方向速度已经
+     * 降到8mm/s以内后，才从反侧重新起动回中，形成一次小幅过零。
+     */
+    if ((new_sample != 0U) &&
+        (pass_elapsed_ms >= BALL_CONTROL_PASS_MIN_HOLD_MS) &&
+        (pass_velocity <= BALL_CONTROL_VELOCITY_STOP_MM_S)) {
+        g_ball_control.correction_start_direction = 0;
+        g_ball_control.pass_target_abs_mm = 0.0f;
+        Ball_Control_StartAccel(error);
+        Ball_Control_ApplyOutput(
+            Ball_Control_GetAccelOutput(),
+            BALL_CONTROL_ACCEL_MAX_DEG);
+        return;
+    }
+
+    Ball_Control_ApplyOutput(
+        output, BALL_CONTROL_PASS_DAMP_HARD_MAX_DEG);
 }
 
 static void Ball_Control_ResetSamples(void)
@@ -360,6 +438,21 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
 
     if (g_ball_control.phase == BALL_CONTROL_PHASE_FAULT) {
         Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+        return;
+    }
+
+    /*
+     * 记录本轮从哪一侧开始。首次越过中心并离开±2mm后进入PASS，
+     * 防止误差符号翻转把仍在原方向运动误判成需要完整反向ACC。
+     */
+    if ((g_ball_control.phase != BALL_CONTROL_PHASE_PASS) &&
+        (g_ball_control.correction_start_direction != 0) &&
+        (error_direction ==
+         -g_ball_control.correction_start_direction)) {
+        Ball_Control_StartPass();
+    }
+    if (g_ball_control.phase == BALL_CONTROL_PHASE_PASS) {
+        Ball_Control_HandlePass(error, error_abs, new_sample);
         return;
     }
 
