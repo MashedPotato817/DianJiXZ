@@ -326,15 +326,35 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
             new_sample_period_s);
     }
 
-    /*
-     * 唯一允许静止的稳定区域：位置和速度同时进入目标容差。
-     * 若在目标外再次停住，下面会立即重新进入 ACCEL。
-     */
-    if ((error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) &&
-        (Ball_Control_Abs(g_ball_control.filtered_velocity_mm_s) <=
-         BALL_CONTROL_VELOCITY_STOP_MM_S)) {
-        Ball_Control_ClearMotion(BALL_CONTROL_PHASE_CAPTURE);
-        Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+    if (error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) {
+        /*
+         * 中心容差内不再套用 RUN 的 12 度动摩擦下限。
+         * 仍有速度时只用 2~4 度低强度阻尼，避免刚过中心就被大力反推。
+         */
+        if (Ball_Control_Abs(
+                g_ball_control.filtered_velocity_mm_s) <=
+            BALL_CONTROL_VELOCITY_STOP_MM_S) {
+            Ball_Control_ClearMotion(BALL_CONTROL_PHASE_CAPTURE);
+            Ball_Control_ApplyOutput(
+                0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+        } else {
+            g_ball_control.phase = BALL_CONTROL_PHASE_BRAKE;
+            g_ball_control.phase_before_hold =
+                BALL_CONTROL_PHASE_BRAKE;
+            output = g_ball_control.kp * error +
+                     g_ball_control.kd *
+                     g_ball_control.filtered_velocity_mm_s;
+            if ((g_ball_control.filtered_velocity_mm_s > 0.0f) &&
+                (output < BALL_CONTROL_CAPTURE_DAMP_MIN_DEG)) {
+                output = BALL_CONTROL_CAPTURE_DAMP_MIN_DEG;
+            } else if (
+                (g_ball_control.filtered_velocity_mm_s < 0.0f) &&
+                (output > -BALL_CONTROL_CAPTURE_DAMP_MIN_DEG)) {
+                output = -BALL_CONTROL_CAPTURE_DAMP_MIN_DEG;
+            }
+            Ball_Control_ApplyOutput(
+                output, BALL_CONTROL_CAPTURE_DAMP_MAX_DEG);
+        }
         return;
     }
 

@@ -62,6 +62,8 @@ typedef struct {
 /* 已滚动后保持动摩擦，再按估算制动距离反向制动。 */
 #define BALL_CONTROL_RUN_MIN_DEG            (12.0f)
 #define BALL_CONTROL_BRAKE_MIN_DEG           (6.0f)
+#define BALL_CONTROL_CAPTURE_DAMP_MIN_DEG    (2.0f)
+#define BALL_CONTROL_CAPTURE_DAMP_MAX_DEG    (4.0f)
 #define BALL_CONTROL_BRAKE_ACCEL_MM_S2     (250.0f)
 #define BALL_CONTROL_BRAKE_MARGIN_MM         (2.0f)
 #define BALL_CONTROL_NORMAL_MAX_DEG         (20.0f)
