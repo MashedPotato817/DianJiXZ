@@ -1,7 +1,7 @@
 #include "k230_link.h"
 #include "ti_msp_dl_config.h"
 
-#define K230_LINE_BUFFER_SIZE 96U
+#define K230_LINE_BUFFER_SIZE 64U
 #define K230_HELLO_PERIOD_MS  500U
 #define K230_RX_RING_SIZE     128U
 
@@ -24,10 +24,15 @@ static volatile uint32_t g_rx_overruns;
 static uint8_t K230_ParseUnsigned(const char **text, uint32_t *value)
 {
     uint32_t result = 0U;
+    uint32_t digit;
     uint8_t digits = 0U;
 
     while ((**text >= '0') && (**text <= '9')) {
-        result = result * 10U + (uint32_t)(**text - '0');
+        digit = (uint32_t)(**text - '0');
+        if (result > ((4294967295U - digit) / 10U)) {
+            return 0U;
+        }
+        result = result * 10U + digit;
         (*text)++;
         digits++;
     }
@@ -35,38 +40,39 @@ static uint8_t K230_ParseUnsigned(const char **text, uint32_t *value)
     return digits;
 }
 
-static uint8_t K230_ParseFloat(const char **text, float *value)
+static uint8_t K230_HexValue(char value, uint8_t *result)
 {
-    uint32_t whole = 0U;
-    uint32_t fraction = 0U;
-    uint32_t divisor = 1U;
-    uint8_t negative = 0U;
-    uint8_t digits;
-
-    if (**text == '-') {
-        negative = 1U;
-        (*text)++;
+    if ((value >= '0') && (value <= '9')) {
+        *result = (uint8_t)(value - '0');
+        return 1U;
     }
-    digits = K230_ParseUnsigned(text, &whole);
-    if (**text == '.') {
-        (*text)++;
-        while ((**text >= '0') && (**text <= '9')) {
-            if (divisor < 1000000U) {
-                fraction = fraction * 10U + (uint32_t)(**text - '0');
-                divisor *= 10U;
+    if ((value >= 'A') && (value <= 'F')) {
+        *result = (uint8_t)(value - 'A' + 10);
+        return 1U;
+    }
+    if ((value >= 'a') && (value <= 'f')) {
+        *result = (uint8_t)(value - 'a' + 10);
+        return 1U;
+    }
+    return 0U;
+}
+
+static uint8_t K230_Crc8Atm(const char *begin, const char *end)
+{
+    uint8_t crc = 0U;
+    uint8_t bit;
+
+    while (begin < end) {
+        crc ^= (uint8_t)*begin++;
+        for (bit = 0U; bit < 8U; bit++) {
+            if ((crc & 0x80U) != 0U) {
+                crc = (uint8_t)((crc << 1U) ^ 0x07U);
+            } else {
+                crc <<= 1U;
             }
-            (*text)++;
-            digits++;
         }
     }
-    if (digits == 0U) {
-        return 0U;
-    }
-    *value = (float)whole + (float)fraction / (float)divisor;
-    if (negative != 0U) {
-        *value = -*value;
-    }
-    return 1U;
+    return crc;
 }
 
 static uint8_t K230_ParseSigned(const char **text, int32_t *value)
@@ -119,13 +125,15 @@ static void K230_SendString(const char *text)
 static void K230_ParseLine(const char *line)
 {
     const char *text = line;
-    float x_mm;
+    const char *crc_marker;
+    int32_t x10;
     uint32_t valid;
     uint32_t seq;
-    uint32_t source_timestamp_ms = 0U;
-    uint32_t fps_x10 = 0U;
-    int32_t center_x_px = -1;
     int8_t edge_direction = 0;
+    uint8_t crc_high;
+    uint8_t crc_low;
+    uint8_t received_crc;
+    uint8_t calculated_crc;
 
     /* UART1 PB6->PB7 本地回环的最短令牌，排除长帧字段解析干扰。 */
     if ((text[0] == '$') && (text[1] == 'L') && (text[2] == '#') &&
@@ -151,51 +159,42 @@ static void K230_ParseLine(const char *line)
         return;
     }
 
-    text += 11;
-    if ((K230_ParseFloat(&text, &x_mm) == 0U) || (*text++ != ',') ||
-        (K230_ParseUnsigned(&text, &valid) == 0U) || (*text++ != ',') ||
-        (K230_ParseUnsigned(&text, &seq) == 0U) || (valid > 1U)) {
+    crc_marker = text;
+    while ((*crc_marker != '\0') && (*crc_marker != '*')) {
+        crc_marker++;
+    }
+    if ((*crc_marker != '*') ||
+        (K230_HexValue(crc_marker[1], &crc_high) == 0U) ||
+        (K230_HexValue(crc_marker[2], &crc_low) == 0U) ||
+        (crc_marker[3] != '#') || (crc_marker[4] != '\0')) {
         g_diagnostics.parse_errors++;
         return;
     }
-    if (*text == ',') {
-        text++;
-        if (K230_ParseEdgeDirection(&text, &edge_direction) == 0U) {
-            g_diagnostics.parse_errors++;
-            return;
-        }
-        if (*text == ',') {
-            text++;
-            if (K230_ParseUnsigned(&text, &source_timestamp_ms) == 0U) {
-                g_diagnostics.parse_errors++;
-                return;
-            }
-        }
-        if (*text == ',') {
-            text++;
-            if ((K230_ParseSigned(&text, &center_x_px) == 0U) ||
-                (center_x_px < -1) || (center_x_px > 32767)) {
-                g_diagnostics.parse_errors++;
-                return;
-            }
-        }
-        if (*text == ',') {
-            text++;
-            if ((K230_ParseUnsigned(&text, &fps_x10) == 0U) ||
-                (fps_x10 > 65535U)) {
-                g_diagnostics.parse_errors++;
-                return;
-            }
-        }
-    }
-    if ((*text != '#') || (text[1] != '\0')) {
-        g_diagnostics.parse_errors++;
+    received_crc = (uint8_t)((crc_high << 4U) | crc_low);
+    calculated_crc = K230_Crc8Atm(line + 1, crc_marker);
+    if (received_crc != calculated_crc) {
+        g_diagnostics.crc_errors++;
         return;
     }
 
-    K230_Link_UpdatePosition(x_mm, 0.0f, (uint8_t)valid, edge_direction,
-                             g_now_ms, source_timestamp_ms,
-                             (int16_t)center_x_px, (uint16_t)fps_x10);
+    text += 11;
+    if ((K230_ParseSigned(&text, &x10) == 0U) || (*text++ != ',') ||
+        (K230_ParseUnsigned(&text, &valid) == 0U) || (*text++ != ',') ||
+        (K230_ParseUnsigned(&text, &seq) == 0U) || (*text++ != ',') ||
+        (K230_ParseEdgeDirection(&text, &edge_direction) == 0U) ||
+        (*text != '*')) {
+        g_diagnostics.parse_errors++;
+        return;
+    }
+    if ((x10 < -K230_LINK_MAX_POSITION_X10) ||
+        (x10 > K230_LINK_MAX_POSITION_X10) || (valid > 1U) ||
+        ((valid != 0U) && (edge_direction != 0))) {
+        g_diagnostics.range_errors++;
+        return;
+    }
+
+    K230_Link_UpdatePosition((float)x10 / 10.0f, 0.0f, (uint8_t)valid,
+                             edge_direction, g_now_ms);
     g_last_frame_ms = g_now_ms;
     if ((g_diagnostics.valid_frames != 0U) &&
         (seq > g_diagnostics.last_seq) &&
@@ -243,13 +242,12 @@ void K230_Link_Init(void)
     g_ball_position.valid = 0U;
     g_ball_position.edge_direction = 0;
     g_ball_position.timestamp_ms = 0U;
-    g_ball_position.source_timestamp_ms = 0U;
-    g_ball_position.center_x_px = -1;
-    g_ball_position.fps_x10 = 0U;
     g_diagnostics.rx_bytes = 0U;
     g_diagnostics.rx_overruns = 0U;
     g_diagnostics.valid_frames = 0U;
     g_diagnostics.parse_errors = 0U;
+    g_diagnostics.crc_errors = 0U;
+    g_diagnostics.range_errors = 0U;
     g_diagnostics.sequence_gaps = 0U;
     g_diagnostics.last_seq = 0U;
     g_diagnostics.timed_out = 1U;
@@ -322,18 +320,13 @@ void K230_Link_UART1_IRQHandler(void)
 }
 
 void K230_Link_UpdatePosition(float x_mm, float y_mm, uint8_t valid,
-                              int8_t edge_direction, uint32_t timestamp_ms,
-                              uint32_t source_timestamp_ms,
-                              int16_t center_x_px, uint16_t fps_x10)
+                              int8_t edge_direction, uint32_t timestamp_ms)
 {
     g_ball_position.x_mm = x_mm;
     g_ball_position.y_mm = y_mm;
     g_ball_position.valid = valid;
     g_ball_position.edge_direction = edge_direction;
     g_ball_position.timestamp_ms = timestamp_ms;
-    g_ball_position.source_timestamp_ms = source_timestamp_ms;
-    g_ball_position.center_x_px = center_x_px;
-    g_ball_position.fps_x10 = fps_x10;
 }
 
 void K230_Link_GetPosition(K230_BallPosition *position)

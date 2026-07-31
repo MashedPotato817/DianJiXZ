@@ -3,7 +3,10 @@
 接线：IO40/UART1_TX -> MSPM0 PB7/UART1_RX
       IO41/UART1_RX <- MSPM0 PB6/UART1_TX
 帧格式：
-$K230,BALL,<x_mm>,<valid>,<seq>,<edge>,<k_ms>,<center_px>,<fps_x10>#\r\n
+$K230,BALL,<x10>,<valid>,<seq>,<edge>*<crc8>#\r\n
+
+x10 为毫米值乘 10 的有符号整数。crc8 使用 CRC-8/ATM，覆盖 '$' 后到
+'*' 前的 ASCII 字节；MSPM0 不再接受无校验旧帧进入闭环。
 
 先在 K230 实机运行并标定 ball_detect_config.py；本文件不控制舵机或底盘。
 """
@@ -53,6 +56,33 @@ PLUS_50_LINE_X = int((IMAGE_CENTER_X + 50.0 / MM_PER_PIXEL) *
 
 def clamp(value, lower, upper):
     return max(lower, min(upper, value))
+
+
+def crc8_atm(payload):
+    """CRC-8/ATM: poly=0x07, init=0x00，无反射、无异或输出。"""
+    crc = 0
+    for byte in payload.encode():
+        crc ^= byte
+        for _ in range(8):
+            if crc & 0x80:
+                crc = ((crc << 1) ^ 0x07) & 0xFF
+            else:
+                crc = (crc << 1) & 0xFF
+    return crc
+
+
+def scale_x10(x_mm):
+    if x_mm >= 0.0:
+        return int(x_mm * 10.0 + 0.5)
+    return int(x_mm * 10.0 - 0.5)
+
+
+def build_ball_frame(x_mm, valid, sequence, edge_direction):
+    x10_limit = int(MAX_POSITION_MM * 10.0 + 0.5)
+    x10 = clamp(scale_x10(x_mm), -x10_limit, x10_limit)
+    payload = "K230,BALL,%d,%d,%d,%d" % \
+              (x10, valid, sequence, edge_direction)
+    return "$%s*%02X#\r\n" % (payload, crc8_atm(payload))
 
 
 def log_timestamp():
@@ -287,7 +317,9 @@ def main():
 
             now_ms = time.ticks_ms()
             if time.ticks_diff(now_ms, last_send_ms) >= SEND_PERIOD_MS:
-                sequence += 1
+                sequence = (sequence + 1) & 0xFFFFFFFF
+                if sequence == 0:
+                    sequence = 1
                 if CALIBRATION_READY or UART_ALLOW_UNCALIBRATED:
                     tx_x_mm = x_mm
                     tx_valid = valid
@@ -296,12 +328,8 @@ def main():
                     tx_x_mm = 0.0
                     tx_valid = 0
                     tx_edge_direction = 0
-                tx_center_x = center_x if center_x is not None else -1
-                tx_fps_x10 = clamp(int(frame_fps * 10.0 + 0.5), 0, 65535)
-                uart.write(("$K230,BALL,%.1f,%d,%d,%d,%d,%d,%d#\r\n" %
-                            (tx_x_mm, tx_valid, sequence,
-                             tx_edge_direction, now_ms, tx_center_x,
-                             tx_fps_x10)).encode())
+                uart.write(build_ball_frame(
+                    tx_x_mm, tx_valid, sequence, tx_edge_direction).encode())
                 last_send_ms = now_ms
 
             # 清空 MSPM0 心跳与 ACK，避免 K230 接收 FIFO 积累。

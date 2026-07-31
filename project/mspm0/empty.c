@@ -63,8 +63,8 @@ int main(void)
     NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
     OLED_Init();  // 初始化OLED显示屏
     K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
-    Servo_Init();      // 上电先输出受限的机械中位 1500 us
-    Ball_Control_Init(); /* 默认未使能，待确认方向后再显式打开。 */
+    Servo_Init();      // 上电先输出 90 度初始种子（1600 us），运行中允许动态学习 trim
+    Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
     // 主循环
     while (1) 

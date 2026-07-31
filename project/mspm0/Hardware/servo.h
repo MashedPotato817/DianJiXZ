@@ -6,12 +6,13 @@
 /*
  * 摆杆舵机抽象层。
  *
- * PA8 / TIMA0 CCP0：1 MHz、20 ms PWM。角度采用 0~180 度的绝对表示，
- * 90 度为机械中位；角度增加表示 PWM 脉宽增加，机械上对应“右端降低”。
- * 仍使用本机实测安全脉宽 1100~2100 us，不套用示例的 500~2500 us 范围。
+ * PA8 / TIMA0 CCP0：1 MHz、20 ms PWM。角度采用绝对表示，
+ * 90 度仅作为上电初始位置；角度增加表示 PWM 脉宽增加，机械上对应“右端降低”。
+ * 机械允许范围已确认为 5~175 度；脉宽换算仍沿用 0~180 度对应
+ * 1100~2100 us 的本机实测关系。
  */
-#define SERVO_ANGLE_MIN_DEG      (0.0f)
-#define SERVO_ANGLE_MAX_DEG      (180.0f)
+#define SERVO_ANGLE_MIN_DEG      (5.0f)
+#define SERVO_ANGLE_MAX_DEG      (175.0f)
 #define SERVO_ANGLE_NEUTRAL_DEG  (90.0f)
 #define SERVO_PULSE_MIN_US       (1100U)
 #define SERVO_PULSE_NEUTRAL_US   (1600U)

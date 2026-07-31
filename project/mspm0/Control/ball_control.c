@@ -8,82 +8,160 @@ static float Ball_Control_Abs(float value)
     return (value < 0.0f) ? -value : value;
 }
 
-static void Ball_Control_ResetBreakaway(void)
+static float Ball_Control_Limit(float value, float limit)
 {
-    g_ball_control.stationary_start_ms = 0U;
-    g_ball_control.kick_start_ms = 0U;
-    g_ball_control.kick_cooldown_start_ms = 0U;
-    g_ball_control.drive_start_ms = 0U;
-    g_ball_control.stationary_reference_x_mm = 0.0f;
-    g_ball_control.kick_offset_deg = 0.0f;
-    g_ball_control.has_stationary_reference = 0U;
-    g_ball_control.breakaway_active = 0U;
-    g_ball_control.kick_cooldown_active = 0U;
-    g_ball_control.drive_active = 0U;
-    g_ball_control.kick_fault_active = 0U;
-    g_ball_control.kick_attempt_count = 0U;
-    g_ball_control.kick_motion_confirm_frames = 0U;
-    g_ball_control.kick_direction = 0;
-}
-
-static void Ball_Control_StartKick(float error, uint32_t timestamp_ms)
-{
-    float kick_offset;
-
-    if (g_ball_control.kick_attempt_count < BALL_CONTROL_KICK_MAX_ATTEMPTS) {
-        g_ball_control.kick_attempt_count++;
+    if (value > limit) {
+        return limit;
     }
-    kick_offset = BALL_CONTROL_KICK_FIRST_OFFSET_DEG +
-                  BALL_CONTROL_KICK_STEP_DEG *
-                  (float)(g_ball_control.kick_attempt_count - 1U);
-    if (kick_offset > BALL_CONTROL_KICK_MAX_OFFSET_DEG) {
-        kick_offset = BALL_CONTROL_KICK_MAX_OFFSET_DEG;
+    if (value < -limit) {
+        return -limit;
+    }
+    return value;
+}
+
+static float Ball_Control_Clamp(float value, float minimum, float maximum)
+{
+    if (value > maximum) {
+        return maximum;
+    }
+    if (value < minimum) {
+        return minimum;
+    }
+    return value;
+}
+
+static uint32_t Ball_Control_PeriodMs(float period_s)
+{
+    uint32_t period_ms = (uint32_t)(period_s * 1000.0f + 0.5f);
+
+    return (period_ms == 0U) ? 1U : period_ms;
+}
+
+static void Ball_Control_ApplyOutput(float output_deg, float limit_deg)
+{
+    float command_angle_deg;
+
+    output_deg = Ball_Control_Limit(output_deg, limit_deg);
+    command_angle_deg = Ball_Control_Clamp(
+        g_ball_control.trim_angle_deg + output_deg,
+        SERVO_ANGLE_MIN_DEG,
+        SERVO_ANGLE_MAX_DEG);
+    Servo_SetTargetAngle(command_angle_deg);
+    Servo_ApplyHardware();
+    g_ball_control.last_command_angle_deg = command_angle_deg;
+    g_ball_control.last_output_deg =
+        command_angle_deg - g_ball_control.trim_angle_deg;
+}
+
+static void Ball_Control_UpdateTrim(float error, float velocity,
+                                    float sample_period_s)
+{
+    float trim_step;
+
+    if ((sample_period_s <= 0.0f) ||
+        (Ball_Control_Abs(error) >
+         BALL_CONTROL_TRIM_LEARN_ERROR_MM) ||
+        (Ball_Control_Abs(velocity) >
+         BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_ACCEL) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_EDGE) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_HOLD) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_LOST) ||
+        (g_ball_control.phase == BALL_CONTROL_PHASE_FAULT)) {
+        return;
     }
 
-    g_ball_control.kick_offset_deg = kick_offset;
-    g_ball_control.kick_start_ms = timestamp_ms;
-    g_ball_control.kick_direction = (error > 0.0f) ? 1 : -1;
-    g_ball_control.kick_motion_confirm_frames = 0U;
-    g_ball_control.breakaway_active = 1U;
-    g_ball_control.kick_cooldown_active = 0U;
-    g_ball_control.drive_active = 0U;
+    trim_step = BALL_CONTROL_TRIM_KI_DEG_PER_MM_S *
+                error * sample_period_s;
+    trim_step = Ball_Control_Limit(
+        trim_step, BALL_CONTROL_TRIM_MAX_STEP_DEG);
+    g_ball_control.trim_angle_deg = Ball_Control_Clamp(
+        g_ball_control.trim_angle_deg + trim_step,
+        BALL_CONTROL_TRIM_MIN_DEG,
+        BALL_CONTROL_TRIM_MAX_DEG);
 }
 
-static void Ball_Control_EndKickFailed(uint32_t timestamp_ms)
+static void Ball_Control_ClearMotion(Ball_ControlPhase phase)
 {
-    g_ball_control.breakaway_active = 0U;
-    g_ball_control.kick_motion_confirm_frames = 0U;
-    g_ball_control.has_stationary_reference = 0U;
-    g_ball_control.kick_direction = 0;
+    g_ball_control.phase = phase;
+    g_ball_control.phase_before_hold = phase;
+    g_ball_control.phase_start_ms = g_ball_control.control_now_ms;
+    g_ball_control.toward_velocity_mm_s = 0.0f;
+    g_ball_control.stopping_distance_mm = 0.0f;
+    g_ball_control.velocity_confirm_frames = 0U;
+    g_ball_control.accel_level = 0U;
+    g_ball_control.motion_direction = 0;
+}
 
-    if (g_ball_control.kick_attempt_count >= BALL_CONTROL_KICK_MAX_ATTEMPTS) {
-        g_ball_control.kick_fault_active = 1U;
-        g_ball_control.kick_cooldown_active = 0U;
-    } else {
-        g_ball_control.kick_cooldown_active = 1U;
-        g_ball_control.kick_cooldown_start_ms = timestamp_ms;
+static void Ball_Control_StartAccel(float error)
+{
+    g_ball_control.phase = BALL_CONTROL_PHASE_ACCEL;
+    g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_ACCEL;
+    g_ball_control.phase_start_ms = g_ball_control.control_now_ms;
+    g_ball_control.velocity_confirm_frames = 0U;
+    g_ball_control.accel_level = 0U;
+    g_ball_control.motion_direction = (error > 0.0f) ? 1 : -1;
+}
+
+static float Ball_Control_GetAccelOutput(void)
+{
+    uint32_t elapsed_ms =
+        g_ball_control.control_now_ms - g_ball_control.phase_start_ms;
+    uint32_t level = elapsed_ms / BALL_CONTROL_ACCEL_STEP_MS;
+    float output;
+
+    if (level > 2U) {
+        level = 2U;
     }
+    g_ball_control.accel_level = (uint8_t)level;
+    output = BALL_CONTROL_ACCEL_FIRST_DEG +
+             BALL_CONTROL_ACCEL_STEP_DEG * (float)level;
+    if (output > BALL_CONTROL_ACCEL_MAX_DEG) {
+        output = BALL_CONTROL_ACCEL_MAX_DEG;
+    }
+    return (float)g_ball_control.motion_direction * output;
 }
 
-static void Ball_Control_StartDrive(uint32_t timestamp_ms)
+static void Ball_Control_ResetSamples(void)
 {
-    g_ball_control.breakaway_active = 0U;
-    g_ball_control.kick_motion_confirm_frames = 0U;
-    g_ball_control.drive_active = 1U;
-    g_ball_control.drive_start_ms = timestamp_ms;
-    g_ball_control.kick_cooldown_active = 0U;
-    g_ball_control.kick_attempt_count = 0U;
-    g_ball_control.has_stationary_reference = 0U;
+    g_ball_control.last_error_mm = 0.0f;
+    g_ball_control.last_timestamp_ms = 0U;
+    g_ball_control.last_valid_control_ms = 0U;
+    g_ball_control.filtered_velocity_mm_s = 0.0f;
+    g_ball_control.has_last_sample = 0U;
 }
 
-static void Ball_Control_EndDrive(void)
+static void Ball_Control_EnterLost(void)
 {
-    g_ball_control.drive_active = 0U;
-    g_ball_control.drive_start_ms = 0U;
-    g_ball_control.kick_direction = 0;
-    g_ball_control.has_stationary_reference = 0U;
-    g_ball_control.stationary_start_ms = 0U;
-    g_ball_control.stationary_reference_x_mm = 0.0f;
+    Ball_Control_ResetSamples();
+    Ball_Control_ClearMotion(BALL_CONTROL_PHASE_LOST);
+    Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+}
+
+static void Ball_Control_HandleEdge(const K230_BallPosition *position)
+{
+    float output;
+
+    if (g_ball_control.phase != BALL_CONTROL_PHASE_EDGE) {
+        g_ball_control.phase = BALL_CONTROL_PHASE_EDGE;
+        g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_EDGE;
+        g_ball_control.edge_recovery_start_ms =
+            g_ball_control.control_now_ms;
+        g_ball_control.edge_recovery_timed_out = 0U;
+    }
+    if ((g_ball_control.control_now_ms -
+         g_ball_control.edge_recovery_start_ms) >
+        BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS) {
+        g_ball_control.edge_recovery_timed_out = 1U;
+        Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+        return;
+    }
+
+    output = (float)position->edge_direction *
+             BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG;
+    Ball_Control_ApplyOutput(output,
+                            BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG);
+    Ball_Control_ResetSamples();
 }
 
 void Ball_Control_Init(void)
@@ -91,41 +169,21 @@ void Ball_Control_Init(void)
     g_ball_control.kp = BALL_CONTROL_KP_DEG_PER_MM;
     g_ball_control.kd = BALL_CONTROL_KD_DEG_S_PER_MM;
     g_ball_control.target_x_mm = 0.0f;
-    g_ball_control.last_error_mm = 0.0f;
-    g_ball_control.last_timestamp_ms = 0U;
+    g_ball_control.trim_angle_deg =
+        BALL_CONTROL_TRIM_INITIAL_DEG;
+    g_ball_control.last_command_angle_deg =
+        BALL_CONTROL_TRIM_INITIAL_DEG;
+    g_ball_control.control_now_ms = 0U;
     g_ball_control.edge_recovery_start_ms = 0U;
-    g_ball_control.stationary_start_ms = 0U;
-    g_ball_control.kick_start_ms = 0U;
-    g_ball_control.kick_cooldown_start_ms = 0U;
-    g_ball_control.drive_start_ms = 0U;
-    g_ball_control.stationary_reference_x_mm = 0.0f;
-    g_ball_control.filtered_velocity_mm_s = 0.0f;
-    g_ball_control.last_output_deg = 0.0f;
-    g_ball_control.kick_offset_deg = 0.0f;
-    g_ball_control.enabled = BALL_CONTROL_ENABLE_DEFAULT;
-    g_ball_control.has_last_sample = 0U;
-    g_ball_control.has_stationary_reference = 0U;
-    g_ball_control.edge_recovery_active = 0U;
     g_ball_control.edge_recovery_timed_out = 0U;
-    g_ball_control.breakaway_active = 0U;
-    g_ball_control.kick_cooldown_active = 0U;
-    g_ball_control.drive_active = 0U;
-    g_ball_control.kick_fault_active = 0U;
-    g_ball_control.kick_attempt_count = 0U;
-    g_ball_control.kick_motion_confirm_frames = 0U;
-    g_ball_control.kick_direction = 0;
-    Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG);
-    Servo_ApplyHardware();
+    g_ball_control.enabled = BALL_CONTROL_ENABLE_DEFAULT;
+    Ball_Control_Reset();
 }
 
 void Ball_Control_SetTarget(float target_x_mm)
 {
     g_ball_control.target_x_mm = target_x_mm;
-    g_ball_control.last_error_mm = 0.0f;
-    g_ball_control.filtered_velocity_mm_s = 0.0f;
-    g_ball_control.last_output_deg = 0.0f;
-    g_ball_control.has_last_sample = 0U;
-    Ball_Control_ResetBreakaway();
+    Ball_Control_Reset();
 }
 
 void Ball_Control_SetEnabled(uint8_t enabled)
@@ -141,245 +199,241 @@ uint8_t Ball_Control_IsEnabled(void)
 
 void Ball_Control_Reset(void)
 {
-    g_ball_control.last_error_mm = 0.0f;
-    g_ball_control.last_timestamp_ms = 0U;
-    g_ball_control.filtered_velocity_mm_s = 0.0f;
-    g_ball_control.last_output_deg = 0.0f;
-    g_ball_control.has_last_sample = 0U;
+    Ball_Control_ResetSamples();
     g_ball_control.edge_recovery_start_ms = 0U;
-    g_ball_control.edge_recovery_active = 0U;
     g_ball_control.edge_recovery_timed_out = 0U;
-    Ball_Control_ResetBreakaway();
-    Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG);
-    Servo_ApplyHardware();
+    Ball_Control_ClearMotion((g_ball_control.enabled != 0U) ?
+                             BALL_CONTROL_PHASE_CAPTURE :
+                             BALL_CONTROL_PHASE_OFF);
+    Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
 }
 
 void Ball_Control_Step(const K230_BallPosition *position, float period_s)
 {
     float error;
     float error_abs;
-    float raw_velocity;
+    float raw_velocity = 0.0f;
     float output;
     float sample_period_s;
-    float movement;
-    float toward_movement;
-    float away_movement;
-    float run_floor;
-    float run_weight;
-    uint32_t kick_elapsed_ms;
+    float new_sample_period_s = 0.0f;
+    float toward_velocity;
+    float stopping_distance;
+    uint32_t sample_period_ms;
+    uint32_t valid_age_ms;
+    uint32_t accel_elapsed_ms;
+    uint8_t new_sample;
+    int8_t error_direction;
 
-    if ((g_ball_control.enabled == 0U) || (position == 0) ||
-        (period_s <= 0.0f)) {
-        Ball_Control_Reset();
+    if ((position == 0) || (period_s <= 0.0f)) {
+        return;
+    }
+
+    g_ball_control.control_now_ms += Ball_Control_PeriodMs(period_s);
+    if (g_ball_control.enabled == 0U) {
+        if (g_ball_control.phase != BALL_CONTROL_PHASE_OFF) {
+            Ball_Control_Reset();
+        }
         return;
     }
 
     if (position->valid == 0U) {
-        Ball_Control_ResetBreakaway();
-        /* 只有 K230 明确报告从画面左右边缘离开，才执行向中心的恢复。 */
-        if (position->edge_direction == 0) {
-            Ball_Control_Reset();
+        if (position->edge_direction != 0) {
+            Ball_Control_HandleEdge(position);
             return;
         }
-        if (g_ball_control.edge_recovery_timed_out != 0U) {
-            Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG);
-            Servo_ApplyHardware();
+
+        valid_age_ms = (g_ball_control.has_last_sample != 0U) ?
+                       (g_ball_control.control_now_ms -
+                        g_ball_control.last_valid_control_ms) :
+                       (BALL_CONTROL_LOST_HOLD_TOTAL_MS + 1U);
+        if ((g_ball_control.has_last_sample != 0U) &&
+            (valid_age_ms <= BALL_CONTROL_LOST_HOLD_TOTAL_MS)) {
+            if (g_ball_control.phase != BALL_CONTROL_PHASE_HOLD) {
+                g_ball_control.phase_before_hold = g_ball_control.phase;
+                g_ball_control.phase = BALL_CONTROL_PHASE_HOLD;
+            }
+            /* 短时普通丢帧保持上一安全倾角，不重置运动阶段。 */
             return;
         }
-        if (g_ball_control.edge_recovery_active == 0U) {
-            g_ball_control.edge_recovery_active = 1U;
-            g_ball_control.edge_recovery_start_ms = position->timestamp_ms;
+        if (g_ball_control.phase != BALL_CONTROL_PHASE_LOST) {
+            Ball_Control_EnterLost();
         }
-        if ((uint32_t)(position->timestamp_ms -
-                       g_ball_control.edge_recovery_start_ms) >
-                       BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS) {
-            g_ball_control.edge_recovery_active = 0U;
-            g_ball_control.edge_recovery_timed_out = 1U;
-            Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG);
-            Servo_ApplyHardware();
-            return;
-        }
-        /* 实测：低 PWM 使球向右（X 增大）。左侧离开时降低 PWM 拉回右侧；右侧反之。 */
-        output = (float)position->edge_direction *
-                 BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG;
-        Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG + output);
-        Servo_ApplyHardware();
-        g_ball_control.filtered_velocity_mm_s = 0.0f;
-        g_ball_control.last_output_deg = output;
-        g_ball_control.has_last_sample = 0U;
         return;
     }
 
-    g_ball_control.edge_recovery_active = 0U;
     g_ball_control.edge_recovery_timed_out = 0U;
-
-    /* K230 帧率低于 200 Hz；同一帧不可在每个 5 ms 周期重复做 D 项。 */
-    if ((g_ball_control.has_last_sample != 0U) &&
-        (position->timestamp_ms == g_ball_control.last_timestamp_ms)) {
-        return;
+    if (g_ball_control.phase == BALL_CONTROL_PHASE_HOLD) {
+        g_ball_control.phase = g_ball_control.phase_before_hold;
+    } else if ((g_ball_control.phase == BALL_CONTROL_PHASE_EDGE) ||
+               (g_ball_control.phase == BALL_CONTROL_PHASE_LOST)) {
+        Ball_Control_ClearMotion(BALL_CONTROL_PHASE_CAPTURE);
     }
 
-    /* 实测方向：X 偏右时提高 PWM，右端降低后将球拉回左侧。 */
-    error = position->x_mm - g_ball_control.target_x_mm;
-    if ((error < BALL_CONTROL_DEADBAND_MM) &&
-        (error > -BALL_CONTROL_DEADBAND_MM)) {
-        error = 0.0f;
-    }
-    error_abs = Ball_Control_Abs(error);
-
-    sample_period_s = period_s;
-    if (g_ball_control.has_last_sample != 0U) {
-        sample_period_s = (float)(position->timestamp_ms -
-                          g_ball_control.last_timestamp_ms) / 1000.0f;
-        if ((sample_period_s < period_s) || (sample_period_s > 0.1f)) {
-            sample_period_s = period_s;
+    new_sample = ((g_ball_control.has_last_sample == 0U) ||
+                  (position->timestamp_ms !=
+                   g_ball_control.last_timestamp_ms)) ? 1U : 0U;
+    if (new_sample != 0U) {
+        error = position->x_mm - g_ball_control.target_x_mm;
+        sample_period_ms = 0U;
+        if (g_ball_control.has_last_sample != 0U) {
+            sample_period_ms = position->timestamp_ms -
+                               g_ball_control.last_timestamp_ms;
         }
+
+        if ((g_ball_control.has_last_sample == 0U) ||
+            (sample_period_ms == 0U) ||
+            (sample_period_ms > BALL_CONTROL_MAX_SAMPLE_PERIOD_MS)) {
+            g_ball_control.filtered_velocity_mm_s = 0.0f;
+        } else {
+            sample_period_s = (float)sample_period_ms / 1000.0f;
+            new_sample_period_s = sample_period_s;
+            raw_velocity =
+                (error - g_ball_control.last_error_mm) / sample_period_s;
+            g_ball_control.filtered_velocity_mm_s +=
+                BALL_CONTROL_VELOCITY_FILTER_ALPHA *
+                (raw_velocity -
+                 g_ball_control.filtered_velocity_mm_s);
+        }
+
+        g_ball_control.last_error_mm = error;
+        g_ball_control.last_timestamp_ms = position->timestamp_ms;
+        g_ball_control.last_valid_control_ms =
+            g_ball_control.control_now_ms;
+        g_ball_control.has_last_sample = 1U;
+    } else {
+        error = g_ball_control.last_error_mm;
     }
 
-    raw_velocity = (g_ball_control.has_last_sample != 0U) ?
-                   (error - g_ball_control.last_error_mm) /
-                   sample_period_s : 0.0f;
-    if (g_ball_control.has_last_sample == 0U) {
-        g_ball_control.filtered_velocity_mm_s = 0.0f;
+    error_abs = Ball_Control_Abs(error);
+    error_direction = (error > 0.0f) ? 1 : ((error < 0.0f) ? -1 : 0);
+    toward_velocity =
+        -(float)error_direction *
+        g_ball_control.filtered_velocity_mm_s;
+    g_ball_control.toward_velocity_mm_s = toward_velocity;
+
+    if (toward_velocity > 0.0f) {
+        stopping_distance =
+            toward_velocity * toward_velocity /
+            (2.0f * BALL_CONTROL_BRAKE_ACCEL_MM_S2);
     } else {
-        g_ball_control.filtered_velocity_mm_s +=
-            BALL_CONTROL_VELOCITY_FILTER_ALPHA *
-            (raw_velocity - g_ball_control.filtered_velocity_mm_s);
+        stopping_distance = 0.0f;
+    }
+    g_ball_control.stopping_distance_mm = stopping_distance;
+    if (new_sample != 0U) {
+        Ball_Control_UpdateTrim(
+            error,
+            g_ball_control.filtered_velocity_mm_s,
+            new_sample_period_s);
     }
 
     /*
-     * 混合控制状态：
-     * PD 静止确认 -> 分级 KICK -> DRIVE 平滑维持 -> 滤波 PD 捕获。
-     * KICK 只根据新的有效视觉帧推进，任何视觉失效都由前面的安全分支复位。
+     * 唯一允许静止的稳定区域：位置和速度同时进入目标容差。
+     * 若在目标外再次停住，下面会立即重新进入 ACCEL。
      */
-    if (error_abs <= BALL_CONTROL_BREAKAWAY_EXIT_ERROR_MM) {
-        Ball_Control_ResetBreakaway();
-    } else if (g_ball_control.kick_fault_active != 0U) {
-        /* 三次 KICK 均未可靠起动，保持中位，等待人工移动或复位。 */
-    } else if (g_ball_control.breakaway_active != 0U) {
-        movement = position->x_mm -
-                   g_ball_control.stationary_reference_x_mm;
-        toward_movement = -(float)g_ball_control.kick_direction * movement;
-        away_movement = -toward_movement;
-        kick_elapsed_ms = (uint32_t)(position->timestamp_ms -
-                                     g_ball_control.kick_start_ms);
+    if ((error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) &&
+        (Ball_Control_Abs(g_ball_control.filtered_velocity_mm_s) <=
+         BALL_CONTROL_VELOCITY_STOP_MM_S)) {
+        Ball_Control_ClearMotion(BALL_CONTROL_PHASE_CAPTURE);
+        Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+        return;
+    }
 
-        if (((g_ball_control.kick_direction > 0) && (error <= 0.0f)) ||
-            ((g_ball_control.kick_direction < 0) && (error >= 0.0f))) {
-            Ball_Control_ResetBreakaway();
-        } else if (away_movement >= BALL_CONTROL_BREAKAWAY_MOVEMENT_MM) {
-            Ball_Control_EndKickFailed(position->timestamp_ms);
-        } else {
-            if (toward_movement >= BALL_CONTROL_BREAKAWAY_MOVEMENT_MM) {
-                if (g_ball_control.kick_motion_confirm_frames <
-                    BALL_CONTROL_KICK_CONFIRM_FRAMES) {
-                    g_ball_control.kick_motion_confirm_frames++;
+    if (g_ball_control.phase == BALL_CONTROL_PHASE_FAULT) {
+        Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+        return;
+    }
+
+    if (g_ball_control.phase == BALL_CONTROL_PHASE_ACCEL) {
+        if (g_ball_control.motion_direction != error_direction) {
+            Ball_Control_StartAccel(error);
+        }
+
+        if (new_sample != 0U) {
+            if (toward_velocity >=
+                BALL_CONTROL_VELOCITY_CONFIRM_MM_S) {
+                if (g_ball_control.velocity_confirm_frames <
+                    BALL_CONTROL_VELOCITY_CONFIRM_FRAMES) {
+                    g_ball_control.velocity_confirm_frames++;
                 }
             } else {
-                g_ball_control.kick_motion_confirm_frames = 0U;
+                g_ball_control.velocity_confirm_frames = 0U;
             }
+        }
 
-            if ((kick_elapsed_ms >= BALL_CONTROL_KICK_MIN_DURATION_MS) &&
-                (g_ball_control.kick_motion_confirm_frames >=
-                 BALL_CONTROL_KICK_CONFIRM_FRAMES)) {
-                Ball_Control_StartDrive(position->timestamp_ms);
-            } else if (kick_elapsed_ms >= BALL_CONTROL_KICK_MAX_DURATION_MS) {
-                Ball_Control_EndKickFailed(position->timestamp_ms);
+        if (g_ball_control.velocity_confirm_frames >=
+            BALL_CONTROL_VELOCITY_CONFIRM_FRAMES) {
+            g_ball_control.phase = BALL_CONTROL_PHASE_RUN;
+            g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_RUN;
+            g_ball_control.phase_start_ms =
+                g_ball_control.control_now_ms;
+            g_ball_control.velocity_confirm_frames = 0U;
+        } else {
+            accel_elapsed_ms =
+                g_ball_control.control_now_ms -
+                g_ball_control.phase_start_ms;
+            if (accel_elapsed_ms >=
+                BALL_CONTROL_ACCEL_TIMEOUT_MS) {
+                Ball_Control_ClearMotion(
+                    BALL_CONTROL_PHASE_FAULT);
+                Ball_Control_ApplyOutput(
+                    0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+                return;
             }
-        }
-    } else if (g_ball_control.drive_active != 0U) {
-        if ((error_abs <= BALL_CONTROL_DRIVE_EXIT_ERROR_MM) ||
-            ((g_ball_control.kick_direction > 0) && (error <= 0.0f)) ||
-            ((g_ball_control.kick_direction < 0) && (error >= 0.0f)) ||
-            ((uint32_t)(position->timestamp_ms -
-                         g_ball_control.drive_start_ms) >=
-             BALL_CONTROL_DRIVE_DURATION_MS)) {
-            Ball_Control_EndDrive();
-        }
-    } else if (g_ball_control.kick_cooldown_active != 0U) {
-        if ((uint32_t)(position->timestamp_ms -
-                        g_ball_control.kick_cooldown_start_ms) >=
-            BALL_CONTROL_KICK_COOLDOWN_MS) {
-            g_ball_control.kick_cooldown_active = 0U;
-            g_ball_control.has_stationary_reference = 0U;
-        }
-    } else if (error_abs >= BALL_CONTROL_BREAKAWAY_ERROR_MM) {
-        if (g_ball_control.has_stationary_reference == 0U) {
-            g_ball_control.stationary_reference_x_mm = position->x_mm;
-            g_ball_control.stationary_start_ms = position->timestamp_ms;
-            g_ball_control.has_stationary_reference = 1U;
-        } else if (Ball_Control_Abs(position->x_mm -
-                                    g_ball_control.stationary_reference_x_mm) >=
-                   BALL_CONTROL_BREAKAWAY_MOVEMENT_MM) {
-            g_ball_control.stationary_reference_x_mm = position->x_mm;
-            g_ball_control.stationary_start_ms = position->timestamp_ms;
-        } else if ((uint32_t)(position->timestamp_ms -
-                              g_ball_control.stationary_start_ms) >=
-                   BALL_CONTROL_BREAKAWAY_WAIT_MS) {
-            Ball_Control_StartKick(error, position->timestamp_ms);
+            Ball_Control_ApplyOutput(
+                Ball_Control_GetAccelOutput(),
+                BALL_CONTROL_ACCEL_MAX_DEG);
+            return;
         }
     }
+
+    /*
+     * 非目标静止或反向运动：立即重新加速，不再等待500ms。
+     * 只有已经向中心运动时才允许进入 RUN/BRAKE。
+     */
+    if ((error_abs > BALL_CONTROL_TARGET_TOLERANCE_MM) &&
+        ((toward_velocity < BALL_CONTROL_VELOCITY_STALL_MM_S) ||
+         (error_direction == 0))) {
+        Ball_Control_StartAccel(error);
+        Ball_Control_ApplyOutput(Ball_Control_GetAccelOutput(),
+                                 BALL_CONTROL_ACCEL_MAX_DEG);
+        return;
+    }
+
+    if ((toward_velocity > 0.0f) &&
+        (error_abs <= stopping_distance +
+                      BALL_CONTROL_BRAKE_MARGIN_MM)) {
+        g_ball_control.phase = BALL_CONTROL_PHASE_BRAKE;
+    } else {
+        g_ball_control.phase = BALL_CONTROL_PHASE_RUN;
+    }
+    g_ball_control.phase_before_hold = g_ball_control.phase;
 
     output = g_ball_control.kp * error +
-             g_ball_control.kd * g_ball_control.filtered_velocity_mm_s;
-    if (g_ball_control.kick_fault_active != 0U) {
-        output = 0.0f;
-    }
-    if (g_ball_control.breakaway_active != 0U) {
-        if (g_ball_control.kick_direction > 0) {
-            if (output < g_ball_control.kick_offset_deg) {
-                output = g_ball_control.kick_offset_deg;
-            }
-        } else if (g_ball_control.kick_direction < 0) {
-            if (output > -g_ball_control.kick_offset_deg) {
-                output = -g_ball_control.kick_offset_deg;
-            }
-        }
-    } else if (g_ball_control.drive_active != 0U) {
-        if (error_abs >= BALL_CONTROL_DRIVE_FULL_ERROR_MM) {
-            run_weight = 1.0f;
-        } else if (error_abs <= BALL_CONTROL_DRIVE_EXIT_ERROR_MM) {
-            run_weight = 0.0f;
-        } else {
-            run_weight = (error_abs - BALL_CONTROL_DRIVE_EXIT_ERROR_MM) /
-                         (BALL_CONTROL_DRIVE_FULL_ERROR_MM -
-                          BALL_CONTROL_DRIVE_EXIT_ERROR_MM);
-        }
-        run_floor = BALL_CONTROL_DRIVE_RUN_OFFSET_DEG * run_weight;
+             g_ball_control.kd *
+             g_ball_control.filtered_velocity_mm_s;
 
-        /* PD 已要求反向制动时不施加维持下限；同方向输出才补足滚动维持力。 */
-        if ((error > 0.0f) && (output >= 0.0f) && (output < run_floor)) {
-            output = run_floor;
-        } else if ((error < 0.0f) && (output <= 0.0f) &&
-                   (output > -run_floor)) {
-            output = -run_floor;
+    if (g_ball_control.phase == BALL_CONTROL_PHASE_RUN) {
+        if ((error_direction > 0) &&
+            (output < BALL_CONTROL_RUN_MIN_DEG)) {
+            output = BALL_CONTROL_RUN_MIN_DEG;
+        } else if ((error_direction < 0) &&
+                   (output > -BALL_CONTROL_RUN_MIN_DEG)) {
+            output = -BALL_CONTROL_RUN_MIN_DEG;
         }
-
-        /* 同方向回落时逐帧减小，若 PD 要求反向制动则立即执行。 */
-        if ((output * g_ball_control.last_output_deg) >= 0.0f) {
-            if (output > g_ball_control.last_output_deg +
-                         BALL_CONTROL_DRIVE_SLEW_DEG_PER_FRAME) {
-                output = g_ball_control.last_output_deg +
-                         BALL_CONTROL_DRIVE_SLEW_DEG_PER_FRAME;
-            } else if (output < g_ball_control.last_output_deg -
-                                BALL_CONTROL_DRIVE_SLEW_DEG_PER_FRAME) {
-                output = g_ball_control.last_output_deg -
-                         BALL_CONTROL_DRIVE_SLEW_DEG_PER_FRAME;
+    } else {
+        /* 到达制动切换面后，确保杆角确实反向，不只回到中位。 */
+        if (error_direction > 0) {
+            if (output > -BALL_CONTROL_BRAKE_MIN_DEG) {
+                output = -BALL_CONTROL_BRAKE_MIN_DEG;
+            }
+        } else if (error_direction < 0) {
+            if (output < BALL_CONTROL_BRAKE_MIN_DEG) {
+                output = BALL_CONTROL_BRAKE_MIN_DEG;
             }
         }
     }
-    if (output > BALL_CONTROL_MAX_OFFSET_DEG) {
-        output = BALL_CONTROL_MAX_OFFSET_DEG;
-    } else if (output < -BALL_CONTROL_MAX_OFFSET_DEG) {
-        output = -BALL_CONTROL_MAX_OFFSET_DEG;
-    }
-    /* 控制器输出是相对中位的偏移，舵机驱动接口使用 0~180 度绝对角度。 */
-    Servo_SetTargetAngle(SERVO_ANGLE_NEUTRAL_DEG + output);
-    Servo_ApplyHardware();
-    g_ball_control.last_output_deg = output;
-    g_ball_control.last_error_mm = error;
-    g_ball_control.last_timestamp_ms = position->timestamp_ms;
-    g_ball_control.has_last_sample = 1U;
+
+    Ball_Control_ApplyOutput(output, BALL_CONTROL_NORMAL_MAX_DEG);
 }
 
 const Ball_Control *Ball_Control_Get(void)

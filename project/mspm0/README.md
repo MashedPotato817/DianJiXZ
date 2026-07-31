@@ -1,6 +1,6 @@
 # 2026 TI 杯 H 题：车载平衡滚球运动控制系统
 
-> 最后更新：2026-07-30 23:37
+> 最后更新：2026-07-31 10:55
 
 本工程以 `firmware/WHEELTEC_C07A_CAR` 为唯一硬件与构建底座，目标 MCU 为 MSPM0G3507。`firmware/Medicine_Cart` 只用于参考目录边界、驱动层与任务层的组织方式，不复制其业务逻辑或外设配置。
 
@@ -16,16 +16,16 @@
 | 目录 | 模块 | 责任 |
 | --- | --- | --- |
 | `Hardware/` | `motor`、`encoder`、`oled` 等 | 已验证底盘外设驱动 |
-| `Hardware/servo` | 摆杆舵机角度命令、限幅、后续 PWM 映射 |
-| `Hardware/k230_link` | 小球位置数据接口；待 K230 程序确认串口帧格式 |
+| `Hardware/servo` | 摆杆舵机绝对角度命令、5~175°机械限幅和 PWM 映射 |
+| `Hardware/k230_link` | 解析 K230 固定字段、CRC-8/ATM BALL 帧并维护链路诊断 |
 | `Control/control` | 原有 5 ms 底盘速度闭环与灰度巡线 |
-| `Control/ball_control` | 小球 x 方向位置闭环，输出摆杆目标角度 |
+| `Control/ball_control` | `ACCEL→RUN→BRAKE→CAPTURE` 混合闭环、速度估计与动态平衡角 |
 | `Control/ball_task` | H 题任务状态：单圈、居中稳定、行驶保持与指定点保持 |
 | `Control/debug_telemetry` | 每 50 ms 用 UART0 汇总 K230、编码器、舵机和链路诊断数据 |
 
 ## 当前关键接口
 
-1. 舵机：PA8/TIMA0，50 Hz；控制接口使用 0~180°绝对角度，90°为机械中位。
+1. 舵机：PA8/TIMA0，50 Hz；机械允许5~175°。90°只作为上电初始种子，运行中动态平衡角 `trim` 可在15~165°内慢速变化。
 2. K230：IO40/UART1_TX → PB7/UART1_RX，IO41/UART1_RX ← PB6/UART1_TX，共地。
 3. 电脑调试：PA10/UART0_TX → USB-TTL RX；如需下发命令再连接 PA11/UART0_RX ← USB-TTL TX；只使用 3.3 V TTL。
 4. 小球控制是一维闭环；K230 坐标右正左负。当前仍允许未完成五点标定的临时位置参与联调，不能据此宣称位置精度达标。
@@ -34,6 +34,6 @@ UART0 遥测字段与采集方法见 [`../docs/UART0_AI调试遥测说明_202607
 
 ## 验证状态
 
-截至 2026-07-30 23:37，SysConfig 生成和 Keil 构建均已通过，构建结果为 `0 Error(s), 0 Warning(s)`。K230 UART1 与舵机闭环已有阶段性实测；UART0 PA10 向电脑输出新版 `$T` 遥测仍待硬件验证。
+截至 2026-07-31 10:55，SysConfig 生成和 Keil 构建均已通过，构建结果为 `0 Error(s), 0 Warning(s)`。K230 UART1 与舵机旧版闭环已有阶段性实测；新版混合闭环、动态 `trim` 与 UART0 `TELEM_V3` 仍待硬件验证。
 
-> 最后更新：2026-07-30 23:37
+> 最后更新：2026-07-31 10:55

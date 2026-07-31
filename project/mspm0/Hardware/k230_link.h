@@ -4,10 +4,13 @@
 #include <stdint.h>
 
 /*
- * 兼容基础帧 $K230,BALL,<x_mm>,<valid>,<seq>#；
- * 调试帧可追加 <edge>,<k_ms>,<center_px>,<fps_x10>。
+ * 固定安全帧：
+ * $K230,BALL,<x10>,<valid>,<seq>,<edge>*<crc8>#
+ * crc8 使用 CRC-8/ATM（poly=0x07, init=0x00），覆盖 '$' 后到 '*' 前的
+ * ASCII 字节。x10 为毫米值乘 10，禁止使用无校验旧帧进入闭环。
  */
 #define K230_LINK_TIMEOUT_MS 100U
+#define K230_LINK_MAX_POSITION_X10 1500
 
 /* K230 输出的小球位置：摆杆中心为 0，右侧为正，单位 mm。 */
 typedef struct {
@@ -15,10 +18,7 @@ typedef struct {
     float y_mm;
     uint8_t valid;
     int8_t edge_direction; /* -1 左侧离开视野，+1 右侧离开，0 非边缘或正常。 */
-    uint32_t timestamp_ms;        /* M0 收到并解析该帧的本地时刻。 */
-    uint32_t source_timestamp_ms; /* K230 拍摄/发送侧的相对毫秒时刻。 */
-    int16_t center_x_px;          /* 原始球心；未检测到时为 -1。 */
-    uint16_t fps_x10;             /* K230 检测帧率乘 10。 */
+    uint32_t timestamp_ms; /* M0 收到并解析该帧的本地时刻。 */
 } K230_BallPosition;
 
 typedef struct {
@@ -26,6 +26,8 @@ typedef struct {
     uint32_t rx_overruns;
     uint32_t valid_frames;
     uint32_t parse_errors;
+    uint32_t crc_errors;
+    uint32_t range_errors;
     uint32_t sequence_gaps;
     uint32_t last_seq;
     uint8_t timed_out;
@@ -38,9 +40,7 @@ void K230_Link_UART1_IRQHandler(void);
 /* 5 ms 定时中断调用：提供链路时间基准。 */
 void K230_Link_Tick5ms(void);
 void K230_Link_UpdatePosition(float x_mm, float y_mm, uint8_t valid,
-                              int8_t edge_direction, uint32_t timestamp_ms,
-                              uint32_t source_timestamp_ms,
-                              int16_t center_x_px, uint16_t fps_x10);
+                              int8_t edge_direction, uint32_t timestamp_ms);
 void K230_Link_GetPosition(K230_BallPosition *position);
 void K230_Link_GetDiagnostics(K230_LinkDiagnostics *diagnostics);
 /* 最小联调 LED 指示：至少接收过一帧合法 BALL 数据时返回 1。 */

@@ -148,18 +148,35 @@ void oled_show(void)
     }
 
     OLED_ShowString(0, 56, "CTRL:");
-    if (ball_control->enabled == 0U) {
-        OLED_ShowString(36, 56, "OFF ");
-    } else if (ball_control->edge_recovery_active != 0U) {
-        OLED_ShowString(36, 56, "EDGE");
-    } else if (ball_control->kick_fault_active != 0U) {
-        OLED_ShowString(36, 56, "FLT ");
-    } else if (ball_control->breakaway_active != 0U) {
-        OLED_ShowString(36, 56, "STK ");
-    } else if (ball_control->drive_active != 0U) {
-        OLED_ShowString(36, 56, "DRV ");
-    } else {
-        OLED_ShowString(36, 56, "PD  ");
+    switch (ball_control->phase) {
+        case BALL_CONTROL_PHASE_CAPTURE:
+            OLED_ShowString(36, 56, "CAP ");
+            break;
+        case BALL_CONTROL_PHASE_ACCEL:
+            OLED_ShowString(36, 56, "ACC ");
+            break;
+        case BALL_CONTROL_PHASE_RUN:
+            OLED_ShowString(36, 56, "RUN ");
+            break;
+        case BALL_CONTROL_PHASE_BRAKE:
+            OLED_ShowString(36, 56, "BRK ");
+            break;
+        case BALL_CONTROL_PHASE_EDGE:
+            OLED_ShowString(36, 56, "EDGE");
+            break;
+        case BALL_CONTROL_PHASE_FAULT:
+            OLED_ShowString(36, 56, "FLT ");
+            break;
+        case BALL_CONTROL_PHASE_HOLD:
+            OLED_ShowString(36, 56, "HOLD");
+            break;
+        case BALL_CONTROL_PHASE_LOST:
+            OLED_ShowString(36, 56, "LOST");
+            break;
+        case BALL_CONTROL_PHASE_OFF:
+        default:
+            OLED_ShowString(36, 56, "OFF ");
+            break;
     }
 
     OLED_Refresh_Gram();

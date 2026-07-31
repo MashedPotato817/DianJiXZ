@@ -3,58 +3,83 @@
 
 #include "k230_link.h"
 
+typedef enum {
+    BALL_CONTROL_PHASE_OFF = 0,
+    BALL_CONTROL_PHASE_CAPTURE = 1,
+    BALL_CONTROL_PHASE_ACCEL = 2,
+    BALL_CONTROL_PHASE_RUN = 3,
+    BALL_CONTROL_PHASE_BRAKE = 4,
+    BALL_CONTROL_PHASE_EDGE = 5,
+    BALL_CONTROL_PHASE_FAULT = 6,
+    BALL_CONTROL_PHASE_HOLD = 7,
+    BALL_CONTROL_PHASE_LOST = 8
+} Ball_ControlPhase;
+
 typedef struct {
     float kp;
     float kd;
     float target_x_mm;
     float last_error_mm;
-    uint32_t last_timestamp_ms;
-    uint32_t edge_recovery_start_ms;
-    uint32_t stationary_start_ms;
-    uint32_t kick_start_ms;
-    uint32_t kick_cooldown_start_ms;
-    uint32_t drive_start_ms;
-    float stationary_reference_x_mm;
     float filtered_velocity_mm_s;
+    float toward_velocity_mm_s;
+    float stopping_distance_mm;
+    float trim_angle_deg;
+    float last_command_angle_deg;
     float last_output_deg;
-    float kick_offset_deg;
+    uint32_t last_timestamp_ms;
+    uint32_t last_valid_control_ms;
+    uint32_t control_now_ms;
+    uint32_t phase_start_ms;
+    uint32_t edge_recovery_start_ms;
     uint8_t enabled;
     uint8_t has_last_sample;
-    uint8_t has_stationary_reference;
-    uint8_t edge_recovery_active;
     uint8_t edge_recovery_timed_out;
-    uint8_t breakaway_active; /* 当前是否处于单次 KICK 脉冲。 */
-    uint8_t kick_cooldown_active;
-    uint8_t drive_active;
-    uint8_t kick_fault_active;
-    uint8_t kick_attempt_count;
-    uint8_t kick_motion_confirm_frames;
-    int8_t kick_direction;
+    uint8_t velocity_confirm_frames;
+    uint8_t accel_level;
+    int8_t motion_direction;
+    Ball_ControlPhase phase;
+    Ball_ControlPhase phase_before_hold;
 } Ball_Control;
 
 #define BALL_CONTROL_ENABLE_DEFAULT   (1U)
-#define BALL_CONTROL_KP_DEG_PER_MM    (0.24f)  /* 0~180 度映射下，PWM 等效增益较上一版提高约 33% */
-#define BALL_CONTROL_KD_DEG_S_PER_MM  (0.006f) /* 与比例项同比增强，抑制位置快速变化时的过冲 */
-#define BALL_CONTROL_DEADBAND_MM      (1.0f)
-#define BALL_CONTROL_MAX_OFFSET_DEG   (20.0f)  /* 正常闭环仅允许在 90 度中位两侧小幅动作 */
-#define BALL_CONTROL_BREAKAWAY_ERROR_MM       (8.0f)  /* 进入静止确认的误差门限。 */
-#define BALL_CONTROL_BREAKAWAY_EXIT_ERROR_MM  (5.0f)  /* 迟滞退出门限，避免门限附近反复切换。 */
-#define BALL_CONTROL_BREAKAWAY_MOVEMENT_MM    (2.0f)  /* 超过此累计位移即视为已重新运动。 */
-#define BALL_CONTROL_BREAKAWAY_WAIT_MS      (500U)    /* 连续近静止半秒后才叠加脱困。 */
-#define BALL_CONTROL_VELOCITY_FILTER_ALPHA   (0.45f)  /* 约 16 Hz 输入下的首轮速度低通系数。 */
-#define BALL_CONTROL_KICK_FIRST_OFFSET_DEG  (16.0f)
-#define BALL_CONTROL_KICK_STEP_DEG           (2.0f)
-#define BALL_CONTROL_KICK_MAX_OFFSET_DEG    (20.0f)
-#define BALL_CONTROL_KICK_MIN_DURATION_MS  (250U)
-#define BALL_CONTROL_KICK_MAX_DURATION_MS  (600U)
-#define BALL_CONTROL_KICK_COOLDOWN_MS      (400U)
-#define BALL_CONTROL_KICK_MAX_ATTEMPTS       (3U)
-#define BALL_CONTROL_KICK_CONFIRM_FRAMES     (2U)
-#define BALL_CONTROL_DRIVE_DURATION_MS      (400U)
-#define BALL_CONTROL_DRIVE_RUN_OFFSET_DEG   (10.0f)
-#define BALL_CONTROL_DRIVE_FULL_ERROR_MM    (20.0f)
-#define BALL_CONTROL_DRIVE_EXIT_ERROR_MM     (8.0f)
-#define BALL_CONTROL_DRIVE_SLEW_DEG_PER_FRAME (2.0f)
+#define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)
+#define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)
+#define BALL_CONTROL_TARGET_TOLERANCE_MM    (2.0f)
+#define BALL_CONTROL_VELOCITY_FILTER_ALPHA  (0.45f)
+#define BALL_CONTROL_VELOCITY_CONFIRM_MM_S (12.0f)
+#define BALL_CONTROL_VELOCITY_STALL_MM_S    (8.0f)
+#define BALL_CONTROL_VELOCITY_STOP_MM_S     (8.0f)
+#define BALL_CONTROL_VELOCITY_CONFIRM_FRAMES (2U)
+#define BALL_CONTROL_MAX_SAMPLE_PERIOD_MS  (250U)
+
+/* 非目标静止时连续施力，不在档位之间回中。 */
+#define BALL_CONTROL_ACCEL_FIRST_DEG        (20.0f)
+#define BALL_CONTROL_ACCEL_STEP_DEG          (4.0f)
+#define BALL_CONTROL_ACCEL_MAX_DEG          (28.0f)
+#define BALL_CONTROL_ACCEL_STEP_MS          (300U)
+#define BALL_CONTROL_ACCEL_TIMEOUT_MS      (1200U)
+
+/* 已滚动后保持动摩擦，再按估算制动距离反向制动。 */
+#define BALL_CONTROL_RUN_MIN_DEG            (12.0f)
+#define BALL_CONTROL_BRAKE_MIN_DEG           (6.0f)
+#define BALL_CONTROL_BRAKE_ACCEL_MM_S2     (250.0f)
+#define BALL_CONTROL_BRAKE_MARGIN_MM         (2.0f)
+#define BALL_CONTROL_NORMAL_MAX_DEG         (20.0f)
+
+/*
+ * 90 度只是上电种子，不是假定不变的物理平衡点。
+ * trim 仅在中心附近低速时慢速学习，并预留至少 10 度快速纠偏余量。
+ */
+#define BALL_CONTROL_TRIM_INITIAL_DEG        (90.0f)
+#define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
+#define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
+#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.18f)
+#define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (6.0f)
+#define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (12.0f)
+#define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.15f)
+
+/* 链路自身100ms超时后再容忍到总计180ms，期间保持上一安全输出。 */
+#define BALL_CONTROL_LOST_HOLD_TOTAL_MS    (180U)
 #define BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG (75.0f) /* 90+/-80 度已确认安全，预留 5 度余量 */
 #define BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS (1000U)
 
