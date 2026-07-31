@@ -53,7 +53,7 @@ firmware/WHEELTEC_C07A_CAR/
 **命令行**:
 
 ```powershell
-& 'D:\Keil_v5\UV4\UV4.exe' -b '...\firmware\WHEELTEC_C07A_CAR\keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx' -t 'MSPM0G3507_Project'
+& 'C:\Keil_MDK\UV4\UV4.exe' -b '...\firmware\WHEELTEC_C07A_CAR\keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx' -t 'MSPM0G3507_Project'
 ```
 
 **外设配置**: 用 TI SysConfig 图形化工具生成 `ti_msp_dl_config.c/h`，**不要手动编辑生成文件**。
