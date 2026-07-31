@@ -39,11 +39,10 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 SEND_PERIOD_MS,
                                 STABLE_FRAMES, UART_BAUDRATE,
                                 CALIBRATION_READY, UART_ALLOW_UNCALIBRATED,
-                                ENABLE_LOG_FILE, LOG_FOLDER_PATH)
+                                ENABLE_LOG_FILE, LOG_FOLDER_PATH,
+                                LOG_SESSION_ID)
 
-now = time.localtime()
-LOG_FILE_PATH = LOG_FOLDER_PATH + "%04d%02d%02d_%02d%02d%02d_uart.txt" % \
-                (now[0], now[1], now[2], now[3], now[4], now[5])
+LOG_FILE_PATH = LOG_FOLDER_PATH + LOG_SESSION_ID + "_K230.txt"
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
@@ -196,6 +195,7 @@ def main():
         sensor.run()
 
         log_message("K230 BALL UART started", log_file)
+        log_message("LOG SESSION: %s" % LOG_SESSION_ID, log_file)
         # 保留部署配置打印入口；日常运行不需要反复关注这些固定参数。
         if ENABLE_STARTUP_CONFIG_LOG:
             log_message("config: mode=%s UART1 IO40/IO41 %d baud" %
