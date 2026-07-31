@@ -82,6 +82,24 @@ static void Ball_Control_UpdateTrim(float error, float velocity,
         BALL_CONTROL_TRIM_MAX_DEG);
 }
 
+/* 条件积分：目标附近且低速时累积位置误差，提供保持角把球吸在目标点。 */
+static void Ball_Control_UpdateIntegral(float error, float velocity,
+                                        float sample_period_s)
+{
+    if (Ball_Control_Abs(error) > BALL_CONTROL_INTEGRAL_BAND_MM) {
+        /* 离开目标区：清零，防残留积分推偏 */
+        g_ball_control.integral_deg = 0.0f;
+        return;
+    }
+    if (Ball_Control_Abs(velocity) > BALL_CONTROL_INTEGRAL_VELOCITY_MM_S) {
+        return;  /* 飞行中不积分（防风偏），保留已积累值 */
+    }
+    g_ball_control.integral_deg +=
+        BALL_CONTROL_INTEGRAL_KI_DEG_PER_MM_S * error * sample_period_s;
+    g_ball_control.integral_deg = Ball_Control_Limit(
+        g_ball_control.integral_deg, BALL_CONTROL_INTEGRAL_MAX_DEG);
+}
+
 static void Ball_Control_ClearMotion(Ball_ControlPhase phase)
 {
     g_ball_control.phase = phase;
@@ -310,6 +328,16 @@ void Ball_Control_SetTrimAngle(float angle_deg)
     Ball_Control_Reset();
 }
 
+void Ball_Control_SetGains(float kp, float kd)
+{
+    if (kp > 0.0f) {
+        g_ball_control.kp = kp;
+    }
+    if (kd >= 0.0f) {
+        g_ball_control.kd = kd;
+    }
+}
+
 void Ball_Control_Reset(void)
 {
     Ball_Control_ResetSamples();
@@ -318,6 +346,7 @@ void Ball_Control_Reset(void)
     Ball_Control_ClearMotion((g_ball_control.enabled != 0U) ?
                              BALL_CONTROL_PHASE_CAPTURE :
                              BALL_CONTROL_PHASE_OFF);
+    g_ball_control.integral_deg = 0.0f;
     Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
 }
 
@@ -442,6 +471,10 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
             error,
             g_ball_control.filtered_velocity_mm_s,
             new_sample_period_s);
+        Ball_Control_UpdateIntegral(
+            error,
+            g_ball_control.filtered_velocity_mm_s,
+            new_sample_period_s);
     }
 
     if (error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) {
@@ -453,8 +486,10 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
                 g_ball_control.filtered_velocity_mm_s) <=
             BALL_CONTROL_VELOCITY_STOP_MM_S) {
             Ball_Control_ClearMotion(BALL_CONTROL_PHASE_CAPTURE);
+            /* 保持输出积分角：把球吸在目标点，抗斜坡/静摩擦，不弹走。 */
             Ball_Control_ApplyOutput(
-                0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
+                g_ball_control.integral_deg,
+                BALL_CONTROL_NORMAL_MAX_DEG);
         } else {
             g_ball_control.phase = BALL_CONTROL_PHASE_BRAKE;
             g_ball_control.phase_before_hold =
@@ -563,7 +598,8 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
 
     output = g_ball_control.kp * error +
              g_ball_control.kd *
-             g_ball_control.filtered_velocity_mm_s;
+             g_ball_control.filtered_velocity_mm_s +
+             g_ball_control.integral_deg;
 
     if (g_ball_control.phase == BALL_CONTROL_PHASE_RUN) {
         /*

@@ -24,6 +24,7 @@ typedef struct {
     float filtered_velocity_mm_s;
     float toward_velocity_mm_s;
     float stopping_distance_mm;
+    float integral_deg;                 /* 条件积分保持角：目标附近低速时累积，把球吸在目标点 */
     float trim_angle_deg;
     float last_command_angle_deg;
     float last_output_deg;
@@ -50,6 +51,17 @@ typedef struct {
 #define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)   //Kp
 #define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)  //Kd
 #define BALL_CONTROL_TARGET_TOLERANCE_MM    (2.0f)
+
+/*
+ * 条件积分（把球"吸"在目标点，抗管子斜坡/静摩擦）：
+ * 目标附近（|error|≤BAND）且低速（|v|≤VEL）时累积位置误差，输出保持角。
+ * 离开 BAND 清零；飞行中（高速）不积分但保留值。解决 PD 在目标点输出归 0、
+ * 球到 -50 后被斜坡弹回的问题。
+ */
+#define BALL_CONTROL_INTEGRAL_BAND_MM        (12.0f)
+#define BALL_CONTROL_INTEGRAL_VELOCITY_MM_S  (12.0f)
+#define BALL_CONTROL_INTEGRAL_KI_DEG_PER_MM_S (0.30f)
+#define BALL_CONTROL_INTEGRAL_MAX_DEG         (6.0f)
 #define BALL_CONTROL_VELOCITY_FILTER_ALPHA  (0.45f)
 #define BALL_CONTROL_VELOCITY_CONFIRM_MM_S (12.0f)
 #define BALL_CONTROL_VELOCITY_STALL_MM_S    (8.0f)
@@ -58,11 +70,12 @@ typedef struct {
 #define BALL_CONTROL_MAX_SAMPLE_PERIOD_MS  (250U)
 
 /* 非目标静止时连续施力，不在档位之间回中。 */
-#define BALL_CONTROL_ACCEL_FIRST_DEG        (20.0f)
+/* 管子表面有凹陷（实测确认），起球需更大/更久的推力滚出坑沿。 */
+#define BALL_CONTROL_ACCEL_FIRST_DEG        (24.0f)
 #define BALL_CONTROL_ACCEL_STEP_DEG          (4.0f)
-#define BALL_CONTROL_ACCEL_MAX_DEG          (28.0f)
+#define BALL_CONTROL_ACCEL_MAX_DEG          (36.0f)
 #define BALL_CONTROL_ACCEL_STEP_MS          (300U)
-#define BALL_CONTROL_ACCEL_TIMEOUT_MS      (1200U)
+#define BALL_CONTROL_ACCEL_TIMEOUT_MS      (2000U)
 
 /*
  * 000006~000008 三组实测按进入ACC时的误差分桶统计：过冲幅度随进入误差
@@ -116,7 +129,7 @@ typedef struct {
 #define BALL_CONTROL_TRIM_INITIAL_DEG        (122.4f)
 #define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
 #define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
-#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.02f)
+#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.00f)
 #define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (4.0f)
 #define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (8.0f)
 #define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.03f)
@@ -135,6 +148,8 @@ uint8_t Ball_Control_IsEnabled(void);
 void Ball_Control_SetServoHold(uint8_t hold);
 /* 自动标定结束调用：把 trim 设为标定结果并复位运动状态。 */
 void Ball_Control_SetTrimAngle(float angle_deg);
+/* 运行时调参（UART0 命令接口）：仅更新增益，不复位运动状态；0 表示不改。 */
+void Ball_Control_SetGains(float kp, float kd);
 void Ball_Control_Reset(void);
 void Ball_Control_Step(const K230_BallPosition *position, float period_s);
 const Ball_Control *Ball_Control_Get(void);

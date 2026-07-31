@@ -17,6 +17,7 @@ typedef struct {
     uint32_t wait_start_ms;
     uint32_t start_ms;
     uint8_t iterations;
+    uint8_t save_pending;   /* 标定完成待写 Flash，主循环 ProcessSave 执行 */
     float sample_x[BALL_CAL_MAX_SAMPLES];
     uint8_t sample_count;
     uint32_t last_sample_ts;
@@ -45,8 +46,14 @@ static void Ball_Calibrate_Finish(float balance_deg)
     Ball_Control_SetServoHold(0);
     /* 把舵机命令到标定结果并复位运动状态，随后闭环按新 trim 继续。 */
     Ball_Control_SetTrimAngle(balance_deg);
-    /* 持久化：下次上电直接用该平衡角作为 trim 初值，不再依赖默认值。 */
-    (void)CalibStore_Save(balance_deg);
+#if BALL_CAL_SAVE_ENABLE
+    /*
+     * 持久化推迟到主循环（Ball_Calibrate_ProcessSave）：Flash 擦写毫秒级且
+     * 需关全局中断，不能在 TIMER_0 中断里执行，否则会长时间阻塞 K230 接收。
+     * 当前 Flash 擦写在该芯片上会卡死，SAVE_ENABLE=0 时跳过，trim 仅存 RAM。
+     */
+    g_cal.save_pending = 1U;
+#endif
 }
 
 static void Ball_Calibrate_Abort(void)
@@ -128,11 +135,32 @@ void Ball_Calibrate_Init(void)
     g_cal.wait_start_ms = 0U;
     g_cal.start_ms = 0U;
     g_cal.iterations = 0U;
+    g_cal.save_pending = 0U;
     g_cal.sample_count = 0U;
     g_cal.last_sample_ts = 0U;
     for (i = 0U; i < BALL_CAL_MAX_SAMPLES; i++) {
         g_cal.sample_x[i] = 0.0f;
     }
+}
+
+/* 主循环调用：标定完成待写 Flash 时执行持久化（避免在 TIMER_0 中断里做）。
+ * 返回：0=无待存，1=保存并读回验证成功，2=保存/读回失败。 */
+uint8_t Ball_Calibrate_ProcessSave(void)
+{
+    float readback;
+
+    if (g_cal.save_pending == 0U) {
+        return 0U;
+    }
+    g_cal.save_pending = 0U;
+    if (CalibStore_Save(g_cal.result_deg) == 0U) {
+        return 2U;
+    }
+    if ((CalibStore_Load(&readback) == 0U) ||
+        (readback != g_cal.result_deg)) {
+        return 2U;
+    }
+    return 1U;
 }
 
 void Ball_Calibrate_Start(void)

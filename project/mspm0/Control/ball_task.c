@@ -56,8 +56,10 @@ void Ball_Task_Init(void)
 
 void Ball_Task_StartPoint(void)
 {
+    /* FAULT 后允许直接重启（避免 reset 清掉 RAM 中的标定 trim）。 */
     if ((g_task.state != BALL_TASK_IDLE) &&
-        (g_task.state != BALL_TASK_POINT_DONE)) {
+        (g_task.state != BALL_TASK_POINT_DONE) &&
+        (g_task.state != BALL_TASK_FAULT)) {
         return;
     }
     g_task.state = BALL_TASK_POINT_PLUS;

@@ -23,6 +23,8 @@ All rights reserved
 #include "ball_calibrate.h"
 #include "ball_task.h"
 #include "debug_telemetry.h"
+#include "calib_store.h"
+#include <string.h>
 
 u8 ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
@@ -427,4 +429,106 @@ void Key(void)
 		Ball_Calibrate_Start();	// 长按：自动扫掠标定（BALL_CAL_ENABLE=0 时为空）
 		Debug_Telemetry_LogEvent("KEY,long");
 	}
+}
+
+/*
+ * UART0 命令接口（主循环轮询）：接收 $SET,<name>,<value># 运行时调参。
+ * 支持 KP/KD/TRIM 设置、$CAL 触发标定。修改在关中断下执行，避免与 5ms ISR 竞争。
+ * 例：$SET,KP,0.30#  $SET,KD,0.05#  $SET,TRIM,137.5#  $CAL#
+ */
+#define UART0_CMD_BUF_LEN 32U
+static char uart0_cmd_buf[UART0_CMD_BUF_LEN];
+static uint8_t uart0_cmd_len = 0U;
+
+static float UART0_Command_ParseFloat(const char *s)
+{
+    float sign = 1.0f;
+    float val = 0.0f;
+    float frac = 0.1f;
+    uint8_t in_frac = 0U;
+
+    if (*s == '-') {
+        sign = -1.0f;
+        s++;
+    }
+    while (*s != '\0') {
+        if ((*s >= '0') && (*s <= '9')) {
+            if (in_frac != 0U) {
+                val += frac * (float)(*s - '0');
+                frac *= 0.1f;
+            } else {
+                val = val * 10.0f + (float)(*s - '0');
+            }
+        } else if (*s == '.') {
+            in_frac = 1U;
+        }
+        s++;
+    }
+    return sign * val;
+}
+
+void UART0_Command_Poll(void)
+{
+    uint32_t primask;
+
+    while (!DL_UART_Main_isRXFIFOEmpty(UART_0_INST)) {
+        char ch = (char)DL_UART_Main_receiveData(UART_0_INST);
+        if (ch == '#') {
+            if (uart0_cmd_len > 0U) {
+                uart0_cmd_buf[uart0_cmd_len] = '\0';
+                if (strncmp(uart0_cmd_buf, "$SET,", 5U) == 0U) {
+                    char *name = &uart0_cmd_buf[5];
+                    char *comma = strchr(name, ',');
+                    if (comma != 0) {
+                        float value;
+                        char confirm[DEBUG_TELEMETRY_EVENT_MAX_LEN];
+                        *comma = '\0';
+                        value = UART0_Command_ParseFloat(comma + 1);
+                        primask = __get_PRIMASK();
+                        __disable_irq();
+                        if (strcmp(name, "KP") == 0U) {
+                            Ball_Control_SetGains(value, -1.0f);
+                        } else if (strcmp(name, "KD") == 0U) {
+                            Ball_Control_SetGains(-1.0f, value);
+                        } else if (strcmp(name, "TRIM") == 0U) {
+                            Ball_Control_SetTrimAngle(value);
+                        }
+                        if (primask == 0U) {
+                            __enable_irq();
+                        }
+                        /* 回显确认：SET,<name>,<value>，确保命令确实生效 */
+                        (void)strcpy(confirm, "SET,");
+                        (void)strncat(confirm, name,
+                                      DEBUG_TELEMETRY_EVENT_MAX_LEN - 1U);
+                        (void)strncat(confirm, ",",
+                                      DEBUG_TELEMETRY_EVENT_MAX_LEN - 1U);
+                        (void)strncat(confirm, comma + 1,
+                                      DEBUG_TELEMETRY_EVENT_MAX_LEN - 1U);
+                        Debug_Telemetry_LogEvent(confirm);
+                    }
+#if BALL_CAL_SAVE_ENABLE
+                } else if (strcmp(uart0_cmd_buf, "$SAVETEST") == 0U) {
+                    /* 写 150.0 测试值并读回，验证 Flash 写入链路是否可用 */
+                    float readback = 0.0f;
+                    if ((CalibStore_Save(150.0f) != 0U) &&
+                        (CalibStore_Load(&readback) != 0U) &&
+                        (readback == 150.0f)) {
+                        Debug_Telemetry_LogEvent("SAVETEST,OK");
+                    } else {
+                        Debug_Telemetry_LogEvent("SAVETEST,FAIL");
+                    }
+                } else if (strcmp(uart0_cmd_buf, "$CAL") == 0U) {
+#else
+                } else if (strcmp(uart0_cmd_buf, "$CAL") == 0U) {
+#endif
+                    Ball_Calibrate_Start();
+                }
+            }
+            uart0_cmd_len = 0U;
+        } else if (uart0_cmd_len < (UART0_CMD_BUF_LEN - 1U)) {
+            uart0_cmd_buf[uart0_cmd_len++] = ch;
+        } else {
+            uart0_cmd_len = 0U;  /* 溢出重置 */
+        }
+    }
 }

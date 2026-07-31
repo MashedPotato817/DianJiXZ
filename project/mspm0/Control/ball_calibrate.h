@@ -21,6 +21,12 @@
  * 标定结果经 Ball_Control_SetTrimAngle 生效并写入 Flash，上电自动加载。
  */
 #define BALL_CAL_ENABLE 1
+/*
+ * 标定结果写 Flash 持久化的开关。
+ * 当前实测该芯片的 Flash 擦写会卡死（STATCMD 永不完成），为不影响调参会话，
+ * 先关闭：标定只把 trim 写进 RAM（不复位就持续生效）。Flash 写入问题解决后再开。
+ */
+#define BALL_CAL_SAVE_ENABLE 0
 #define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
 #define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
 #define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)
@@ -47,6 +53,8 @@ void Ball_Calibrate_Start(void);
 void Ball_Calibrate_Tick5ms(void);
 /* 标定激活期间为 1，供调用方跳过正常闭环。 */
 uint8_t Ball_Calibrate_IsActive(void);
+/* 主循环调用：标定完成待写 Flash 时执行持久化，成功返回 1。 */
+uint8_t Ball_Calibrate_ProcessSave(void);
 float Ball_Calibrate_GetResultDeg(void);
 Ball_CalibrateState Ball_Calibrate_GetState(void);
 

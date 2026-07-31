@@ -88,4 +88,6 @@ void Get_RC(void);
 void Gray_Read_All(void);
 void Gray_Mode(void);
 void Key(void);
+/* UART0 命令接口：主循环轮询，接收 $SET,<name>,<value># 运行时调参。 */
+void UART0_Command_Poll(void);
 #endif

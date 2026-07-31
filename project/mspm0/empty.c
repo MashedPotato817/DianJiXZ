@@ -37,6 +37,7 @@
 #include "ball_task.h"
 #include "calib_store.h"
 #include "debug_telemetry.h"
+#include "control.h"
 u8 Car_Mode=Diff_Car;
 int Motor_Left,Motor_Right;                 //电机PWM变量 应是Motor的
 u8 PID_Send;            //延时和调参相关变量
@@ -83,18 +84,30 @@ int main(void)
     Ball_Task_Init(); /* H 题定点运动任务，按键长按触发。 */
     {
         /* 上电用上次标定保存的平衡角作为 trim 初值；无有效数据用默认值。 */
+        uint8_t trim_from_flash = 0U;
         float stored_balance_deg;
         if (CalibStore_Load(&stored_balance_deg) != 0U) {
             Ball_Control_SetTrimAngle(stored_balance_deg);
+            trim_from_flash = 1U;
         }
+        Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
+        Debug_Telemetry_LogEvent("RESET"); /* 记录复位/上电时刻（t_ms=0）。 */
+        Debug_Telemetry_LogEvent(trim_from_flash ? "TRIM,FLASH" : "TRIM,DEFAULT");
     }
-    Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
-    Debug_Telemetry_LogEvent("RESET"); /* 记录复位/上电时刻（t_ms=0）。 */
     // 主循环
     while (1)
     {
 		K230_Link_Process();
         Debug_Telemetry_Process();
+        UART0_Command_Poll();  // 主循环轮询 UART0 RX，接收 $SET 运行时调参
+        {
+            uint8_t save_st = Ball_Calibrate_ProcessSave();  // 标定结果写 Flash（主循环安全上下文）
+            if (save_st == 1U) {
+                Debug_Telemetry_LogEvent("CAL,SAVED");
+            } else if (save_st == 2U) {
+                Debug_Telemetry_LogEvent("CAL,SAVEFAIL");
+            }
+        }
 		Voltage = Get_battery_volt();//采样小车当前电压
         oled_show();         //  OLED显示更新
 
