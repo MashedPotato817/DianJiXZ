@@ -13,9 +13,13 @@
  *
  * 触发：按键长按。流程 IDLE→WAIT_BALL→SETTLE→OBSERVE→DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
- * 结果通过 Ball_Control_SetTrimAngle 写入 trim 初值，残余误差交给
- * 运行中的 trim 在线学习继续修正。
+ * 结果通过 Ball_Control_SetTrimAngle 写入 trim 初值并持久化到 Flash。
+ *
+ * 2026-07-31 用户确认 PWM 1780 us（=122.4°）为当前机构确定的平衡值，
+ * 标定暂时关闭：BALL_CAL_ENABLE=0 时状态机与长按触发均不生效，但 Flash
+ * 中已存的平衡角上电仍会读取。换硬件需要重新标定时改为 1 再编译。
  */
+#define BALL_CAL_ENABLE 0
 #define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
 #define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
 #define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)

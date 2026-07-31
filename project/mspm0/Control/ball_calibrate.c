@@ -2,6 +2,9 @@
 #include "ball_control.h"
 #include "servo.h"
 #include "k230_link.h"
+#include "calib_store.h"
+
+#if BALL_CAL_ENABLE
 
 typedef struct {
     Ball_CalibrateState state;
@@ -42,6 +45,8 @@ static void Ball_Calibrate_Finish(float balance_deg)
     Ball_Control_SetServoHold(0);
     /* 把舵机命令到标定结果并复位运动状态，随后闭环按新 trim 继续。 */
     Ball_Control_SetTrimAngle(balance_deg);
+    /* 持久化：下次上电直接用该平衡角作为 trim 初值，不再依赖默认值。 */
+    (void)CalibStore_Save(balance_deg);
 }
 
 static void Ball_Calibrate_Abort(void)
@@ -212,3 +217,34 @@ Ball_CalibrateState Ball_Calibrate_GetState(void)
 {
     return g_cal.state;
 }
+
+#else /* BALL_CAL_ENABLE == 0：标定关闭，保留空实现以维持调用点不变。 */
+
+void Ball_Calibrate_Init(void)
+{
+}
+
+void Ball_Calibrate_Start(void)
+{
+}
+
+void Ball_Calibrate_Tick5ms(void)
+{
+}
+
+uint8_t Ball_Calibrate_IsActive(void)
+{
+    return 0U;
+}
+
+float Ball_Calibrate_GetResultDeg(void)
+{
+    return 0.0f;
+}
+
+Ball_CalibrateState Ball_Calibrate_GetState(void)
+{
+    return BALL_CAL_STATE_IDLE;
+}
+
+#endif /* BALL_CAL_ENABLE */

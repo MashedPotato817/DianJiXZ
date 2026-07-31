@@ -584,6 +584,11 @@
               <FileType>1</FileType>
               <FilePath>..\Hardware\k230_link.c</FilePath>
             </File>
+            <File>
+              <FileName>calib_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\calib_store.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

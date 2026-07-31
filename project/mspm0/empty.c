@@ -34,6 +34,7 @@
 #include "servo.h"
 #include "ball_control.h"
 #include "ball_calibrate.h"
+#include "calib_store.h"
 #include "debug_telemetry.h"
 u8 Car_Mode=Diff_Car;
 int Motor_Left,Motor_Right;                 //电机PWM变量 应是Motor的
@@ -78,6 +79,13 @@ int main(void)
     Servo_Init();      // 上电先输出 122.4 度初始种子（1780 us），运行中允许动态学习 trim
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
+    {
+        /* 上电用上次标定保存的平衡角作为 trim 初值；无有效数据用默认值。 */
+        float stored_balance_deg;
+        if (CalibStore_Load(&stored_balance_deg) != 0U) {
+            Ball_Control_SetTrimAngle(stored_balance_deg);
+        }
+    }
     Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
     // 主循环
     while (1) 

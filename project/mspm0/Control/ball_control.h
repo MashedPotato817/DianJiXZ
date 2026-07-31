@@ -105,22 +105,21 @@ typedef struct {
 #define BALL_CONTROL_PASS_MIN_HOLD_MS       (150U)
 
 /*
- * 2026-07-31 舵机重新安装后中位持续往 PWM 偏大方向试凑（90°→98.2°→
- * 110°），现按 PWM 基准 1780 us 反算角度 122.4° 作为初始种子（见
- * servo.h 同日期注释）。该值只是上电起点，不是假定不变的物理平衡点；
- * 放宽的trim学习窗口（误差≤20mm、速度≤30mm/s、KI=0.30、单步≤0.30°）
- * 会在运行中继续收敛真实中位，且自动扫掠标定（长按按键）会直接覆盖
- * 该初值。仍只在RUN/BRAKE/CAP等已经趋向中心的安全阶段学习；
- * ACCEL/EDGE/HOLD/LOST/PASS/FAULT保持冻结，避免失控或过渡阶段
- * 积分饱和(windup)。
+ * PWM 1780 us（=122.4°）是当前机构确认的平衡值（用户实测，`000012`
+ * 日志显示球在该值附近静止）。trim 在线学习此前把 trim 从 122.4° 漂到
+ * 约 121° 即足以让球失衡滚出画面（约1°+的偏离对应摆杆倾角零点几度，
+ * 已足以驱动球加速），因此学习大幅收窄、接近关闭：只在极接近中心且
+ * 低速时做极缓慢微调（单步≤0.03°），信任 1780 为基准；若需彻底关闭
+ * 学习，将 TRIM_KI_DEG_PER_MM_S 设为 0.0f。
+ * 换硬件后仍由自动扫掠标定（长按按键）写入新平衡角并持久化。
  */
 #define BALL_CONTROL_TRIM_INITIAL_DEG        (122.4f)
 #define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
 #define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
-#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.30f)
-#define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (20.0f)
-#define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (30.0f)
-#define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.30f)
+#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.02f)
+#define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (4.0f)
+#define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (8.0f)
+#define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.03f)
 
 /* 链路自身100ms超时后再容忍到总计180ms，期间保持上一安全输出。 */
 #define BALL_CONTROL_LOST_HOLD_TOTAL_MS    (180U)
