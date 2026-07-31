@@ -1,12 +1,15 @@
 # 2026 TI 杯 H 题：车载平衡滚球运动控制系统
 
+> 最后更新：2026-07-30 23:37
+
 本工程以 `firmware/WHEELTEC_C07A_CAR` 为唯一硬件与构建底座，目标 MCU 为 MSPM0G3507。`firmware/Medicine_Cart` 只用于参考目录边界、驱动层与任务层的组织方式，不复制其业务逻辑或外设配置。
 
 ## 现阶段工程边界
 
 - 已继承：Keil 工程、`empty.syscfg`、TI DriverLib、TB6612 双电机、双编码器、OLED、按键、电池采样、8 路灰度巡线、5 ms 控制中断。
-- 新增模块：`Hardware/servo.*`、`Hardware/k230_link.*`、`Control/ball_control.*`、`Control/ball_task.*`。
-- 尚未改动：`empty.syscfg` 和 `ti_msp_dl_config.c/h`。这是有意保留的安全边界，避免在未知舵机信号引脚时误占用 UART、编码器或电机 PWM 资源。Keil 的自动 SysConfig 预构建命令已关闭：原脚本依赖未随项目提供的 SDK `product.json`，且不能正确处理含空格的本机路径；当前构建使用已复制的生成文件。
+- 新增模块：`Hardware/servo.*`、`Hardware/k230_link.*`、`Control/ball_control.*`、`Control/ball_task.*`、`Control/debug_telemetry.*`。
+- 当前串口：UART0 PA10/PA11 接电脑调试助手；UART1 PB6/PB7 接 K230；均为 115200 8N1，内部回环关闭。
+- `empty.syscfg` 已作为唯一配置源重新生成 `ti_msp_dl_config.c/h`。Keil 构建使用仓库内生成文件，不依赖预构建时自动运行 SysConfig。
 
 ## 模块职责
 
@@ -18,15 +21,19 @@
 | `Control/control` | 原有 5 ms 底盘速度闭环与灰度巡线 |
 | `Control/ball_control` | 小球 x 方向位置闭环，输出摆杆目标角度 |
 | `Control/ball_task` | H 题任务状态：单圈、居中稳定、行驶保持与指定点保持 |
+| `Control/debug_telemetry` | 每 50 ms 用 UART0 汇总 K230、编码器、舵机和链路诊断数据 |
 
-## 必须确认后才能接入硬件闭环
+## 当前关键接口
 
-1. 舵机型号、信号线接到 MSPM0 的具体引脚，以及其机械零位、有效转角、50 Hz 脉宽范围。
-2. K230 与 MSPM0 的 UART 连接（当前底座 UART0 为 PA0/PA1，UART1 为 PB6/PB7），并确定小球坐标系、单位和数据帧格式。
-3. 摆杆单自由度还是双自由度。当前 `ball_control` 仅预留沿杆方向的一维小球位置闭环。
+1. 舵机：PA8/TIMA0，50 Hz；控制接口使用 0~180°绝对角度，90°为机械中位。
+2. K230：IO40/UART1_TX → PB7/UART1_RX，IO41/UART1_RX ← PB6/UART1_TX，共地。
+3. 电脑调试：PA10/UART0_TX → USB-TTL RX；如需下发命令再连接 PA11/UART0_RX ← USB-TTL TX；只使用 3.3 V TTL。
+4. 小球控制是一维闭环；K230 坐标右正左负。当前仍允许未完成五点标定的临时位置参与联调，不能据此宣称位置精度达标。
 
-确认引脚后，用 TI SysConfig GUI 打开 `empty.syscfg`，添加独立的 50 Hz TimerA PWM 通道和 K230 UART 配置，重新生成 `ti_msp_dl_config.c/h`；完成后再恢复 Keil 的 SysConfig 预构建流程。
+UART0 遥测字段与采集方法见 [`../docs/UART0_AI调试遥测说明_20260730.md`](../docs/UART0_AI调试遥测说明_20260730.md)。
 
 ## 验证状态
 
-底盘底座来自既有工程；本次新增模块目前仅完成不依赖引脚的接口与控制骨架，尚未进行 Keil 编译、舵机输出、K230 串口接收或实车验证。
+截至 2026-07-30 23:37，SysConfig 生成和 Keil 构建均已通过，构建结果为 `0 Error(s), 0 Warning(s)`。K230 UART1 与舵机闭环已有阶段性实测；UART0 PA10 向电脑输出新版 `$T` 遥测仍待硬件验证。
+
+> 最后更新：2026-07-30 23:37

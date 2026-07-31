@@ -2,7 +2,8 @@
 
 接线：IO40/UART1_TX -> MSPM0 PB7/UART1_RX
       IO41/UART1_RX <- MSPM0 PB6/UART1_TX
-帧格式：$K230,BALL,<x_mm>,<valid>,<seq>#\r\n
+帧格式：
+$K230,BALL,<x_mm>,<valid>,<seq>,<edge>,<k_ms>,<center_px>,<fps_x10>#\r\n
 
 先在 K230 实机运行并标定 ball_detect_config.py；本文件不控制舵机或底盘。
 """
@@ -31,7 +32,8 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MM_PER_PIXEL,
                                 EDGE_LOST_PIXEL_MARGIN,
-                                LOG_SUMMARY_PERIOD_MS, SEND_PERIOD_MS,
+                                GC_PERIOD_MS, LOG_SUMMARY_PERIOD_MS,
+                                SEND_PERIOD_MS,
                                 STABLE_FRAMES, UART_BAUDRATE,
                                 CALIBRATION_READY, UART_ALLOW_UNCALIBRATED,
                                 ENABLE_LOG_FILE, LOG_FOLDER_PATH)
@@ -180,6 +182,7 @@ def main():
         last_valid_center_x = None
         last_send_ms = time.ticks_ms()
         last_summary_ms = last_send_ms
+        last_gc_ms = last_send_ms
         last_reported_state = None
         tx_x_mm = 0.0
         tx_valid = 0
@@ -190,6 +193,7 @@ def main():
             clock.tick()
             display_frame = sensor.snapshot(chn=CAM_CHN_ID_0)
             detect_frame = sensor.snapshot(chn=CAM_CHN_ID_1)
+            frame_fps = clock.fps()
             detected = find_ball(detect_frame, previous)
             source = "none"
             center_x = None
@@ -271,7 +275,7 @@ def main():
             display_frame.draw_string_advanced(8, 8, 24, status,
                                                color=(255, 255, 0))
             display_frame.draw_string_advanced(DISPLAY_WIDTH - 168, 8, 24,
-                                               "FPS:%.1f" % clock.fps(),
+                                               "FPS:%.1f" % frame_fps,
                                                color=(0, 255, 0))
             Display.show_image(display_frame, 0, 0)
 
@@ -292,9 +296,12 @@ def main():
                     tx_x_mm = 0.0
                     tx_valid = 0
                     tx_edge_direction = 0
-                uart.write(("$K230,BALL,%.1f,%d,%d,%d#\r\n" %
+                tx_center_x = center_x if center_x is not None else -1
+                tx_fps_x10 = clamp(int(frame_fps * 10.0 + 0.5), 0, 65535)
+                uart.write(("$K230,BALL,%.1f,%d,%d,%d,%d,%d,%d#\r\n" %
                             (tx_x_mm, tx_valid, sequence,
-                             tx_edge_direction)).encode())
+                             tx_edge_direction, now_ms, tx_center_x,
+                             tx_fps_x10)).encode())
                 last_send_ms = now_ms
 
             # 清空 MSPM0 心跳与 ACK，避免 K230 接收 FIFO 积累。
@@ -313,14 +320,20 @@ def main():
                     time.ticks_diff(now_ms, last_summary_ms) >= \
                     LOG_SUMMARY_PERIOD_MS:
                 tx_age_ms = time.ticks_diff(now_ms, last_send_ms)
-                log_message("BALL %s VIS=%+.1f/%d TX=%+.1f/%d edge=%+d "
-                            "seq=%d age=%dms fps=%.1f" %
-                            (state, x_mm, valid, tx_x_mm, tx_valid,
-                             tx_edge_direction, sequence, tx_age_ms,
-                             clock.fps()), log_file,
+                summary_center_x = center_x if center_x is not None else -1
+                log_message("BALL %s VIS=%+.1f/%d px=%d TX=%+.1f/%d "
+                            "edge=%+d seq=%d age=%dms fps=%.1f" %
+                            (state, x_mm, valid, summary_center_x,
+                             tx_x_mm, tx_valid, tx_edge_direction, sequence,
+                             tx_age_ms, frame_fps), log_file,
                             to_console=ENABLE_CONSOLE_SUMMARY)
                 last_summary_ms = now_ms
-            gc.collect()
+
+            # 每帧回收会抢占检测和显示。定时回收仍可释放临时图像/候选对象，
+            # 同时将开销移出高频帧路径。
+            if time.ticks_diff(now_ms, last_gc_ms) >= GC_PERIOD_MS:
+                gc.collect()
+                last_gc_ms = now_ms
     finally:
         if sensor is not None:
             sensor.stop()

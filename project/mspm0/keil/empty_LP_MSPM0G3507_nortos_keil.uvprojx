@@ -614,6 +614,11 @@
               <FileType>1</FileType>
               <FilePath>..\Control\ball_task.c</FilePath>
             </File>
+            <File>
+              <FileName>debug_telemetry.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Control\debug_telemetry.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

@@ -1,7 +1,7 @@
 #include "k230_link.h"
 #include "ti_msp_dl_config.h"
 
-#define K230_LINE_BUFFER_SIZE 48U
+#define K230_LINE_BUFFER_SIZE 96U
 #define K230_HELLO_PERIOD_MS  500U
 #define K230_RX_RING_SIZE     128U
 
@@ -69,6 +69,25 @@ static uint8_t K230_ParseFloat(const char **text, float *value)
     return 1U;
 }
 
+static uint8_t K230_ParseSigned(const char **text, int32_t *value)
+{
+    uint32_t magnitude;
+    uint8_t negative = 0U;
+
+    if (**text == '-') {
+        negative = 1U;
+        (*text)++;
+    } else if (**text == '+') {
+        (*text)++;
+    }
+    if ((K230_ParseUnsigned(text, &magnitude) == 0U) ||
+        (magnitude > 2147483647U)) {
+        return 0U;
+    }
+    *value = (negative != 0U) ? -(int32_t)magnitude : (int32_t)magnitude;
+    return 1U;
+}
+
 static uint8_t K230_ParseEdgeDirection(const char **text, int8_t *value)
 {
     uint32_t magnitude;
@@ -103,6 +122,9 @@ static void K230_ParseLine(const char *line)
     float x_mm;
     uint32_t valid;
     uint32_t seq;
+    uint32_t source_timestamp_ms = 0U;
+    uint32_t fps_x10 = 0U;
+    int32_t center_x_px = -1;
     int8_t edge_direction = 0;
 
     /* UART1 PB6->PB7 本地回环的最短令牌，排除长帧字段解析干扰。 */
@@ -142,6 +164,29 @@ static void K230_ParseLine(const char *line)
             g_diagnostics.parse_errors++;
             return;
         }
+        if (*text == ',') {
+            text++;
+            if (K230_ParseUnsigned(&text, &source_timestamp_ms) == 0U) {
+                g_diagnostics.parse_errors++;
+                return;
+            }
+        }
+        if (*text == ',') {
+            text++;
+            if ((K230_ParseSigned(&text, &center_x_px) == 0U) ||
+                (center_x_px < -1) || (center_x_px > 32767)) {
+                g_diagnostics.parse_errors++;
+                return;
+            }
+        }
+        if (*text == ',') {
+            text++;
+            if ((K230_ParseUnsigned(&text, &fps_x10) == 0U) ||
+                (fps_x10 > 65535U)) {
+                g_diagnostics.parse_errors++;
+                return;
+            }
+        }
     }
     if ((*text != '#') || (text[1] != '\0')) {
         g_diagnostics.parse_errors++;
@@ -149,8 +194,15 @@ static void K230_ParseLine(const char *line)
     }
 
     K230_Link_UpdatePosition(x_mm, 0.0f, (uint8_t)valid, edge_direction,
-                             g_now_ms);
+                             g_now_ms, source_timestamp_ms,
+                             (int16_t)center_x_px, (uint16_t)fps_x10);
     g_last_frame_ms = g_now_ms;
+    if ((g_diagnostics.valid_frames != 0U) &&
+        (seq > g_diagnostics.last_seq) &&
+        ((seq - g_diagnostics.last_seq) > 1U)) {
+        g_diagnostics.sequence_gaps +=
+            seq - g_diagnostics.last_seq - 1U;
+    }
     g_diagnostics.last_seq = seq;
     g_diagnostics.valid_frames++;
     g_diagnostics.timed_out = 0U;
@@ -191,10 +243,14 @@ void K230_Link_Init(void)
     g_ball_position.valid = 0U;
     g_ball_position.edge_direction = 0;
     g_ball_position.timestamp_ms = 0U;
+    g_ball_position.source_timestamp_ms = 0U;
+    g_ball_position.center_x_px = -1;
+    g_ball_position.fps_x10 = 0U;
     g_diagnostics.rx_bytes = 0U;
     g_diagnostics.rx_overruns = 0U;
     g_diagnostics.valid_frames = 0U;
     g_diagnostics.parse_errors = 0U;
+    g_diagnostics.sequence_gaps = 0U;
     g_diagnostics.last_seq = 0U;
     g_diagnostics.timed_out = 1U;
     g_line_length = 0U;
@@ -266,13 +322,18 @@ void K230_Link_UART1_IRQHandler(void)
 }
 
 void K230_Link_UpdatePosition(float x_mm, float y_mm, uint8_t valid,
-                              int8_t edge_direction, uint32_t timestamp_ms)
+                              int8_t edge_direction, uint32_t timestamp_ms,
+                              uint32_t source_timestamp_ms,
+                              int16_t center_x_px, uint16_t fps_x10)
 {
     g_ball_position.x_mm = x_mm;
     g_ball_position.y_mm = y_mm;
     g_ball_position.valid = valid;
     g_ball_position.edge_direction = edge_direction;
     g_ball_position.timestamp_ms = timestamp_ms;
+    g_ball_position.source_timestamp_ms = source_timestamp_ms;
+    g_ball_position.center_x_px = center_x_px;
+    g_ball_position.fps_x10 = fps_x10;
 }
 
 void K230_Link_GetPosition(K230_BallPosition *position)

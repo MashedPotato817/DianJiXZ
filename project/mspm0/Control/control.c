@@ -20,6 +20,7 @@ All rights reserved
 #include "control.h"
 #include "k230_link.h"
 #include "ball_control.h"
+#include "debug_telemetry.h"
 
 u8 ELE_count;
 int Sensor_Left,Sensor_Middle,Sensor_Right,Sensor;
@@ -151,6 +152,7 @@ void TIMER_0_INST_IRQHandler(void)
 			else if (K230_Link_HasRxBytes() != 0U) LED_Flash(200);
 			else if (K230_Link_HasTxAttempt() != 0U) LED_Flash(50);
 			else                                LED_Flash(100);
+			Debug_Telemetry_Tick5ms(Get_Encoder_countA, Get_Encoder_countB);
 			Get_Velocity_From_Encoder(Get_Encoder_countA,Get_Encoder_countB);
 			Get_Encoder_countA=Get_Encoder_countB=0;
 			if(Run_Mode==0)

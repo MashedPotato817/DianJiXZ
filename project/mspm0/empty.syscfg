@@ -204,9 +204,10 @@ UART1.enableFIFO               = true;
 UART1.rxFifoThreshold          = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
 UART1.enableDMARX              = false;
 UART1.enableDMATX              = false;
+UART1.enableInternalLoopback   = false;
 UART1.peripheral.$assign       = "UART0";
-UART1.peripheral.rxPin.$assign = "PA1";
-UART1.peripheral.txPin.$assign = "PA0";
+UART1.peripheral.rxPin.$assign = "PA11";
+UART1.peripheral.txPin.$assign = "PA10";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric2";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
 
@@ -239,11 +240,11 @@ UART3.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric9";
  * version of the tool will not impact the pinmux you originally saw.  These lines can be completely deleted in order to
  * re-solve from scratch.
  */
-ADC121.peripheral.$suggestSolution               = "ADC1";
-ADC121.peripheral.adcPin0.$suggestSolution       = "PA15";
-Board.peripheral.$suggestSolution                = "DEBUGSS";
-Board.peripheral.swclkPin.$suggestSolution       = "PA20";
-Board.peripheral.swdioPin.$suggestSolution       = "PA19";
-GPIO11.associatedPins[0].pin.$suggestSolution    = "PA22";
-GPIO12.associatedPins[0].pin.$suggestSolution    = "PA9";
-PWM2.peripheral.$suggestSolution                 = "TIMA0";
+ADC121.peripheral.$suggestSolution            = "ADC1";
+ADC121.peripheral.adcPin0.$suggestSolution    = "PA15";
+Board.peripheral.$suggestSolution             = "DEBUGSS";
+Board.peripheral.swclkPin.$suggestSolution    = "PA20";
+Board.peripheral.swdioPin.$suggestSolution    = "PA19";
+GPIO11.associatedPins[0].pin.$suggestSolution = "PA22";
+GPIO12.associatedPins[0].pin.$suggestSolution = "PA9";
+PWM2.peripheral.$suggestSolution              = "TIMA0";

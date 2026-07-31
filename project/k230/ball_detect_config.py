@@ -71,6 +71,9 @@ ENABLE_STARTUP_CONFIG_LOG = False
 ENABLE_CONSOLE_SUMMARY = False
 ENABLE_LOG_SUMMARY = True
 LOG_SUMMARY_PERIOD_MS = 1000
+# 检测循环会持续创建图像和候选对象。保留垃圾回收以避免长期运行耗尽内存，
+# 但不在每帧执行，避免其占用圆检测与显示的关键路径。
+GC_PERIOD_MS = 1000
 
 # K230 本地检测日志。仅记录应用输出，不捕获 CanMV 固件启动时的系统日志。
 ENABLE_LOG_FILE = True

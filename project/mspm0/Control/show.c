@@ -21,6 +21,7 @@ All rights reserved
 #include "control.h"
 #include "k230_link.h"
 #include "servo.h"
+#include "ball_control.h"
 /**************************************************************************
 Function: OLED display
 Input   : none
@@ -107,8 +108,10 @@ void oled_show(void)
     uint16_t pulse_us;
     uint16_t duty_x100;
     int x_tenths;
+    const Ball_Control *ball_control;
 
     K230_Link_GetPosition(&position);
+    ball_control = Ball_Control_Get();
     pulse_us = Servo_GetPulseUs();
     /* 20 ms 周期：775 表示 7.75%。 */
     duty_x100 = (uint16_t)(((uint32_t)pulse_us * 10000U + 10000U) / 20000U);
@@ -142,6 +145,21 @@ void oled_show(void)
         OLED_ShowString(42, 44, ".");
         OLED_ShowNumber(48, 44, (uint32_t)x_tenths % 10U, 1, 12);
         OLED_ShowString(54, 44, "mm");
+    }
+
+    OLED_ShowString(0, 56, "CTRL:");
+    if (ball_control->enabled == 0U) {
+        OLED_ShowString(36, 56, "OFF ");
+    } else if (ball_control->edge_recovery_active != 0U) {
+        OLED_ShowString(36, 56, "EDGE");
+    } else if (ball_control->kick_fault_active != 0U) {
+        OLED_ShowString(36, 56, "FLT ");
+    } else if (ball_control->breakaway_active != 0U) {
+        OLED_ShowString(36, 56, "STK ");
+    } else if (ball_control->drive_active != 0U) {
+        OLED_ShowString(36, 56, "DRV ");
+    } else {
+        OLED_ShowString(36, 56, "PD  ");
     }
 
     OLED_Refresh_Gram();

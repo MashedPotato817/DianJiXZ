@@ -33,6 +33,7 @@
 #include "k230_link.h"
 #include "servo.h"
 #include "ball_control.h"
+#include "debug_telemetry.h"
 u8 Car_Mode=Diff_Car;
 int Motor_Left,Motor_Right;                 //电机PWM变量 应是Motor的
 u8 PID_Send;            //延时和调参相关变量
@@ -64,10 +65,12 @@ int main(void)
     K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
     Servo_Init();      // 上电先输出受限的机械中位 1500 us
     Ball_Control_Init(); /* 默认未使能，待确认方向后再显式打开。 */
+    Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
     // 主循环
     while (1) 
     {
 		K230_Link_Process();
+        Debug_Telemetry_Process();
 		Voltage = Get_battery_volt();//采样小车当前电压
         oled_show();         //  OLED显示更新
     }
