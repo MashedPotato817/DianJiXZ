@@ -40,8 +40,46 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 STABLE_FRAMES, UART_BAUDRATE,
                                 CALIBRATION_READY, UART_ALLOW_UNCALIBRATED,
                                 ENABLE_LOG_FILE, LOG_FOLDER_PATH,
-                                LOG_SESSION_ID)
+                                LOG_SESSION_PREFIX)
 
+
+def next_session_id():
+    """读取持久计数器，返回递增后的 <前缀>_<6位序号>。
+
+    每次上电自动取上次序号 + 1，不重复使用旧编号；计数器文件丢失时
+    按目录内已有日志的最大序号兜底递增，避免覆盖旧日志。
+    """
+    counter_file = LOG_FOLDER_PATH + ".session_counter"
+    last = 0
+    try:
+        with open(counter_file, "r") as counter:
+            value = counter.read().strip()
+            if value.isdigit():
+                last = int(value)
+    except OSError:
+        pass
+
+    if last == 0:
+        try:
+            for entry in os.listdir(LOG_FOLDER_PATH):
+                if (entry.startswith(LOG_SESSION_PREFIX + "_") and
+                        entry.endswith("_K230.txt")):
+                    num_text = entry[len(LOG_SESSION_PREFIX) + 1:-9]
+                    if num_text.isdigit():
+                        last = max(last, int(num_text))
+        except OSError:
+            pass
+
+    session_id = "%s_%06d" % (LOG_SESSION_PREFIX, last + 1)
+    try:
+        with open(counter_file, "w") as counter:
+            counter.write(str(last + 1))
+    except OSError:
+        pass
+    return session_id
+
+
+LOG_SESSION_ID = next_session_id()
 LOG_FILE_PATH = LOG_FOLDER_PATH + LOG_SESSION_ID + "_K230.txt"
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480

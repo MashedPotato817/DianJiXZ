@@ -78,7 +78,8 @@ GC_PERIOD_MS = 1000
 # K230 本地检测日志。仅记录应用输出，不捕获 CanMV 固件启动时的系统日志。
 ENABLE_LOG_FILE = True
 LOG_FOLDER_PATH = "/data/ball_detect_preview/"
-# 与电脑串口助手保存的 M0 日志共用同一测试编号。
-# 每次新实验先递增末尾序号；K230 自动添加 "_K230.txt"，
-# 串口助手对应保存为 "<同一编号>_M0.txt"。
-LOG_SESSION_ID = "20260731_000007"
+# 日志会话编号前缀。完整编号 = 前缀 + "_" + 六位序号，序号由脚本启动时
+# 自动递增（计数器存于 LOG_FOLDER_PATH 下的 .session_counter），无需手工维护，
+# 每次上电不会重复使用旧编号。启动时终端打印 "LOG SESSION: <前缀>_<序号>"，
+# 电脑串口助手用同一编号保存 M0 日志（<同一编号>_M0.txt）。
+LOG_SESSION_PREFIX = "20260731"

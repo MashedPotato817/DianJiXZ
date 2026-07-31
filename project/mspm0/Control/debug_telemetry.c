@@ -97,7 +97,8 @@ static void Debug_Telemetry_SendHeader(void)
         "#TELEM_V3,t_ms,dt_ms,rx_ms,rx_age_ms,seq,x10,valid,edge,"
         "v10,toward_v10,stop10,trim10,wheel_enc_valid,"
         "wheel_encA_raw,wheel_encB_raw,servo_us,out10,"
-        "ctrl,parse_err,crc_err,range_err,seq_gap,rx_overrun,timeout#\r\n");
+        "ctrl,parse_err,crc_err,range_err,seq_gap,rx_overrun,timeout,"
+        "rx_hw_overrun#\r\n");
 }
 
 void Debug_Telemetry_Init(void)
@@ -208,5 +209,6 @@ void Debug_Telemetry_Process(void)
     Debug_Telemetry_FieldUnsigned(diagnostics.sequence_gaps);
     Debug_Telemetry_FieldUnsigned(diagnostics.rx_overruns);
     Debug_Telemetry_FieldUnsigned(diagnostics.timed_out);
+    Debug_Telemetry_FieldUnsigned(diagnostics.rx_hw_overruns);
     Debug_Telemetry_SendString("#\r\n");
 }

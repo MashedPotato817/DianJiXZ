@@ -615,6 +615,11 @@
               <FilePath>..\Control\ball_task.c</FilePath>
             </File>
             <File>
+              <FileName>ball_calibrate.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Control\ball_calibrate.c</FilePath>
+            </File>
+            <File>
               <FileName>debug_telemetry.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Control\debug_telemetry.c</FilePath>

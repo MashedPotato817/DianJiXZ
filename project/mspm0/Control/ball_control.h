@@ -28,6 +28,7 @@ typedef struct {
     float last_command_angle_deg;
     float last_output_deg;
     float pass_target_abs_mm;
+    float accel_scale;
     uint32_t last_timestamp_ms;
     uint32_t last_valid_control_ms;
     uint32_t control_now_ms;
@@ -36,6 +37,7 @@ typedef struct {
     uint8_t enabled;
     uint8_t has_last_sample;
     uint8_t edge_recovery_timed_out;
+    uint8_t servo_hold;
     uint8_t velocity_confirm_frames;
     uint8_t accel_level;
     int8_t motion_direction;
@@ -63,6 +65,19 @@ typedef struct {
 #define BALL_CONTROL_ACCEL_TIMEOUT_MS      (1200U)
 
 /*
+ * 000006~000008 三组实测按进入ACC时的误差分桶统计：过冲幅度随进入误差
+ * 近似线性增长（例如000007中<5mm入口过冲中位数4.5mm，20~40mm入口过冲
+ * 中位数31.2mm）。说明固定20°首级起动力对贴近容差边缘的小误差过量，
+ * 把球推过中心后又需要新一轮ACC。按误差比例缩放整条ACC坡度，
+ * 误差≤2mm时用50%力度，≥20mm时保留原100%力度，二者间线性过渡。
+ * 50%下限缺乏台架静摩擦实测数据，只是保守假设；若脱困成功率下降，
+ * 需回到实测重新调整该下限。
+ */
+#define BALL_CONTROL_ACCEL_SCALE_MIN_ERROR_MM (2.0f)
+#define BALL_CONTROL_ACCEL_SCALE_FULL_ERROR_MM (20.0f)
+#define BALL_CONTROL_ACCEL_SCALE_MIN          (0.5f)
+
+/*
  * 首帧确认回中运动后立即撤掉脱困强推力。
  * RUN 不设固定同向下限，只保留位置/速度 PD；若中心外再次停住，
  * 由 STALL 判断重新进入 ACC，而不是持续给球增加动能。
@@ -83,33 +98,44 @@ typedef struct {
 #define BALL_CONTROL_PASS_TARGET_RATIO        (0.20f)
 #define BALL_CONTROL_PASS_TARGET_MIN_MM       (3.0f)
 #define BALL_CONTROL_PASS_TARGET_MAX_MM       (8.0f)
-#define BALL_CONTROL_PASS_DAMP_KD_DEG_S_PER_MM (0.05f)
+#define BALL_CONTROL_PASS_DAMP_KD_DEG_S_PER_MM (0.07f)
 #define BALL_CONTROL_PASS_DAMP_MIN_DEG        (2.0f)
 #define BALL_CONTROL_PASS_DAMP_SOFT_MAX_DEG   (4.0f)
-#define BALL_CONTROL_PASS_DAMP_HARD_MAX_DEG   (6.0f)
+#define BALL_CONTROL_PASS_DAMP_HARD_MAX_DEG   (8.0f)
 #define BALL_CONTROL_PASS_MIN_HOLD_MS       (150U)
 
 /*
- * 90 度只是上电种子，不是假定不变的物理平衡点。
- * trim 仅在中心附近低速时慢速学习，并预留至少 10 度快速纠偏余量。
+ * 2026-07-31 舵机重新安装后中位持续往 PWM 偏大方向试凑（90°→98.2°→
+ * 110°），现按 PWM 基准 1780 us 反算角度 122.4° 作为初始种子（见
+ * servo.h 同日期注释）。该值只是上电起点，不是假定不变的物理平衡点；
+ * 放宽的trim学习窗口（误差≤20mm、速度≤30mm/s、KI=0.30、单步≤0.30°）
+ * 会在运行中继续收敛真实中位，且自动扫掠标定（长按按键）会直接覆盖
+ * 该初值。仍只在RUN/BRAKE/CAP等已经趋向中心的安全阶段学习；
+ * ACCEL/EDGE/HOLD/LOST/PASS/FAULT保持冻结，避免失控或过渡阶段
+ * 积分饱和(windup)。
  */
-#define BALL_CONTROL_TRIM_INITIAL_DEG        (90.0f)
+#define BALL_CONTROL_TRIM_INITIAL_DEG        (122.4f)
 #define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
 #define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
-#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.18f)
-#define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (6.0f)
-#define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (12.0f)
-#define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.15f)
+#define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.30f)
+#define BALL_CONTROL_TRIM_LEARN_ERROR_MM      (20.0f)
+#define BALL_CONTROL_TRIM_LEARN_VELOCITY_MM_S (30.0f)
+#define BALL_CONTROL_TRIM_MAX_STEP_DEG        (0.30f)
 
 /* 链路自身100ms超时后再容忍到总计180ms，期间保持上一安全输出。 */
 #define BALL_CONTROL_LOST_HOLD_TOTAL_MS    (180U)
-#define BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG (75.0f) /* 90+/-80 度已确认安全，预留 5 度余量 */
+/* 相对trim偏移；中位122.4°时可用上限为52.6°（175-122.4），取50°留余量 */
+#define BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG (50.0f)
 #define BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS (1000U)
 
 void Ball_Control_Init(void);
 void Ball_Control_SetTarget(float target_x_mm);
 void Ball_Control_SetEnabled(uint8_t enabled);
 uint8_t Ball_Control_IsEnabled(void);
+/* 自动标定期间置1：Step 完全返回，不 Reset 也不写舵机。 */
+void Ball_Control_SetServoHold(uint8_t hold);
+/* 自动标定结束调用：把 trim 设为标定结果并复位运动状态。 */
+void Ball_Control_SetTrimAngle(float angle_deg);
 void Ball_Control_Reset(void);
 void Ball_Control_Step(const K230_BallPosition *position, float period_s);
 const Ball_Control *Ball_Control_Get(void);

@@ -24,6 +24,7 @@ typedef struct {
 typedef struct {
     uint32_t rx_bytes;
     uint32_t rx_overruns;
+    uint32_t rx_hw_overruns;
     uint32_t valid_frames;
     uint32_t parse_errors;
     uint32_t crc_errors;

@@ -20,6 +20,7 @@ All rights reserved
 #include "control.h"
 #include "k230_link.h"
 #include "ball_control.h"
+#include "ball_calibrate.h"
 #include "debug_telemetry.h"
 
 u8 ELE_count;
@@ -142,9 +143,13 @@ void TIMER_0_INST_IRQHandler(void)
     if (DL_TimerG_getPendingInterrupt(TIMER_0_INST) == DL_TIMERG_IIDX_ZERO)
     {
 			K230_Link_Tick5ms();
+			Ball_Calibrate_Tick5ms();
 			K230_Link_GetPosition(&ball_position);
-			Ball_Control_Step(&ball_position, 0.005f);
-			
+			/* 自动标定激活期间跳过正常闭环，舵机由标定状态机直接控制。 */
+			if (Ball_Calibrate_IsActive() == 0U) {
+				Ball_Control_Step(&ball_position, 0.005f);
+			}
+
 			Key();
 			/* 联调：慢闪=未发，2 Hz=已发无字节，0.5 Hz=收到原始字节，常亮=已解帧。 */
 			if (K230_Link_HasValidFrame() != 0U) LED_ON();
@@ -388,5 +393,9 @@ void Key(void)
 	{
 		Run_Mode++;
 		Run_Mode%=2;
+	}
+	else if(tmp==3)
+	{
+		Ball_Calibrate_Start();	//长按触发自动扫掠标定
 	}
 }

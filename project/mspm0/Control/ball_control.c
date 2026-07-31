@@ -94,6 +94,25 @@ static void Ball_Control_ClearMotion(Ball_ControlPhase phase)
     g_ball_control.motion_direction = 0;
     g_ball_control.correction_start_direction = 0;
     g_ball_control.pass_target_abs_mm = 0.0f;
+    g_ball_control.accel_scale = 0.0f;
+}
+
+static float Ball_Control_ComputeAccelScale(float error_abs)
+{
+    float scale;
+
+    if (error_abs <= BALL_CONTROL_ACCEL_SCALE_MIN_ERROR_MM) {
+        return BALL_CONTROL_ACCEL_SCALE_MIN;
+    }
+    if (error_abs >= BALL_CONTROL_ACCEL_SCALE_FULL_ERROR_MM) {
+        return 1.0f;
+    }
+    scale = BALL_CONTROL_ACCEL_SCALE_MIN +
+            (1.0f - BALL_CONTROL_ACCEL_SCALE_MIN) *
+            (error_abs - BALL_CONTROL_ACCEL_SCALE_MIN_ERROR_MM) /
+            (BALL_CONTROL_ACCEL_SCALE_FULL_ERROR_MM -
+             BALL_CONTROL_ACCEL_SCALE_MIN_ERROR_MM);
+    return scale;
 }
 
 static void Ball_Control_StartAccel(float error)
@@ -115,6 +134,8 @@ static void Ball_Control_StartAccel(float error)
     g_ball_control.velocity_confirm_frames = 0U;
     g_ball_control.accel_level = 0U;
     g_ball_control.motion_direction = (error > 0.0f) ? 1 : -1;
+    g_ball_control.accel_scale =
+        Ball_Control_ComputeAccelScale(Ball_Control_Abs(error));
 }
 
 static float Ball_Control_GetAccelOutput(void)
@@ -133,6 +154,7 @@ static float Ball_Control_GetAccelOutput(void)
     if (output > BALL_CONTROL_ACCEL_MAX_DEG) {
         output = BALL_CONTROL_ACCEL_MAX_DEG;
     }
+    output *= g_ball_control.accel_scale;
     return (float)g_ball_control.motion_direction * output;
 }
 
@@ -182,17 +204,17 @@ static void Ball_Control_HandlePass(float error, float error_abs,
 
     /*
      * 至少保持150ms，覆盖当前85ms中位视觉间隔。确认原方向速度已经
-     * 降到8mm/s以内后，才从反侧重新起动回中，形成一次小幅过零。
+     * 降到8mm/s以内后，不再从反侧重新ACC（否则每过零一次就重新
+     * 经历完整ACC→RUN→BRK→PASS链条，形成反复过零），而是转入RUN
+     * 靠位置/速度PD滑回中心，由中心捕获阻尼吸住，实现单次过零收敛。
+     * 若球在反侧真的停住，主循环STALL分支会重新ACC脱困，不会卡死。
      */
     if ((new_sample != 0U) &&
         (pass_elapsed_ms >= BALL_CONTROL_PASS_MIN_HOLD_MS) &&
         (pass_velocity <= BALL_CONTROL_VELOCITY_STOP_MM_S)) {
         g_ball_control.correction_start_direction = 0;
         g_ball_control.pass_target_abs_mm = 0.0f;
-        Ball_Control_StartAccel(error);
-        Ball_Control_ApplyOutput(
-            Ball_Control_GetAccelOutput(),
-            BALL_CONTROL_ACCEL_MAX_DEG);
+        Ball_Control_ClearMotion(BALL_CONTROL_PHASE_RUN);
         return;
     }
 
@@ -255,6 +277,7 @@ void Ball_Control_Init(void)
     g_ball_control.edge_recovery_start_ms = 0U;
     g_ball_control.edge_recovery_timed_out = 0U;
     g_ball_control.enabled = BALL_CONTROL_ENABLE_DEFAULT;
+    g_ball_control.servo_hold = 0U;
     Ball_Control_Reset();
 }
 
@@ -273,6 +296,18 @@ void Ball_Control_SetEnabled(uint8_t enabled)
 uint8_t Ball_Control_IsEnabled(void)
 {
     return g_ball_control.enabled;
+}
+
+void Ball_Control_SetServoHold(uint8_t hold)
+{
+    g_ball_control.servo_hold = (hold != 0U) ? 1U : 0U;
+}
+
+void Ball_Control_SetTrimAngle(float angle_deg)
+{
+    g_ball_control.trim_angle_deg = angle_deg;
+    g_ball_control.last_command_angle_deg = angle_deg;
+    Ball_Control_Reset();
 }
 
 void Ball_Control_Reset(void)
@@ -303,6 +338,11 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
     int8_t error_direction;
 
     if ((position == 0) || (period_s <= 0.0f)) {
+        return;
+    }
+
+    /* 自动标定期间完全接管舵机，禁止 Reset/ApplyOutput 覆盖标定写入角度。 */
+    if (g_ball_control.servo_hold != 0U) {
         return;
     }
 

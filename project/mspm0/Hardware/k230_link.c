@@ -20,6 +20,7 @@ static volatile uint8_t g_rx_ring_read;
 static volatile uint8_t g_rx_ring_write;
 static volatile uint32_t g_rx_bytes;
 static volatile uint32_t g_rx_overruns;
+static volatile uint32_t g_rx_hw_overruns;
 
 static uint8_t K230_ParseUnsigned(const char **text, uint32_t *value)
 {
@@ -244,6 +245,7 @@ void K230_Link_Init(void)
     g_ball_position.timestamp_ms = 0U;
     g_diagnostics.rx_bytes = 0U;
     g_diagnostics.rx_overruns = 0U;
+    g_diagnostics.rx_hw_overruns = 0U;
     g_diagnostics.valid_frames = 0U;
     g_diagnostics.parse_errors = 0U;
     g_diagnostics.crc_errors = 0U;
@@ -262,9 +264,12 @@ void K230_Link_Init(void)
     g_rx_ring_write = 0U;
     g_rx_bytes = 0U;
     g_rx_overruns = 0U;
+    g_rx_hw_overruns = 0U;
     while (!DL_UART_Main_isRXFIFOEmpty(UART_1_INST)) {
         (void)DL_UART_Main_receiveData(UART_1_INST);
     }
+    DL_UART_Main_clearInterruptStatus(
+        UART_1_INST, DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR);
     /* 最小联调上电即发一次，避免首帧诊断依赖 5 ms 时基。 */
     K230_SendString("$L#");
     K230_SendString("$MSPM0,HELLO#\r\n");
@@ -287,6 +292,7 @@ void K230_Link_Process(void)
     }
     g_diagnostics.rx_bytes = g_rx_bytes;
     g_diagnostics.rx_overruns = g_rx_overruns;
+    g_diagnostics.rx_hw_overruns = g_rx_hw_overruns;
 
     if ((uint32_t)(g_now_ms - g_last_hello_ms) >= K230_HELLO_PERIOD_MS) {
         K230_SendString("$MSPM0,HELLO#\r\n");
@@ -304,6 +310,17 @@ void K230_Link_Process(void)
 void K230_Link_UART1_IRQHandler(void)
 {
     uint8_t next_write;
+
+    /*
+     * 硬件RX FIFO仅4字节深，溢出发生在数据位读出之前。用RIS标志位
+     * 判断，不读RXDATA，避免额外弹出一个字节。
+     */
+    if (DL_UART_Main_getRawInterruptStatus(
+            UART_1_INST, DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR) != 0U) {
+        g_rx_hw_overruns++;
+        DL_UART_Main_clearInterruptStatus(
+            UART_1_INST, DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR);
+    }
 
     while (!DL_UART_Main_isRXFIFOEmpty(UART_1_INST)) {
         next_write = (uint8_t)((g_rx_ring_write + 1U) &

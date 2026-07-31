@@ -33,6 +33,7 @@
 #include "k230_link.h"
 #include "servo.h"
 #include "ball_control.h"
+#include "ball_calibrate.h"
 #include "debug_telemetry.h"
 u8 Car_Mode=Diff_Car;
 int Motor_Left,Motor_Right;                 //电机PWM变量 应是Motor的
@@ -61,10 +62,22 @@ int main(void)
     NVIC_ClearPendingIRQ(TIMER_0_INST_INT_IRQN);  // 清除定时器0中断挂起
     NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN);        // 开启定时器0中断
     NVIC_EnableIRQ(ADC12_VOLTAGE_INST_INT_IRQN);
+    /*
+     * TIMER_0（5ms控制中断）内部会执行8路灰度Gray_Read_All，
+     * 每路50us delay_us累计≥400us忙等待。UART1硬件RX FIFO仅4字节，
+     * 115200bps下约347us即被填满；NVIC复位默认优先级相同，
+     * 同优先级中断不能互相抢占，TIMER_0执行期间到达的K230字节
+     * 会被硬件静默覆盖，且不会计入软件ring buffer的rx_overruns。
+     * 把UART1设为更高优先级（数值更小），使其能抢占TIMER_0的忙等待，
+     * 避免硬件层丢字节被误判为CRC/线路问题。
+     */
+    NVIC_SetPriority(UART_1_INST_INT_IRQN, 0);
+    NVIC_SetPriority(TIMER_0_INST_INT_IRQN, 1);
     OLED_Init();  // 初始化OLED显示屏
     K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
-    Servo_Init();      // 上电先输出 90 度初始种子（1600 us），运行中允许动态学习 trim
+    Servo_Init();      // 上电先输出 122.4 度初始种子（1780 us），运行中允许动态学习 trim
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
+    Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
     Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
     // 主循环
     while (1) 
