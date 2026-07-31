@@ -84,19 +84,19 @@ static void Ball_Calibrate_Decide(void)
     if ((g_cal.sample_x[0] > BALL_CAL_EDGE_X_MM) &&
         (g_cal.sample_x[n - 1U] > BALL_CAL_EDGE_X_MM) &&
         (Ball_Calibrate_Abs(trend) < BALL_CAL_TREND_THRESHOLD_MM)) {
-        /* 球被卡在 +X 边缘：当前角度偏高（右端低），缩小上界。 */
-        g_cal.hi_deg = g_cal.mid_deg;
+        /* 球被卡在 +X 边缘：PWM 偏小、角度偏低（球想往右滚但到边），抬升下界。 */
+        g_cal.lo_deg = g_cal.mid_deg;
     } else if ((g_cal.sample_x[0] < -BALL_CAL_EDGE_X_MM) &&
                (g_cal.sample_x[n - 1U] < -BALL_CAL_EDGE_X_MM) &&
                (Ball_Calibrate_Abs(trend) < BALL_CAL_TREND_THRESHOLD_MM)) {
-        /* 球被卡在 -X 边缘：当前角度偏低（左端低），缩小下界。 */
-        g_cal.lo_deg = g_cal.mid_deg;
-    } else if (trend > BALL_CAL_TREND_THRESHOLD_MM) {
-        /* 球向 +X 滚：当前角度偏高。 */
+        /* 球被卡在 -X 边缘：PWM 偏大、角度偏高（球想往左滚但到边），压低上界。 */
         g_cal.hi_deg = g_cal.mid_deg;
-    } else if (trend < -BALL_CAL_TREND_THRESHOLD_MM) {
-        /* 球向 -X 滚：当前角度偏低。 */
+    } else if (trend > BALL_CAL_TREND_THRESHOLD_MM) {
+        /* 球向 +X 滚：PWM 偏小、角度偏低，抬升下界。 */
         g_cal.lo_deg = g_cal.mid_deg;
+    } else if (trend < -BALL_CAL_TREND_THRESHOLD_MM) {
+        /* 球向 -X 滚：PWM 偏大、角度偏高，压低上界。 */
+        g_cal.hi_deg = g_cal.mid_deg;
     } else {
         /* 球近乎静止：当前角度即为平衡角。 */
         Ball_Calibrate_Finish(g_cal.mid_deg);

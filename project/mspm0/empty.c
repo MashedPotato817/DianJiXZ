@@ -34,6 +34,7 @@
 #include "servo.h"
 #include "ball_control.h"
 #include "ball_calibrate.h"
+#include "ball_task.h"
 #include "calib_store.h"
 #include "debug_telemetry.h"
 u8 Car_Mode=Diff_Car;
@@ -79,6 +80,7 @@ int main(void)
     Servo_Init();      // 上电先输出 122.4 度初始种子（1780 us），运行中允许动态学习 trim
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
+    Ball_Task_Init(); /* H 题定点运动任务，按键长按触发。 */
     {
         /* 上电用上次标定保存的平衡角作为 trim 初值；无有效数据用默认值。 */
         float stored_balance_deg;
@@ -87,13 +89,28 @@ int main(void)
         }
     }
     Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
+    Debug_Telemetry_LogEvent("RESET"); /* 记录复位/上电时刻（t_ms=0）。 */
     // 主循环
-    while (1) 
+    while (1)
     {
 		K230_Link_Process();
         Debug_Telemetry_Process();
 		Voltage = Get_battery_volt();//采样小车当前电压
         oled_show();         //  OLED显示更新
+
+        /* 定点任务完成时一次性输出总耗时与各段最大误差，供现场与日志复核。 */
+        static uint8_t point_reported = 0U;
+        if (Ball_Task_GetState() == BALL_TASK_POINT_DONE) {
+            if (point_reported == 0U) {
+                printf("POINT DONE %ums e+%.1f e-%.1f\r\n",
+                       (unsigned int)Ball_Task_GetTotalMs(),
+                       (double)Ball_Task_GetMaxErrorPlusMm(),
+                       (double)Ball_Task_GetMaxErrorMinusMm());
+                point_reported = 1U;
+            }
+        } else {
+            point_reported = 0U;
+        }
     }
 }
 

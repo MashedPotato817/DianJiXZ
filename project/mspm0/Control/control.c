@@ -21,6 +21,7 @@ All rights reserved
 #include "k230_link.h"
 #include "ball_control.h"
 #include "ball_calibrate.h"
+#include "ball_task.h"
 #include "debug_telemetry.h"
 
 u8 ELE_count;
@@ -144,6 +145,31 @@ void TIMER_0_INST_IRQHandler(void)
     {
 			K230_Link_Tick5ms();
 			Ball_Calibrate_Tick5ms();
+			Ball_Task_Tick5ms();
+			/* 任务状态变化输出事件行，便于日志定位任务推进时刻。 */
+			{
+				static Ball_TaskState last_task_state = BALL_TASK_IDLE;
+				Ball_TaskState now_task_state = Ball_Task_GetState();
+				if (now_task_state != last_task_state) {
+					switch (now_task_state) {
+					case BALL_TASK_POINT_PLUS:
+						Debug_Telemetry_LogEvent("TASK,PLUS");
+						break;
+					case BALL_TASK_POINT_MINUS:
+						Debug_Telemetry_LogEvent("TASK,MINUS");
+						break;
+					case BALL_TASK_POINT_DONE:
+						Debug_Telemetry_LogEvent("TASK,DONE");
+						break;
+					case BALL_TASK_FAULT:
+						Debug_Telemetry_LogEvent("TASK,FAULT");
+						break;
+					default:
+						break;
+					}
+					last_task_state = now_task_state;
+				}
+			}
 			K230_Link_GetPosition(&ball_position);
 			/* 自动标定激活期间跳过正常闭环，舵机由标定状态机直接控制。 */
 			if (Ball_Calibrate_IsActive() == 0U) {
@@ -387,15 +413,18 @@ void Key(void)
 	tmp=key_scan(200);//click_N_Double(50);
 	if(tmp==1)
 	{
-		Flag_Stop=!Flag_Stop;
-	}		//单击控制小车的启停
+		Ball_Task_StartPoint();	// BLS(PA18)单击：定点运动任务（0→+5→-5）
+		Debug_Telemetry_LogEvent("KEY,single");
+	}
 	else if(tmp==2)
 	{
 		Run_Mode++;
 		Run_Mode%=2;
+		Debug_Telemetry_LogEvent("KEY,double");
 	}
 	else if(tmp==3)
 	{
-		Ball_Calibrate_Start();	//长按触发自动扫掠标定
+		Ball_Calibrate_Start();	// 长按：自动扫掠标定（BALL_CAL_ENABLE=0 时为空）
+		Debug_Telemetry_LogEvent("KEY,long");
 	}
 }

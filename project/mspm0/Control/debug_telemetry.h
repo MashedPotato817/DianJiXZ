@@ -5,16 +5,20 @@
 
 /* UART0 调试遥测周期与 K230 视觉发送周期一致。 */
 #define DEBUG_TELEMETRY_PERIOD_MS 50U
-/*
- * 当前工程未确认底盘双轮编码器接入球杆机构。保留原始计数供排查干扰，
- * 但显式标记为无效，禁止把悬空输入误判为杆角反馈。
- */
-#define DEBUG_WHEEL_ENCODERS_CONNECTED 0U
 
 void Debug_Telemetry_Init(void);
-/* 5 ms 定时中断调用：累计与该时间窗口对应的两路编码器增量。 */
+/* 5 ms 定时中断调用：提供时基；编码器参数已精简忽略（保留以维持调用点）。 */
 void Debug_Telemetry_Tick5ms(int encoder_a_delta, int encoder_b_delta);
 /* 主循环调用：通过 UART0 输出一行紧凑、带时间戳的 CSV。 */
 void Debug_Telemetry_Process(void);
+
+/*
+ * 记录一个带时间戳的事件行（$E,<t_ms>,<text>#），供按键、复位、任务状态
+ * 变化等低频事件写入。中断/主循环均可调用；内部存入环形缓冲，由
+ * Debug_Telemetry_Process 在 UART0 上统一发送，不阻塞调用方。
+ */
+#define DEBUG_TELEMETRY_EVENT_BUFFER 8U
+#define DEBUG_TELEMETRY_EVENT_MAX_LEN 24U
+void Debug_Telemetry_LogEvent(const char *text);
 
 #endif

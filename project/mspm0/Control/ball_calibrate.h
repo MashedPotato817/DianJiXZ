@@ -15,11 +15,12 @@
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
  * 结果通过 Ball_Control_SetTrimAngle 写入 trim 初值并持久化到 Flash。
  *
- * 2026-07-31 用户确认 PWM 1780 us（=122.4°）为当前机构确定的平衡值，
- * 标定暂时关闭：BALL_CAL_ENABLE=0 时状态机与长按触发均不生效，但 Flash
- * 中已存的平衡角上电仍会读取。换硬件需要重新标定时改为 1 再编译。
+ * 2026-08-01 重新启用：用户要求用自校准重新标定真实平衡基准（此前 1780us/
+ * 122.4° 为人工试凑值，用户记忆中校准基准 PWM 约 1850）。方向逻辑已按实机
+ * 确认修正：PWM 偏大→球往负方向滚，PWM 偏小→球往正方向滚。
+ * 标定结果经 Ball_Control_SetTrimAngle 生效并写入 Flash，上电自动加载。
  */
-#define BALL_CAL_ENABLE 0
+#define BALL_CAL_ENABLE 1
 #define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
 #define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
 #define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)

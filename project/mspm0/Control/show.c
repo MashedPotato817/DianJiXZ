@@ -102,6 +102,8 @@ static void oled_show_legacy(void)
  * 当前联调页：UART1 已分配给 K230，因此 OLED 专门显示闭环关键量。
  * K230 无有效帧（包括超时）时，不显示上一帧位置，避免误判为有效数据。
  */
+#define OLED_REFRESH_PERIOD_MS 200U
+
 void oled_show(void)
 {
     K230_BallPosition position;
@@ -109,9 +111,16 @@ void oled_show(void)
     uint16_t duty_x100;
     int x_tenths;
     const Ball_Control *ball_control;
+    static uint32_t last_refresh_ms = 0U;
 
     K230_Link_GetPosition(&position);
     ball_control = Ball_Control_Get();
+    /* OLED 软件模拟 SPI 是主循环瓶颈，200ms 节流避免拖慢遥测/控制。 */
+    if ((uint32_t)(ball_control->control_now_ms - last_refresh_ms) <
+        OLED_REFRESH_PERIOD_MS) {
+        return;
+    }
+    last_refresh_ms = ball_control->control_now_ms;
     pulse_us = Servo_GetPulseUs();
     /* 20 ms 周期：775 表示 7.75%。 */
     duty_x100 = (uint16_t)(((uint32_t)pulse_us * 10000U + 10000U) / 20000U);
