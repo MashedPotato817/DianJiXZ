@@ -8,6 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 所有与用户的交流、生成的文档、代码注释、回答等，默认使用**简体中文**。除非用户明确要求使用其他语言。
 
+### 表达风格
+
+- 不过度口语化，也不过度堆砌专业术语；
+- 涉及专业术语时，用通俗易懂的方式解释清楚，确保用户能听懂（先讲清含义、再引用术语本身）。
+
 ### 范围
 
 - 所有代码注释和文档字符串
@@ -23,40 +28,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目结构
 
-主要代码在 `firmware/WHEELTEC_C07A_CAR/`：
+当前 H 题工作区在 `project/`（仓库根 `firmware/` 下为早期 WHEELTEC 基线工程）：
 
 ```text
-firmware/WHEELTEC_C07A_CAR/
-├── empty.c/h              # 入口
-├── Control/               # 控制算法层
-│   ├── control.c/h        # 巡线 + 分档速度控制
-│   ├── show.c/h           # OLED + DataScope 显示
-│   └── uart_callback.c/h  # UART 回调
-├── Hardware/              # 外设驱动层
-│   ├── motor.c/h          # TB6612 电机驱动
-│   ├── encoder.c/h        # 编码器
-│   ├── CCD.c/h            # 8路灰度传感器
-│   ├── oled.c/h           # OLED SSD1306
-│   ├── adc.c/h            # ADC 采集
-│   ├── key.c/h            # 按键
-│   ├── led.c/h            # LED
-│   └── board.c/h          # 板级初始化
-├── keil/                  # Keil uVision5 工程文件
-│   └── empty_LP_MSPM0G3507_nortos_keil.uvprojx
-└── source/                # TI DriverLib + CMSIS (subset)
+project/
+├── README.md              # 项目入口与协作约定
+├── topic/                 # 赛题原题 + software_workflow
+├── docs/                  # 接线、巡线验证计划、遥测说明
+├── research/              # 调研类文档（静摩擦调研、算法调研）
+├── preview/               # 审查/算法分析/评估类文档
+├── mspm0/                 # MSPM0G3507 主控工程
+│   ├── Control/           # ball_task/ball_control/ball_calibrate/control/show/debug_telemetry
+│   ├── Hardware/          # k230_link/servo/calib_store/motor/encoder/oled/key/board
+│   ├── keil/              # Keil uVision5 工程文件
+│   └── source/            # TI DriverLib + CMSIS (subset)
+└── k230/                  # K230 小球视觉、标定、协议与日志
 ```
 
 ## 构建
 
-用 Keil uVision5 打开 `firmware/WHEELTEC_C07A_CAR/keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx`，目标名 `MSPM0G3507_Project`。
+用 Keil uVision5 打开 `project/mspm0/keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx`，目标名 `MSPM0G3507_Project`。
 
 命令行构建：
 
 ```powershell
-& 'C:\Keil_MDK\UV4\UV4.exe' -b '...\firmware\WHEELTEC_C07A_CAR\keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx' -t 'MSPM0G3507_Project'
+& 'C:\Keil_MDK\UV4\UV4.exe' -b '...\project\mspm0\keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx' -t 'MSPM0G3507_Project'
 ```
 
-见 README 中的完整构建说明和当前参数表。
+见 `project/README.md` 中的完整构建说明和当前参数表。
 
 ## 比赛参考资料
 
