@@ -33,7 +33,8 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 ENABLE_UART_RX_DEBUG, FRAME_HEIGHT,
                                 FRAME_WIDTH, IMAGE_CENTER_X,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
-                                MAX_POSITION_MM, MM_PER_PIXEL,
+                                MAX_POSITION_MM, MINUS_50_PIXEL_X,
+                                PLUS_50_PIXEL_X, pixel_to_mm,
                                 EDGE_LOST_PIXEL_MARGIN,
                                 GC_PERIOD_MS, LOG_SUMMARY_PERIOD_MS,
                                 SEND_PERIOD_MS,
@@ -85,10 +86,8 @@ DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
 CENTER_LINE_X = int(IMAGE_CENTER_X * DISPLAY_SCALE)
-MINUS_50_LINE_X = int((IMAGE_CENTER_X - 50.0 / MM_PER_PIXEL) *
-                      DISPLAY_SCALE)
-PLUS_50_LINE_X = int((IMAGE_CENTER_X + 50.0 / MM_PER_PIXEL) *
-                     DISPLAY_SCALE)
+MINUS_50_LINE_X = int(MINUS_50_PIXEL_X * DISPLAY_SCALE)
+PLUS_50_LINE_X = int(PLUS_50_PIXEL_X * DISPLAY_SCALE)
 
 
 def clamp(value, lower, upper):
@@ -301,7 +300,7 @@ def main():
                 previous = (center_x, center_y)
                 lost_streak = 0
                 valid_streak += 1
-                x_mm = clamp((center_x - IMAGE_CENTER_X) * MM_PER_PIXEL,
+                x_mm = clamp(pixel_to_mm(center_x),
                              -MAX_POSITION_MM, MAX_POSITION_MM)
                 valid = 1 if valid_streak >= STABLE_FRAMES else 0
                 if valid:

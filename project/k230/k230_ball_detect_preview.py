@@ -20,7 +20,8 @@ from ball_detect_config import (BALL_ROI, CIRCLE_ACCUMULATOR,
                                 FRAME_HEIGHT, FRAME_WIDTH,
                                 IMAGE_CENTER_X, LOG_PERIOD_FRAMES,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
-                                MAX_POSITION_MM, MM_PER_PIXEL,
+                                MAX_POSITION_MM, MINUS_50_PIXEL_X,
+                                PLUS_50_PIXEL_X, pixel_to_mm,
                                 STABLE_FRAMES, ENABLE_LOG_FILE,
                                 LOG_FOLDER_PATH)
 
@@ -31,10 +32,8 @@ DISPLAY_HEIGHT = 480
 DISPLAY_SCALE = DISPLAY_WIDTH // FRAME_WIDTH
 CENTER_LINE_X = int(IMAGE_CENTER_X * DISPLAY_SCALE)
 # 按当前像素—毫米映射绘制静态标定参考线，用于白色管壁实测。
-MINUS_50_LINE_X = int((IMAGE_CENTER_X - 50.0 / MM_PER_PIXEL) *
-                       DISPLAY_SCALE)
-PLUS_50_LINE_X = int((IMAGE_CENTER_X + 50.0 / MM_PER_PIXEL) *
-                      DISPLAY_SCALE)
+MINUS_50_LINE_X = int(MINUS_50_PIXEL_X * DISPLAY_SCALE)
+PLUS_50_LINE_X = int(PLUS_50_PIXEL_X * DISPLAY_SCALE)
 
 
 def clamp(value, lower, upper):
@@ -168,7 +167,7 @@ def main():
                                          0.8 * filtered_center_x)
                 valid_streak += 1
                 lost_streak = 0
-                x_mm = clamp((center_x - IMAGE_CENTER_X) * MM_PER_PIXEL,
+                x_mm = clamp(pixel_to_mm(center_x),
                              -MAX_POSITION_MM, MAX_POSITION_MM)
                 valid = 1 if valid_streak >= STABLE_FRAMES else 0
                 if valid:

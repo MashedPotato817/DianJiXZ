@@ -1,6 +1,6 @@
 # K230 小球检测与 UART 输出
 
-> 最后更新：2026-07-31 13:39
+> 最后更新：2026-08-01 13:23
 
 > 相机、摆杆和小球运动平面已机械固定。本文件说明 K230 UART 发送、预览、终端与 TXT 日志的当前行为。正式位置标定尚未完成；临时低幅度闭环仅用于联调，不构成性能结论。
 
@@ -79,8 +79,8 @@ CanMV 固件的 `find sensor ...` 等初始化行不属于应用脚本输出，�
 
 首次运行前必须标定 `ball_detect_config.py`：
 
-1. 将小球放在摆杆中心，设置 `IMAGE_CENTER_X`。
-2. 将小球向右移动已知距离，计算并设置 `MM_PER_PIXEL`；图像向右应为正值。
+1. 将小球放在实体 `-50/0/+50 mm`，分别设置 `MINUS_50_PIXEL_X`、`IMAGE_CENTER_X` 和 `PLUS_50_PIXEL_X`。
+2. 配置会由三个锚点计算 `MM_PER_PIXEL_LEFT/RIGHT`；图像向右应为正值，预览与 UART 共用同一换算。
 3. 收紧 `BALL_ROI` 至摆杆可见区域。
 4. 默认 `DETECT_MODE="cvlite_circle"`，需使用含 `cv_lite` 的 CanMV 固件；先在 K230 REPL 执行 `import cv_lite` 确认。
 5. 小球颜色稳定时，可把 `DETECT_MODE` 设为 `blob`，并在 CanMV IDE 中标定 `BALL_LAB_THRESHOLD`，作为更快的替代方案。
@@ -88,4 +88,4 @@ CanMV 固件的 `find sensor ...` 等初始化行不属于应用脚本输出，�
 
 未在本机或桌面 Python 上模拟 CanMV 相机 API；需要在目标 K230 固件上验证。正常运行时，终端应先显示一次 `LINK ACK`，随后只在状态切换时显示 `STATE`。TXT 的 `BALL ...` 摘要用于复核视觉、发送节拍与 FPS。
 
-> 最后更新：2026-07-31 13:39
+> 最后更新：2026-08-01 13:23

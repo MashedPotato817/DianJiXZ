@@ -38,14 +38,25 @@ MAX_CENTER_JUMP_PX = 28
 # 落在图像左右各 24 px 内时，才报告 edge=-1 / +1；中途漏检保持 edge=0。
 EDGE_LOST_PIXEL_MARGIN = 24
 
-# CALIBRATION: 图像横坐标到摆杆横向位置的线性映射。
-# 本轮三点静态实测（-50/0/+50 mm）有效帧中位数线性拟合：
-# x_mm = (px - 160.365) * 0.540652，图像向右为正。
+# CALIBRATION: 图像横坐标到摆杆横向位置的分段线性映射。
+# 2026-08-01 实体刻度尺复核后的三个固定锚点：
+# -50 mm = 64 px，0 mm = 162 px，+50 mm = 256 px。
+# 左右各用一个比例，避免透视造成的两侧跨度差异；图像向右为正。
 # 该值仅用于预览复测；补齐五点、每点三次重复测量并评估总误差前，
 # 不得将其用于闭环控制。
-IMAGE_CENTER_X = 160.365
-MM_PER_PIXEL = 0.540652
+MINUS_50_PIXEL_X = 64.0
+IMAGE_CENTER_X = 162.0
+PLUS_50_PIXEL_X = 256.0
+MM_PER_PIXEL_LEFT = 50.0 / (IMAGE_CENTER_X - MINUS_50_PIXEL_X)
+MM_PER_PIXEL_RIGHT = 50.0 / (PLUS_50_PIXEL_X - IMAGE_CENTER_X)
 MAX_POSITION_MM = 150.0
+
+
+def pixel_to_mm(pixel_x):
+    """按中心点左右两段，将原始图像横坐标换算为毫米。"""
+    if pixel_x < IMAGE_CENTER_X:
+        return (pixel_x - IMAGE_CENTER_X) * MM_PER_PIXEL_LEFT
+    return (pixel_x - IMAGE_CENTER_X) * MM_PER_PIXEL_RIGHT
 
 # 相机和摆杆完成固定并通过本 README 的标定步骤前必须保持 False。
 # 它表示位置映射尚不能作为正式控制/精度结果使用。
