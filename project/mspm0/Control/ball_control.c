@@ -491,6 +491,8 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
      * 零点模式只每200ms更新一次舵机目标，避免K230每个约50ms的新样本都
      * 触发几微秒正反修正。实测12°在+55mm附近不足以克服静摩擦，因此
      * 使用略强的零点专用PD并限到16°，仍明显低于任务ACC的24~36°。
+     * 新实测中球在+12mm、约5.4°输出下长期静止，因此中心7mm外低速时
+     * 给8°最低纠偏；进入±7mm立即取消硬下限，避免在中心附近来回敲击。
      */
     if (Ball_Control_Abs(g_ball_control.target_x_mm) <=
         BALL_CONTROL_ZERO_TARGET_EPS_MM) {
@@ -511,7 +513,7 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
                  BALL_CONTROL_ZERO_KD_DEG_S_PER_MM *
                  g_ball_control.filtered_velocity_mm_s +
                  g_ball_control.integral_deg;
-        if ((error_abs > BALL_CONTROL_TARGET_TOLERANCE_MM) &&
+        if ((error_abs > BALL_CONTROL_ZERO_STALL_BAND_MM) &&
             (Ball_Control_Abs(g_ball_control.filtered_velocity_mm_s) <=
              BALL_CONTROL_VELOCITY_STALL_MM_S)) {
             if ((error > 0.0f) && (output < BALL_CONTROL_ZERO_MIN_DEG)) {

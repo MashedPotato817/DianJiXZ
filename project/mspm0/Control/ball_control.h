@@ -57,7 +57,8 @@ typedef struct {
 #define BALL_CONTROL_ZERO_TARGET_EPS_MM      (0.1f)
 #define BALL_CONTROL_ZERO_KP_DEG_PER_MM      (0.45f)
 #define BALL_CONTROL_ZERO_KD_DEG_S_PER_MM    (0.035f)
-#define BALL_CONTROL_ZERO_MIN_DEG            (4.0f)
+#define BALL_CONTROL_ZERO_STALL_BAND_MM       (7.0f)
+#define BALL_CONTROL_ZERO_MIN_DEG             (8.0f)
 #define BALL_CONTROL_ZERO_MAX_DEG           (16.0f)
 #define BALL_CONTROL_ZERO_UPDATE_MS        (200U)
 
