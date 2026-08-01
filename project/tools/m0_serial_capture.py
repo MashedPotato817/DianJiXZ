@@ -10,7 +10,7 @@ MSPM0 遥测实时读取 + 交互式发命令（pyserial）
 命令输入（在 "CMD> " 提示符下）：
   KP 0.30    ->  $SET,KP,0.30#     设置位置比例增益
   KD 0.05    ->  $SET,KD,0.05#     设置速度微分增益
-  TRIM 122.4 ->  $SET,TRIM,122.4#  设置平衡角（trim）
+  TRIM 100.8 ->  $SET,TRIM,100.8#  设置平衡角（trim）
   CAL        ->  $CAL#             触发自动扫掠标定
   $...       ->  原样透传任意命令（供扩展）
   help / quit

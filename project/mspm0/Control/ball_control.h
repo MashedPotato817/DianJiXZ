@@ -118,15 +118,11 @@ typedef struct {
 #define BALL_CONTROL_PASS_MIN_HOLD_MS       (150U)
 
 /*
- * PWM 1780 us（=122.4°）是当前机构确认的平衡值（用户实测，`000012`
- * 日志显示球在该值附近静止）。trim 在线学习此前把 trim 从 122.4° 漂到
- * 约 121° 即足以让球失衡滚出画面（约1°+的偏离对应摆杆倾角零点几度，
- * 已足以驱动球加速），因此学习大幅收窄、接近关闭：只在极接近中心且
- * 低速时做极缓慢微调（单步≤0.03°），信任 1780 为基准；若需彻底关闭
- * 学习，将 TRIM_KI_DEG_PER_MM_S 设为 0.0f。
- * 换硬件后仍由自动扫掠标定（长按按键）写入新平衡角并持久化。
+ * PWM 1660 us（=100.8°）是 2026-08-01 确认的当前机构平衡基准。
+ * trim 在线学习已关闭（KI=0），避免运行中再次漂离基准；自动扫掠标定
+ * 或 UART 调参仍可在本次上电期间更新 trim。Flash 旧值不在上电时加载。
  */
-#define BALL_CONTROL_TRIM_INITIAL_DEG        (122.4f)
+#define BALL_CONTROL_TRIM_INITIAL_DEG        (100.8f)
 #define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
 #define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
 #define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.00f)
@@ -136,7 +132,7 @@ typedef struct {
 
 /* 链路自身100ms超时后再容忍到总计180ms，期间保持上一安全输出。 */
 #define BALL_CONTROL_LOST_HOLD_TOTAL_MS    (180U)
-/* 相对trim偏移；中位122.4°时可用上限为52.6°（175-122.4），取50°留余量 */
+/* 相对trim偏移；中位100.8°时可用上限为74.2°（175-100.8），取50°留余量 */
 #define BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG (50.0f)
 #define BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS (1000U)
 

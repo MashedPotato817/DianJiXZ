@@ -78,18 +78,20 @@ int main(void)
     NVIC_SetPriority(TIMER_0_INST_INT_IRQN, 1);
     OLED_Init();  // 初始化OLED显示屏
     K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
-    Servo_Init();      // 上电先输出 122.4 度初始种子（1780 us），运行中允许动态学习 trim
+    Servo_Init();      // 上电先输出当前固定平衡基准 100.8 度（1660 us）
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
     Ball_Task_Init(); /* H 题定点运动任务，按键长按触发。 */
     {
-        /* 上电用上次标定保存的平衡角作为 trim 初值；无有效数据用默认值。 */
+        /* 默认强制使用源码平衡基准；仅显式开启时才允许 Flash 覆盖。 */
         uint8_t trim_from_flash = 0U;
+#if BALL_CAL_LOAD_ENABLE
         float stored_balance_deg;
         if (CalibStore_Load(&stored_balance_deg) != 0U) {
             Ball_Control_SetTrimAngle(stored_balance_deg);
             trim_from_flash = 1U;
         }
+#endif
         Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
         Debug_Telemetry_LogEvent("RESET"); /* 记录复位/上电时刻（t_ms=0）。 */
         Debug_Telemetry_LogEvent(trim_from_flash ? "TRIM,FLASH" : "TRIM,DEFAULT");

@@ -13,12 +13,11 @@
  *
  * 触发：按键长按。流程 IDLE→WAIT_BALL→SETTLE→OBSERVE→DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
- * 结果通过 Ball_Control_SetTrimAngle 写入 trim 初值并持久化到 Flash。
+ * 结果通过 Ball_Control_SetTrimAngle 写入本次上电期间使用的 trim。
  *
- * 2026-08-01 重新启用：用户要求用自校准重新标定真实平衡基准（此前 1780us/
- * 122.4° 为人工试凑值，用户记忆中校准基准 PWM 约 1850）。方向逻辑已按实机
+ * 2026-08-01 当前固定上电基准更新为 1660us/100.8°。方向逻辑已按实机
  * 确认修正：PWM 偏大→球往负方向滚，PWM 偏小→球往正方向滚。
- * 标定结果经 Ball_Control_SetTrimAngle 生效并写入 Flash，上电自动加载。
+ * 当前关闭 Flash 保存和加载，标定结果仅在本次上电期间生效。
  */
 #define BALL_CAL_ENABLE 1
 /*
@@ -27,6 +26,8 @@
  * 先关闭：标定只把 trim 写进 RAM（不复位就持续生效）。Flash 写入问题解决后再开。
  */
 #define BALL_CAL_SAVE_ENABLE 0
+/* 强制从当前源码基准启动；置 1 才允许 Flash 中的旧标定值覆盖默认 trim。 */
+#define BALL_CAL_LOAD_ENABLE 0
 #define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
 #define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
 #define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)
