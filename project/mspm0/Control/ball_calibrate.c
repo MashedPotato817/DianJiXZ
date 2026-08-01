@@ -10,10 +10,7 @@
 typedef enum {
     BALL_CAL_STAGE_BRACKET_LOW = 0,
     BALL_CAL_STAGE_BRACKET_HIGH,
-    BALL_CAL_STAGE_BISECT,
-    BALL_CAL_STAGE_VERIFY_LOW,
-    BALL_CAL_STAGE_VERIFY_HIGH,
-    BALL_CAL_STAGE_VERIFY_CENTER
+    BALL_CAL_STAGE_SEARCH
 } Ball_CalibrateStage;
 
 typedef struct {
@@ -23,7 +20,6 @@ typedef struct {
     float hi_deg;
     float mid_deg;
     float candidate_deg;
-    float probe_deg;
     float pending_deg;
     float last_valid_x_mm;
     float motion_score_mm;
@@ -151,7 +147,7 @@ static void Ball_Calibrate_StartAt(float angle_deg)
     g_cal.state = BALL_CAL_STATE_RECOVER;
 }
 
-static void Ball_Calibrate_StartIteration(void)
+static float Ball_Calibrate_SelectTrial(void)
 {
     float lo_strength = Ball_Calibrate_Abs(g_cal.lo_score_mm);
     float hi_strength = Ball_Calibrate_Abs(g_cal.hi_score_mm);
@@ -168,8 +164,12 @@ static void Ball_Calibrate_StartIteration(void)
         ratio = Ball_Calibrate_Clamp(
             ratio, BALL_CAL_NEXT_MIN_RATIO, BALL_CAL_NEXT_MAX_RATIO);
     }
-    Ball_Calibrate_StartAt(
-        g_cal.lo_deg + (g_cal.hi_deg - g_cal.lo_deg) * ratio);
+    return g_cal.lo_deg + (g_cal.hi_deg - g_cal.lo_deg) * ratio;
+}
+
+static void Ball_Calibrate_StartIteration(void)
+{
+    Ball_Calibrate_StartAt(Ball_Calibrate_SelectTrial());
 }
 
 static void Ball_Calibrate_Finish(float balance_deg)
@@ -290,13 +290,6 @@ static uint8_t Ball_Calibrate_CanContinue(void)
     return 1U;
 }
 
-static void Ball_Calibrate_StartCenterCheck(void)
-{
-    g_cal.candidate_deg = (g_cal.lo_deg + g_cal.hi_deg) * 0.5f;
-    g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
-    Ball_Calibrate_StartAt(g_cal.candidate_deg);
-}
-
 static void Ball_Calibrate_StartCentering(void)
 {
     /*
@@ -312,7 +305,7 @@ static void Ball_Calibrate_StartCentering(void)
     Ball_Control_SetServoHold(0);
 }
 
-static void Ball_Calibrate_ContinueBisect(void)
+static void Ball_Calibrate_ContinueSearch(void)
 {
     float converge_deg =
         Ball_Calibrate_PulseSpanToDeg(BALL_CAL_CONVERGE_SPAN_US);
@@ -321,50 +314,12 @@ static void Ball_Calibrate_ContinueBisect(void)
         return;
     }
     if ((g_cal.hi_deg - g_cal.lo_deg) <= converge_deg) {
-        Ball_Calibrate_StartCenterCheck();
+        g_cal.candidate_deg = Ball_Calibrate_SelectTrial();
+        Ball_Calibrate_StartCentering();
         return;
     }
-    g_cal.stage = BALL_CAL_STAGE_BISECT;
+    g_cal.stage = BALL_CAL_STAGE_SEARCH;
     Ball_Calibrate_StartIteration();
-}
-
-static void Ball_Calibrate_StartVerify(void)
-{
-    float max_probe;
-
-    g_cal.candidate_deg = g_cal.mid_deg;
-    g_cal.probe_deg =
-        Ball_Calibrate_PulseSpanToDeg(BALL_CAL_VERIFY_PROBE_US);
-    max_probe = (g_cal.hi_deg - g_cal.lo_deg) * 0.5f;
-    if (g_cal.probe_deg > max_probe) {
-        g_cal.probe_deg = max_probe;
-    }
-    if (g_cal.probe_deg <=
-        Ball_Calibrate_PulseSpanToDeg(BALL_CAL_CONVERGE_SPAN_US) * 0.5f) {
-        Ball_Calibrate_StartCenterCheck();
-        return;
-    }
-    g_cal.stage = BALL_CAL_STAGE_VERIFY_LOW;
-    Ball_Calibrate_StartAt(g_cal.candidate_deg - g_cal.probe_deg);
-}
-
-static uint8_t Ball_Calibrate_ExpandProbe(uint8_t toward_high)
-{
-    float max_probe = (toward_high != 0U) ?
-                      (g_cal.hi_deg - g_cal.candidate_deg) :
-                      (g_cal.candidate_deg - g_cal.lo_deg);
-    float next_probe = g_cal.probe_deg * 2.0f;
-
-    if (next_probe > max_probe) {
-        next_probe = max_probe;
-    }
-    if (next_probe <= g_cal.probe_deg + 0.01f) {
-        return 0U;
-    }
-    g_cal.probe_deg = next_probe;
-    Ball_Calibrate_StartAt(g_cal.candidate_deg +
-                           ((toward_high != 0U) ? next_probe : -next_probe));
-    return 1U;
 }
 
 static void Ball_Calibrate_Decide(void)
@@ -419,67 +374,22 @@ static void Ball_Calibrate_Decide(void)
         }
         g_cal.hi_deg = g_cal.mid_deg;
         g_cal.hi_score_mm = g_cal.motion_score_mm;
-        Ball_Calibrate_ContinueBisect();
+        Ball_Calibrate_ContinueSearch();
         return;
 
-    case BALL_CAL_STAGE_BISECT:
+    case BALL_CAL_STAGE_SEARCH:
         if (direction > 0) {
             g_cal.lo_deg = g_cal.mid_deg;
             g_cal.lo_score_mm = g_cal.motion_score_mm;
-            Ball_Calibrate_ContinueBisect();
+            Ball_Calibrate_ContinueSearch();
         } else if (direction < 0) {
             g_cal.hi_deg = g_cal.mid_deg;
             g_cal.hi_score_mm = g_cal.motion_score_mm;
-            Ball_Calibrate_ContinueBisect();
+            Ball_Calibrate_ContinueSearch();
         } else {
-            /* 单点不动可能是静摩擦，必须在候选点两侧验证相反滚动。 */
-            Ball_Calibrate_StartVerify();
-        }
-        return;
-
-    case BALL_CAL_STAGE_VERIFY_LOW:
-        if (direction > 0) {
-            g_cal.lo_deg = g_cal.mid_deg;
-            g_cal.lo_score_mm = g_cal.motion_score_mm;
-            g_cal.stage = BALL_CAL_STAGE_VERIFY_HIGH;
-            Ball_Calibrate_StartAt(g_cal.candidate_deg + g_cal.probe_deg);
-        } else if (direction < 0) {
-            g_cal.hi_deg = g_cal.mid_deg;
-            g_cal.hi_score_mm = g_cal.motion_score_mm;
-            Ball_Calibrate_ContinueBisect();
-        } else if (Ball_Calibrate_ExpandProbe(0U) == 0U) {
-            Ball_Calibrate_Abort();
-        }
-        return;
-
-    case BALL_CAL_STAGE_VERIFY_HIGH:
-        if (direction < 0) {
-            g_cal.hi_deg = g_cal.mid_deg;
-            g_cal.hi_score_mm = g_cal.motion_score_mm;
-            g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
-            Ball_Calibrate_StartAt(g_cal.candidate_deg);
-        } else if (direction > 0) {
-            g_cal.lo_deg = g_cal.mid_deg;
-            g_cal.lo_score_mm = g_cal.motion_score_mm;
-            Ball_Calibrate_ContinueBisect();
-        } else if (Ball_Calibrate_ExpandProbe(1U) == 0U) {
-            Ball_Calibrate_Abort();
-        }
-        return;
-
-    case BALL_CAL_STAGE_VERIFY_CENTER:
-        if (direction == 0) {
+            /* 无明显漂移时直接交给最终 0±7mm 稳定验收。 */
+            g_cal.candidate_deg = g_cal.mid_deg;
             Ball_Calibrate_StartCentering();
-        } else {
-            /* 复核仍有系统漂移，继续按实测方向缩小夹逼区间。 */
-            if (direction > 0) {
-                g_cal.lo_deg = g_cal.candidate_deg;
-                g_cal.lo_score_mm = g_cal.motion_score_mm;
-            } else {
-                g_cal.hi_deg = g_cal.candidate_deg;
-                g_cal.hi_score_mm = g_cal.motion_score_mm;
-            }
-            Ball_Calibrate_ContinueBisect();
         }
         return;
     }
@@ -495,7 +405,6 @@ void Ball_Calibrate_Init(void)
     g_cal.hi_deg = 0.0f;
     g_cal.mid_deg = 0.0f;
     g_cal.candidate_deg = 0.0f;
-    g_cal.probe_deg = 0.0f;
     g_cal.pending_deg = 0.0f;
     g_cal.last_valid_x_mm = 0.0f;
     g_cal.motion_score_mm = 0.0f;
@@ -582,7 +491,6 @@ void Ball_Calibrate_Start(void)
     g_cal.iterations = 0U;
     g_cal.stage = BALL_CAL_STAGE_BRACKET_LOW;
     g_cal.candidate_deg = 0.0f;
-    g_cal.probe_deg = 0.0f;
     g_cal.result_deg = 0.0f;
     g_cal.motion_score_mm = 0.0f;
     g_cal.lo_score_mm = 0.0f;

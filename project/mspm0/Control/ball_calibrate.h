@@ -12,8 +12,8 @@
  * 最终收敛到球近乎静止的角度，即当前机构真实平衡角。
  *
  * 触发：按键长按。流程先验证低/高PWM的相反滚动方向，再按实测位移趋势
- * 加权搜索并在候选点两侧主动探测；得到无漂移候选值后交给零点闭环，
- * 只有小球连续稳定在 0±7mm 才进入 DONE。
+ * 加权搜索；得到无漂移候选值后交给零点闭环，只有小球连续稳定在
+ * 0±7mm 才进入 DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
  * 结果通过 Ball_Control_SetTrimAngle 写入本次上电期间使用的 trim。
  *
@@ -36,7 +36,6 @@
 #define BALL_CAL_SEARCH_MIN_US       (1100U)
 #define BALL_CAL_SEARCH_MAX_US       (2100U)
 #define BALL_CAL_CONVERGE_SPAN_US    (5U)
-#define BALL_CAL_VERIFY_PROBE_US     (30U)
 #define BALL_CAL_MAX_ITERATIONS      (20U)
 #define BALL_CAL_SETTLE_MS          (400U)
 #define BALL_CAL_OBSERVE_MS         (600U)
