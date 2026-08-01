@@ -157,6 +157,12 @@ void oled_show(void)
         OLED_ShowString(34, 40, "CAL READ");
     } else if (cal_state == BALL_CAL_STATE_CENTER) {
         OLED_ShowString(34, 40, "CAL ZERO");
+    } else if (cal_state == BALL_CAL_STATE_DONE) {
+        OLED_ShowString(34, 40, "CAL OK  ");
+    } else if (cal_state == BALL_CAL_STATE_SAVE_FAILED) {
+        OLED_ShowString(34, 40, "SAVE ERR");
+    } else if (cal_state == BALL_CAL_STATE_FAILED) {
+        OLED_ShowString(34, 40, "CAL FAIL");
     } else {
         switch (Ball_Task_GetState()) {
         case BALL_TASK_POINT_PLUS:
@@ -166,18 +172,12 @@ void oled_show(void)
         case BALL_TASK_POINT_DONE:
             OLED_ShowString(34, 40, "-5  ");
             break;
-        case BALL_TASK_IDLE:
         case BALL_TASK_FAULT:
+            OLED_ShowString(34, 40, "TASK ERR");
+            break;
+        case BALL_TASK_IDLE:
         default:
-            if (cal_state == BALL_CAL_STATE_DONE) {
-                OLED_ShowString(34, 40, "CAL OK  ");
-            } else if (cal_state == BALL_CAL_STATE_SAVE_FAILED) {
-                OLED_ShowString(34, 40, "SAVE ERR");
-            } else if (cal_state == BALL_CAL_STATE_FAILED) {
-                OLED_ShowString(34, 40, "CAL FAIL");
-            } else {
-                OLED_ShowString(34, 40, "ZERO    ");
-            }
+            OLED_ShowString(34, 40, "ZERO    ");
             break;
         }
     }
