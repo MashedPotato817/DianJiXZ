@@ -26,6 +26,9 @@ typedef struct {
     float probe_deg;
     float pending_deg;
     float last_valid_x_mm;
+    float motion_score_mm;
+    float lo_score_mm;
+    float hi_score_mm;
     float result_deg;
     uint32_t ms;
     uint32_t phase_ms;
@@ -52,6 +55,17 @@ static Ball_Calibrate g_cal;
 static float Ball_Calibrate_Abs(float value)
 {
     return (value < 0.0f) ? -value : value;
+}
+
+static float Ball_Calibrate_Clamp(float value, float minimum, float maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
 }
 
 static float Ball_Calibrate_PulseToDeg(uint16_t pulse_us)
@@ -134,7 +148,23 @@ static void Ball_Calibrate_StartAt(float angle_deg)
 
 static void Ball_Calibrate_StartIteration(void)
 {
-    Ball_Calibrate_StartAt((g_cal.lo_deg + g_cal.hi_deg) * 0.5f);
+    float lo_strength = Ball_Calibrate_Abs(g_cal.lo_score_mm);
+    float hi_strength = Ball_Calibrate_Abs(g_cal.hi_score_mm);
+    float ratio = 0.5f;
+
+    /*
+     * 用两端实测滚动强度线性估算零响应点。比例限制在 30%~70%，避免
+     * 单次视觉跳变把试探点推到端点；证据不足时自然退回普通中点。
+     */
+    if ((g_cal.lo_score_mm > 0.0f) &&
+        (g_cal.hi_score_mm < 0.0f) &&
+        ((lo_strength + hi_strength) > 0.0f)) {
+        ratio = lo_strength / (lo_strength + hi_strength);
+        ratio = Ball_Calibrate_Clamp(
+            ratio, BALL_CAL_NEXT_MIN_RATIO, BALL_CAL_NEXT_MAX_RATIO);
+    }
+    Ball_Calibrate_StartAt(
+        g_cal.lo_deg + (g_cal.hi_deg - g_cal.lo_deg) * ratio);
 }
 
 static void Ball_Calibrate_Finish(float balance_deg)
@@ -174,6 +204,7 @@ static int8_t Ball_Calibrate_GetDirection(uint8_t allow_same_edge,
     int8_t edge_side = 0;
 
     *blocked_at_start_edge = 0U;
+    g_cal.motion_score_mm = 0.0f;
     if (g_cal.edge_positive_count >= BALL_CAL_EDGE_CONFIRM_FRAMES) {
         edge_side = 1;
     } else if (g_cal.edge_negative_count >= BALL_CAL_EDGE_CONFIRM_FRAMES) {
@@ -207,6 +238,8 @@ static int8_t Ball_Calibrate_GetDirection(uint8_t allow_same_edge,
     if (edge_side != 0) {
         if ((edge_side != g_cal.trial_start_side) ||
             (allow_same_edge != 0U)) {
+            g_cal.motion_score_mm =
+                (float)edge_side * BALL_CAL_TREND_SCORE_MAX_MM;
             return edge_side;
         }
         *blocked_at_start_edge = 1U;
@@ -216,9 +249,15 @@ static int8_t Ball_Calibrate_GetDirection(uint8_t allow_same_edge,
         return 0;
     }
     if (trend > BALL_CAL_TREND_THRESHOLD_MM) {
+        g_cal.motion_score_mm = Ball_Calibrate_Clamp(
+            trend, BALL_CAL_TREND_THRESHOLD_MM,
+            BALL_CAL_TREND_SCORE_MAX_MM);
         return 1;
     }
     if (trend < -BALL_CAL_TREND_THRESHOLD_MM) {
+        g_cal.motion_score_mm = Ball_Calibrate_Clamp(
+            trend, -BALL_CAL_TREND_SCORE_MAX_MM,
+            -BALL_CAL_TREND_THRESHOLD_MM);
         return -1;
     }
     return 0;
@@ -343,6 +382,7 @@ static void Ball_Calibrate_Decide(void)
             return;
         }
         g_cal.lo_deg = g_cal.mid_deg;
+        g_cal.lo_score_mm = g_cal.motion_score_mm;
         g_cal.stage = BALL_CAL_STAGE_BRACKET_HIGH;
         Ball_Calibrate_StartAt(g_cal.hi_deg);
         return;
@@ -358,15 +398,18 @@ static void Ball_Calibrate_Decide(void)
             return;
         }
         g_cal.hi_deg = g_cal.mid_deg;
+        g_cal.hi_score_mm = g_cal.motion_score_mm;
         Ball_Calibrate_ContinueBisect();
         return;
 
     case BALL_CAL_STAGE_BISECT:
         if (direction > 0) {
             g_cal.lo_deg = g_cal.mid_deg;
+            g_cal.lo_score_mm = g_cal.motion_score_mm;
             Ball_Calibrate_ContinueBisect();
         } else if (direction < 0) {
             g_cal.hi_deg = g_cal.mid_deg;
+            g_cal.hi_score_mm = g_cal.motion_score_mm;
             Ball_Calibrate_ContinueBisect();
         } else {
             /* 单点不动可能是静摩擦，必须在候选点两侧验证相反滚动。 */
@@ -377,10 +420,12 @@ static void Ball_Calibrate_Decide(void)
     case BALL_CAL_STAGE_VERIFY_LOW:
         if (direction > 0) {
             g_cal.lo_deg = g_cal.mid_deg;
+            g_cal.lo_score_mm = g_cal.motion_score_mm;
             g_cal.stage = BALL_CAL_STAGE_VERIFY_HIGH;
             Ball_Calibrate_StartAt(g_cal.candidate_deg + g_cal.probe_deg);
         } else if (direction < 0) {
             g_cal.hi_deg = g_cal.mid_deg;
+            g_cal.hi_score_mm = g_cal.motion_score_mm;
             Ball_Calibrate_ContinueBisect();
         } else if (Ball_Calibrate_ExpandProbe(0U) == 0U) {
             Ball_Calibrate_Abort();
@@ -390,10 +435,12 @@ static void Ball_Calibrate_Decide(void)
     case BALL_CAL_STAGE_VERIFY_HIGH:
         if (direction < 0) {
             g_cal.hi_deg = g_cal.mid_deg;
+            g_cal.hi_score_mm = g_cal.motion_score_mm;
             g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
             Ball_Calibrate_StartAt(g_cal.candidate_deg);
         } else if (direction > 0) {
             g_cal.lo_deg = g_cal.mid_deg;
+            g_cal.lo_score_mm = g_cal.motion_score_mm;
             Ball_Calibrate_ContinueBisect();
         } else if (Ball_Calibrate_ExpandProbe(1U) == 0U) {
             Ball_Calibrate_Abort();
@@ -407,8 +454,10 @@ static void Ball_Calibrate_Decide(void)
             /* 复核仍有系统漂移，继续按实测方向缩小夹逼区间。 */
             if (direction > 0) {
                 g_cal.lo_deg = g_cal.candidate_deg;
+                g_cal.lo_score_mm = g_cal.motion_score_mm;
             } else {
                 g_cal.hi_deg = g_cal.candidate_deg;
+                g_cal.hi_score_mm = g_cal.motion_score_mm;
             }
             Ball_Calibrate_ContinueBisect();
         }
@@ -429,6 +478,9 @@ void Ball_Calibrate_Init(void)
     g_cal.probe_deg = 0.0f;
     g_cal.pending_deg = 0.0f;
     g_cal.last_valid_x_mm = 0.0f;
+    g_cal.motion_score_mm = 0.0f;
+    g_cal.lo_score_mm = 0.0f;
+    g_cal.hi_score_mm = 0.0f;
     g_cal.result_deg = 0.0f;
     g_cal.ms = 0U;
     g_cal.phase_ms = 0U;
@@ -502,6 +554,9 @@ void Ball_Calibrate_Start(void)
     g_cal.candidate_deg = 0.0f;
     g_cal.probe_deg = 0.0f;
     g_cal.result_deg = 0.0f;
+    g_cal.motion_score_mm = 0.0f;
+    g_cal.lo_score_mm = 0.0f;
+    g_cal.hi_score_mm = 0.0f;
 }
 
 void Ball_Calibrate_Tick5ms(void)

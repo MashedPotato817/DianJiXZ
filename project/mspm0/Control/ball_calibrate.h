@@ -4,15 +4,16 @@
 #include <stdint.h>
 
 /*
- * 自动扫掠标定：利用 K230 位置反馈，二分定位“摆杆水平”的舵机平衡角，
+ * 自动扫掠标定：利用 K230 位置反馈，自适应夹逼“摆杆水平”的舵机平衡角，
  * 消除硬件更换/重新安装后基准值漂移的影响。
  *
  * 物理原理：摆杆不水平时球滚向较低一侧。舵机角度低于平衡角时球滚向一侧，
  * 高于平衡角时滚向另一侧；观测 K230 的 x_mm 滚向哪侧即可缩小区间，
  * 最终收敛到球近乎静止的角度，即当前机构真实平衡角。
  *
- * 触发：按键长按。流程先验证低/高PWM的相反滚动方向，再二分搜索并在
- * 候选点两侧主动探测；只有双向证据和候选点复核均通过才进入 DONE。
+ * 触发：按键长按。流程先验证低/高PWM的相反滚动方向，再按实测位移趋势
+ * 加权搜索并在候选点两侧主动探测；只有双向证据和候选点复核均通过才
+ * 进入 DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
  * 结果通过 Ball_Control_SetTrimAngle 写入本次上电期间使用的 trim。
  *
@@ -48,6 +49,9 @@
 #define BALL_CAL_WAIT_BALL_TIMEOUT_MS (3000U)
 #define BALL_CAL_TOTAL_TIMEOUT_MS   (60000U)
 #define BALL_CAL_TREND_THRESHOLD_MM (2.0f)
+#define BALL_CAL_TREND_SCORE_MAX_MM (40.0f)
+#define BALL_CAL_NEXT_MIN_RATIO     (0.30f)
+#define BALL_CAL_NEXT_MAX_RATIO     (0.70f)
 #define BALL_CAL_EDGE_X_MM          (55.0f)
 #define BALL_CAL_EDGE_CONFIRM_FRAMES (3U)
 #define BALL_CAL_MAX_SAMPLES        (16U)
