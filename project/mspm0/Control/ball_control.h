@@ -50,7 +50,12 @@ typedef struct {
 #define BALL_CONTROL_ENABLE_DEFAULT   (1U)
 #define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)   //Kp
 #define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)  //Kd
-#define BALL_CONTROL_TARGET_TOLERANCE_MM    (2.0f)
+/*
+ * 题目位置误差允许 ±10 mm。2026-08-01 RESET 日志中小球已到 +6.3 mm，
+ * 但旧 ±2 mm 判定继续触发 ACC，约 4 s 后进入 FAULT。改为 ±8 mm，
+ * 保留 2 mm 验收裕量，并避免在已满足题目精度时继续强推。
+ */
+#define BALL_CONTROL_TARGET_TOLERANCE_MM    (8.0f)
 
 /*
  * 条件积分（把球"吸"在目标点，抗管子斜坡/静摩擦）：
