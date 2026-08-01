@@ -9,6 +9,7 @@ import os
 import time
 
 import cv_lite
+from machine import FPIOA, Pin
 from media.display import Display
 from media.media import MediaManager
 from media.sensor import CAM_CHN_ID_0, CAM_CHN_ID_1, Sensor
@@ -22,6 +23,8 @@ from ball_detect_config import (BALL_ROI, CIRCLE_ACCUMULATOR,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MINUS_50_PIXEL_X,
                                 PLUS_50_PIXEL_X, pixel_to_mm,
+                                ROI_ADJUST_STEP_PX, ROI_KEY1_PIN,
+                                ROI_KEY2_PIN, ROI_KEY_DEBOUNCE_MS,
                                 STABLE_FRAMES, ENABLE_LOG_FILE,
                                 LOG_FOLDER_PATH)
 
@@ -40,6 +43,13 @@ def clamp(value, lower, upper):
     return max(lower, min(upper, value))
 
 
+def shift_roi_y(roi, delta_y):
+    """保持 ROI 尺寸不变，仅在画面内调整纵向起点。"""
+    roi_x, roi_y, roi_w, roi_h = roi
+    new_y = clamp(roi_y + delta_y, 0, FRAME_HEIGHT - roi_h)
+    return (roi_x, new_y, roi_w, roi_h)
+
+
 def log_timestamp():
     """使用 K230 系统时钟；未校时设备上的日期仅表示日志顺序。"""
     now = time.localtime()
@@ -54,11 +64,11 @@ def log_message(text, log_file):
         log_file.flush()
 
 
-def find_circle(frame, previous):
-    roi_x, roi_y, roi_w, roi_h = BALL_ROI
+def find_circle(frame, previous, active_roi):
+    roi_x, roi_y, roi_w, roi_h = active_roi
     if CIRCLE_USE_ROI_CROP:
         # cv_lite 无 ROI 参数；裁剪后只在有效运动带内做霍夫变换。
-        circle_frame = frame.copy(roi=BALL_ROI)
+        circle_frame = frame.copy(roi=active_roi)
         image_height, image_width = roi_h, roi_w
     else:
         circle_frame = frame
@@ -74,8 +84,8 @@ def find_circle(frame, previous):
         x = raw_circles[index] + roi_x
         y = raw_circles[index + 1] + roi_y
         radius = raw_circles[index + 2]
-        if BALL_ROI[0] <= x < BALL_ROI[0] + BALL_ROI[2] and \
-           BALL_ROI[1] <= y < BALL_ROI[1] + BALL_ROI[3]:
+        if active_roi[0] <= x < active_roi[0] + active_roi[2] and \
+           active_roi[1] <= y < active_roi[1] + active_roi[3]:
             circles.append((x, y, radius))
     if not circles:
         return None
@@ -92,6 +102,11 @@ def find_circle(frame, previous):
 def main():
     sensor = None
     log_file = None
+    fpioa = FPIOA()
+    fpioa.set_function(ROI_KEY1_PIN, FPIOA.GPIO35)
+    fpioa.set_function(ROI_KEY2_PIN, FPIOA.GPIO0)
+    key1 = Pin(ROI_KEY1_PIN, Pin.IN, pull=Pin.PULL_UP, drive=7)
+    key2 = Pin(ROI_KEY2_PIN, Pin.IN, pull=Pin.PULL_DOWN, drive=7)
     try:
         if ENABLE_LOG_FILE:
             try:
@@ -126,14 +141,43 @@ def main():
         lost_streak = LOST_FRAMES
         last_valid_x_mm = 0.0
         frame_count = 0
+        active_roi = BALL_ROI
+        key1_previous = key1.value()
+        key2_previous = key2.value()
+        last_key_ms = time.ticks_ms()
         clock = time.clock()
 
         while True:
             os.exitpoint()
             clock.tick()
+            now_ms = time.ticks_ms()
+            key1_value = key1.value()
+            key2_value = key2.value()
+            roi_delta = 0
+            if time.ticks_diff(now_ms, last_key_ms) >= ROI_KEY_DEBOUNCE_MS:
+                if key2_value == 1 and key2_previous == 0:
+                    roi_delta = -ROI_ADJUST_STEP_PX
+                elif key1_value == 0 and key1_previous == 1:
+                    roi_delta = ROI_ADJUST_STEP_PX
+            key1_previous = key1_value
+            key2_previous = key2_value
+            if roi_delta:
+                new_roi = shift_roi_y(active_roi, roi_delta)
+                if new_roi != active_roi:
+                    active_roi = new_roi
+                    previous = None
+                    filtered_center_x = None
+                    valid_streak = 0
+                    lost_streak = LOST_FRAMES
+                    last_valid_x_mm = 0.0
+                    last_key_ms = now_ms
+                    log_message("ROI adjusted: y=%d..%d" %
+                                (active_roi[1],
+                                 active_roi[1] + active_roi[3] - 1),
+                                log_file)
             display_frame = sensor.snapshot(chn=CAM_CHN_ID_0)
             detect_frame = sensor.snapshot(chn=CAM_CHN_ID_1)
-            ball = find_circle(detect_frame, previous)
+            ball = find_circle(detect_frame, previous, active_roi)
             center_x = None
             center_y = None
             radius = None
@@ -199,7 +243,7 @@ def main():
                                     color=(255, 0, 255), thickness=1)
             display_frame.draw_string_advanced(PLUS_50_LINE_X + 4, 36, 16,
                                                "+50", color=(255, 0, 255))
-            roi_x, roi_y, roi_w, roi_h = BALL_ROI
+            roi_x, roi_y, roi_w, roi_h = active_roi
             display_frame.draw_rectangle(roi_x * DISPLAY_SCALE,
                                          roi_y * DISPLAY_SCALE,
                                          roi_w * DISPLAY_SCALE,
@@ -233,7 +277,7 @@ def main():
                             (state, str(center_x), str(center_y), str(radius),
                              str(filtered_center_x),
                              IMAGE_CENTER_X, x_mm, valid, clock.fps(),
-                             str(BALL_ROI)),
+                             str(active_roi)),
                             log_file)
             gc.collect()
     finally:

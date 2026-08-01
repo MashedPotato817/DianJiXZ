@@ -16,7 +16,7 @@ import os
 import time
 
 import cv_lite
-from machine import FPIOA, UART
+from machine import FPIOA, Pin, UART
 from media.display import Display
 from media.media import MediaManager
 from media.sensor import CAM_CHN_ID_0, CAM_CHN_ID_1, Sensor
@@ -35,6 +35,8 @@ from ball_detect_config import (BALL_LAB_THRESHOLD, BALL_MAX_PIXELS,
                                 LOST_FRAMES, MAX_CENTER_JUMP_PX,
                                 MAX_POSITION_MM, MINUS_50_PIXEL_X,
                                 PLUS_50_PIXEL_X, pixel_to_mm,
+                                ROI_ADJUST_STEP_PX, ROI_KEY1_PIN,
+                                ROI_KEY2_PIN, ROI_KEY_DEBOUNCE_MS,
                                 EDGE_LOST_PIXEL_MARGIN,
                                 GC_PERIOD_MS, LOG_SUMMARY_PERIOD_MS,
                                 SEND_PERIOD_MS,
@@ -94,6 +96,13 @@ def clamp(value, lower, upper):
     return max(lower, min(upper, value))
 
 
+def shift_roi_y(roi, delta_y):
+    """保持 ROI 尺寸不变，仅在画面内调整纵向起点。"""
+    roi_x, roi_y, roi_w, roi_h = roi
+    new_y = clamp(roi_y + delta_y, 0, FRAME_HEIGHT - roi_h)
+    return (roi_x, new_y, roi_w, roi_h)
+
+
 def crc8_atm(payload):
     """CRC-8/ATM: poly=0x07, init=0x00，无反射、无异或输出。"""
     crc = 0
@@ -138,9 +147,9 @@ def log_message(text, log_file, to_console=True, to_file=True):
         log_file.flush()
 
 
-def find_blob_center(frame):
+def find_blob_center(frame, active_roi):
     candidates = []
-    for blob in frame.find_blobs([BALL_LAB_THRESHOLD], roi=BALL_ROI,
+    for blob in frame.find_blobs([BALL_LAB_THRESHOLD], roi=active_roi,
                                  pixels_threshold=BALL_MIN_PIXELS,
                                  area_threshold=BALL_MIN_PIXELS):
         if blob.pixels() > BALL_MAX_PIXELS:
@@ -154,11 +163,11 @@ def find_blob_center(frame):
     return ball.cx(), ball.cy(), "blob"
 
 
-def find_circle_center(frame, previous):
+def find_circle_center(frame, previous, active_roi):
     # cv_lite 仅接收灰度 ndarray，返回扁平列表 [x, y, r, ...]。
-    roi_x, roi_y, roi_w, roi_h = BALL_ROI
+    roi_x, roi_y, roi_w, roi_h = active_roi
     if CIRCLE_USE_ROI_CROP:
-        circle_frame = frame.copy(roi=BALL_ROI)
+        circle_frame = frame.copy(roi=active_roi)
         image_height, image_width = roi_h, roi_w
     else:
         circle_frame = frame
@@ -173,8 +182,8 @@ def find_circle_center(frame, previous):
     for index in range(0, len(raw_circles) - 2, 3):
         center_x = raw_circles[index] + roi_x
         center_y = raw_circles[index + 1] + roi_y
-        if (BALL_ROI[0] <= center_x < BALL_ROI[0] + BALL_ROI[2] and
-                BALL_ROI[1] <= center_y < BALL_ROI[1] + BALL_ROI[3]):
+        if (active_roi[0] <= center_x < active_roi[0] + active_roi[2] and
+                active_roi[1] <= center_y < active_roi[1] + active_roi[3]):
             circles.append((center_x, center_y))
     if not circles:
         return None
@@ -191,10 +200,10 @@ def find_circle_center(frame, previous):
     return center_x, center_y, "cvlite_circle"
 
 
-def find_ball(frame, previous):
+def find_ball(frame, previous, active_roi):
     if DETECT_MODE == "blob":
-        return find_blob_center(frame)
-    return find_circle_center(frame, previous)
+        return find_blob_center(frame, active_roi)
+    return find_circle_center(frame, previous, active_roi)
 
 
 def main():
@@ -203,6 +212,10 @@ def main():
     fpioa = FPIOA()
     fpioa.set_function(40, FPIOA.UART1_TXD)
     fpioa.set_function(41, FPIOA.UART1_RXD)
+    fpioa.set_function(ROI_KEY1_PIN, FPIOA.GPIO35)
+    fpioa.set_function(ROI_KEY2_PIN, FPIOA.GPIO0)
+    key1 = Pin(ROI_KEY1_PIN, Pin.IN, pull=Pin.PULL_UP, drive=7)
+    key2 = Pin(ROI_KEY2_PIN, Pin.IN, pull=Pin.PULL_DOWN, drive=7)
     uart = UART(UART.UART1, baudrate=UART_BAUDRATE,
                 bits=UART.EIGHTBITS, parity=UART.PARITY_NONE,
                 stop=UART.STOPBITS_ONE)
@@ -254,14 +267,46 @@ def main():
         tx_x_mm = 0.0
         tx_valid = 0
         tx_edge_direction = 0
+        active_roi = BALL_ROI
+        key1_previous = key1.value()
+        key2_previous = key2.value()
+        last_key_ms = time.ticks_ms()
         clock = time.clock()
 
         while True:
             clock.tick()
+            key_now_ms = time.ticks_ms()
+            key1_value = key1.value()
+            key2_value = key2.value()
+            roi_delta = 0
+            if time.ticks_diff(key_now_ms, last_key_ms) >= \
+                    ROI_KEY_DEBOUNCE_MS:
+                if key2_value == 1 and key2_previous == 0:
+                    roi_delta = -ROI_ADJUST_STEP_PX
+                elif key1_value == 0 and key1_previous == 1:
+                    roi_delta = ROI_ADJUST_STEP_PX
+            key1_previous = key1_value
+            key2_previous = key2_value
+            if roi_delta:
+                new_roi = shift_roi_y(active_roi, roi_delta)
+                if new_roi != active_roi:
+                    active_roi = new_roi
+                    previous = None
+                    valid_streak = 0
+                    lost_streak = LOST_FRAMES
+                    last_valid_x_mm = 0.0
+                    last_valid_center_x = None
+                    tx_valid = 0
+                    last_reported_state = None
+                    last_key_ms = key_now_ms
+                    log_message("ROI adjusted: y=%d..%d" %
+                                (active_roi[1],
+                                 active_roi[1] + active_roi[3] - 1),
+                                log_file)
             display_frame = sensor.snapshot(chn=CAM_CHN_ID_0)
             detect_frame = sensor.snapshot(chn=CAM_CHN_ID_1)
             frame_fps = clock.fps()
-            detected = find_ball(detect_frame, previous)
+            detected = find_ball(detect_frame, previous, active_roi)
             source = "none"
             center_x = None
             center_y = None
@@ -327,7 +372,7 @@ def main():
                                     color=(255, 0, 255), thickness=1)
             display_frame.draw_string_advanced(PLUS_50_LINE_X + 4, 36, 16,
                                                "+50", color=(255, 0, 255))
-            roi_x, roi_y, roi_w, roi_h = BALL_ROI
+            roi_x, roi_y, roi_w, roi_h = active_roi
             display_frame.draw_rectangle(roi_x * DISPLAY_SCALE,
                                          roi_y * DISPLAY_SCALE,
                                          roi_w * DISPLAY_SCALE,

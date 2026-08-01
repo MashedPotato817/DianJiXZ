@@ -13,11 +13,16 @@ BALL_MIN_ASPECT = 0.65
 BALL_MAX_ASPECT = 1.50
 
 # 圆检测参数。横向保留全范围，避免限制小球全行程；
-# 由白管预览画面将小球轨迹的纵向中心约束在 y=50–129 px
+# 由白管预览画面将小球轨迹的纵向中心约束在 y=60–109 px；
+# 运行时可用板载 KEY2/KEY1 向上/向下微调，每次移动 5 px。
 # 在管子上下保留余量。
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 240
-BALL_ROI = (0, 50, FRAME_WIDTH, 80)
+BALL_ROI = (0, 60, FRAME_WIDTH, 50)
+ROI_ADJUST_STEP_PX = 5
+ROI_KEY_DEBOUNCE_MS = 150
+ROI_KEY1_PIN = 35
+ROI_KEY2_PIN = 0
 # cv_lite 无 ROI 参数。True 时先复制有效运动带，再在其上执行霍夫圆检测；
 # 需在 K230 上与 False 的全图模式比较 FPS，异常时可立即回退。
 CIRCLE_USE_ROI_CROP = True
