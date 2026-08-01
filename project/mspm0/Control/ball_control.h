@@ -28,6 +28,7 @@ typedef struct {
     uint8_t enabled;
     uint8_t has_last_sample;
     uint8_t servo_hold;
+    int8_t edge_direction;
     Ball_ControlPhase phase;
 } Ball_Control;
 

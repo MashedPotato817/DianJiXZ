@@ -63,16 +63,24 @@ static void Ball_Control_ResetSamples(void)
 
 static void Ball_Control_HandleEdge(const K230_BallPosition *position)
 {
-    float output_deg;
-
     /* 本次离场恢复已超时后保持平衡，直到重新收到有效视觉位置。 */
     if (g_ball_control.phase == BALL_CONTROL_PHASE_LOST) {
-        Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_MAX_OUTPUT_DEG);
         return;
     }
     if (g_ball_control.phase != BALL_CONTROL_PHASE_EDGE) {
         g_ball_control.phase = BALL_CONTROL_PHASE_EDGE;
         g_ball_control.edge_start_ms = g_ball_control.control_now_ms;
+        g_ball_control.edge_direction =
+            (position->edge_direction > 0) ? 1 : -1;
+        /*
+         * 只在进入 EDGE 时下发一次，随后锁存首次离场方向；避免视觉边缘
+         * 符号抖动导致舵机在两个大角度之间按 5ms 周期来回切换。
+         */
+        Ball_Control_ApplyOutput(
+            (g_ball_control.edge_direction > 0) ?
+            BALL_CONTROL_EDGE_OUTPUT_DEG :
+            -BALL_CONTROL_EDGE_OUTPUT_DEG,
+            BALL_CONTROL_EDGE_OUTPUT_DEG);
     }
     if ((uint32_t)(g_ball_control.control_now_ms -
                    g_ball_control.edge_start_ms) >=
@@ -82,12 +90,7 @@ static void Ball_Control_HandleEdge(const K230_BallPosition *position)
         Ball_Control_ResetSamples();
         return;
     }
-
-    /* +X 离场时增大脉宽使球向 -X 返回，-X 离场时相反。 */
-    output_deg = (position->edge_direction > 0) ?
-                 BALL_CONTROL_EDGE_OUTPUT_DEG :
-                 -BALL_CONTROL_EDGE_OUTPUT_DEG;
-    Ball_Control_ApplyOutput(output_deg, BALL_CONTROL_EDGE_OUTPUT_DEG);
+    /* +X 离场时保持增大脉宽使球向 -X 返回，-X 离场时相反。 */
     Ball_Control_ResetSamples();
 }
 
@@ -104,6 +107,7 @@ void Ball_Control_Init(void)
     g_ball_control.edge_start_ms = 0U;
     g_ball_control.enabled = BALL_CONTROL_ENABLE_DEFAULT;
     g_ball_control.servo_hold = 0U;
+    g_ball_control.edge_direction = 0;
     Ball_Control_Reset();
 }
 
@@ -150,6 +154,7 @@ void Ball_Control_Reset(void)
 {
     Ball_Control_ResetSamples();
     g_ball_control.edge_start_ms = 0U;
+    g_ball_control.edge_direction = 0;
     g_ball_control.phase = (g_ball_control.enabled != 0U) ?
                            BALL_CONTROL_PHASE_TRACK :
                            BALL_CONTROL_PHASE_OFF;
