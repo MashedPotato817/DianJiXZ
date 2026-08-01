@@ -50,7 +50,7 @@ static void Ball_Calibrate_Finish(float balance_deg)
     /*
      * 持久化推迟到主循环（Ball_Calibrate_ProcessSave）：Flash 擦写毫秒级且
      * 需关全局中断，不能在 TIMER_0 中断里执行，否则会长时间阻塞 K230 接收。
-     * 当前 Flash 擦写在该芯片上会卡死，SAVE_ENABLE=0 时跳过，trim 仅存 RAM。
+     * 标定扇区由 scatter 文件从应用镜像中保留，保存后由主循环读回验证。
      */
     g_cal.save_pending = 1U;
 #endif

@@ -69,6 +69,7 @@ firmware/demo/EIDE/build/
 *.s19
 *.sct
 !**/linker_files/**/*.sct
+!project/mspm0/keil/mspm0g3507.sct
 *.objlist
 *.params
 *.iex

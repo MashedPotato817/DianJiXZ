@@ -17,17 +17,16 @@
  *
  * 2026-08-01 当前固定上电基准更新为 1660us/100.8°。方向逻辑已按实机
  * 确认修正：PWM 偏大→球往负方向滚，PWM 偏小→球往正方向滚。
- * 当前关闭 Flash 保存和加载，标定结果仅在本次上电期间生效。
+ * 标定完成后在主循环写入保留的 Flash 扇区，下次复位自动加载。
  */
 #define BALL_CAL_ENABLE 1
 /*
  * 标定结果写 Flash 持久化的开关。
- * 当前实测该芯片的 Flash 擦写会卡死（STATCMD 永不完成），为不影响调参会话，
- * 先关闭：标定只把 trim 写进 RAM（不复位就持续生效）。Flash 写入问题解决后再开。
+ * 写入在主循环执行并读回验证，避免在 5ms 中断中阻塞 K230 接收。
  */
-#define BALL_CAL_SAVE_ENABLE 0
-/* 强制从当前源码基准启动；置 1 才允许 Flash 中的旧标定值覆盖默认 trim。 */
-#define BALL_CAL_LOAD_ENABLE 0
+#define BALL_CAL_SAVE_ENABLE 1
+/* 上电优先加载已通过 magic 和角度范围校验的标定结果。 */
+#define BALL_CAL_LOAD_ENABLE 1
 #define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
 #define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
 #define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)

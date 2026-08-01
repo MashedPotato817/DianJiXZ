@@ -81,9 +81,9 @@ int main(void)
     Servo_Init();      // 上电先输出当前固定平衡基准 100.8 度（1660 us）
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
-    Ball_Task_Init(); /* H 题定点运动任务，按键长按触发。 */
+    Ball_Task_Init(); /* RESET 后目标为0；START(PA18)短按触发 0→+5→-5。 */
     {
-        /* 默认强制使用源码平衡基准；仅显式开启时才允许 Flash 覆盖。 */
+        /* 上电优先恢复长按自动标定保存的平衡角，无有效数据才用100.8度。 */
         uint8_t trim_from_flash = 0U;
 #if BALL_CAL_LOAD_ENABLE
         float stored_balance_deg;
@@ -95,6 +95,7 @@ int main(void)
         Debug_Telemetry_Init(); /* UART0 输出供串口助手/AI分析的时间对齐数据。 */
         Debug_Telemetry_LogEvent("RESET"); /* 记录复位/上电时刻（t_ms=0）。 */
         Debug_Telemetry_LogEvent(trim_from_flash ? "TRIM,FLASH" : "TRIM,DEFAULT");
+        Debug_Telemetry_LogEvent("TARGET,ZERO");
     }
     // 主循环
     while (1)

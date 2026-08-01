@@ -7,12 +7,14 @@
  * 自动标定结果持久化：把扫掠标定得到的摆杆平衡角存入 MSPM0 内部 Flash，
  * 上电自动读取作为 trim 初值，避免换硬件后每次都要重新标定。
  *
- * 存储位置：0x00007000 扇区（紧跟当前 ~26KB 程序之后）。此前用 Flash 末尾
- * 0x0001F800 在部分容量芯片上擦除卡死，换到程序区后的低地址扇区，各容量
- * 变体（32/64/128KB）均有效。程序若增长越过 0x7000 需重新评估。
+ * 存储位置：MSPM0G3507 128KB 主 Flash 的最后 1KB 扇区 0x0001FC00。
+ * Keil scatter 文件把应用镜像限制到 0x00000000~0x0001FBFF，链接阶段即可
+ * 防止程序覆盖标定扇区。此前固定 0x00007000 已落入当前程序镜像，不能擦写。
  * 数据格式：magic(4B) + 平衡角 float(4B)，8 字节，64-bit 对齐。
  */
-#define CAL_STORE_ADDR        (0x00007000UL)
+#define CAL_STORE_ADDR        (0x0001FC00UL)
+#define CAL_STORE_SECTOR_SIZE (0x00000400UL)
+#define CAL_STORE_FLASH_SIZE  (0x00020000UL)
 #define CAL_STORE_MAGIC       (0xB11BA1CEUL)
 
 /* 返回 1 且 *balance_deg 有效；Flash 无有效数据（首次/损坏）返回 0。 */

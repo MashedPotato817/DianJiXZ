@@ -3,6 +3,7 @@
 #include "k230_link.h"
 
 /* 题目要求3：+5 cm / -5 cm（K230 单位 mm），误差 ±1 cm=±10 mm。 */
+#define BALL_TASK_ZERO_MM          (0.0f)
 #define BALL_TASK_PLUS_MM          (50.0f)
 #define BALL_TASK_MINUS_MM         (-50.0f)
 /*
@@ -52,6 +53,8 @@ void Ball_Task_Init(void)
     g_task.total_ms = 0U;
     g_task.max_error_plus_mm = 0.0f;
     g_task.max_error_minus_mm = 0.0f;
+    /* MCU RESET 后明确把闭环目标恢复到杆中心 0 cm。 */
+    Ball_Control_SetTarget(BALL_TASK_ZERO_MM);
 }
 
 void Ball_Task_StartPoint(void)

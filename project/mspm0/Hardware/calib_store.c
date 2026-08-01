@@ -32,6 +32,10 @@ uint8_t CalibStore_Save(float balance_deg)
     if ((balance_deg < 5.0f) || (balance_deg > 175.0f)) {
         return 0U;
     }
+    if (((CAL_STORE_ADDR % CAL_STORE_SECTOR_SIZE) != 0U) ||
+        ((CAL_STORE_ADDR + CAL_STORE_SECTOR_SIZE) > CAL_STORE_FLASH_SIZE)) {
+        return 0U;
+    }
 
     words[0] = CAL_STORE_MAGIC;
     (void)memcpy(&words[1], &balance_deg, sizeof(balance_deg));
