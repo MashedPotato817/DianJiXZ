@@ -1,5 +1,6 @@
 #include "ball_calibrate.h"
 #include "ball_control.h"
+#include "ball_task.h"
 #include "servo.h"
 #include "k230_link.h"
 #include "calib_store.h"
@@ -60,6 +61,8 @@ static void Ball_Calibrate_Abort(void)
 {
     g_cal.state = BALL_CAL_STATE_IDLE;
     Ball_Control_SetServoHold(0);
+    /* 中止时立即恢复原 trim，不能停留在最后一次试探角。 */
+    Ball_Control_Reset();
 }
 
 static void Ball_Calibrate_Decide(void)
@@ -71,9 +74,9 @@ static void Ball_Calibrate_Decide(void)
     float late = 0.0f;
     float trend;
 
-    if (n < 4U) {
-        /* 样本不足：无法可靠判断方向，保守收敛到当前角度。 */
-        Ball_Calibrate_Finish(g_cal.mid_deg);
+    if (n < BALL_CAL_MIN_SAMPLES) {
+        /* 样本不足不能证明平衡：中止且不覆盖当前 trim/Flash。 */
+        Ball_Calibrate_Abort();
         return;
     }
 
@@ -165,6 +168,17 @@ uint8_t Ball_Calibrate_ProcessSave(void)
 
 void Ball_Calibrate_Start(void)
 {
+    /* 标定依赖位置方向和尺度；五点映射未验证时不得移动舵机或写 Flash。 */
+    if (K230_LINK_MAPPING_VALIDATED == 0U) {
+        return;
+    }
+    {
+        Ball_TaskState task_state = Ball_Task_GetState();
+        if ((task_state == BALL_TASK_POINT_PLUS) ||
+            (task_state == BALL_TASK_POINT_MINUS)) {
+            return;
+        }
+    }
     if ((g_cal.state != BALL_CAL_STATE_IDLE) &&
         (g_cal.state != BALL_CAL_STATE_DONE)) {
         return;
@@ -196,7 +210,9 @@ void Ball_Calibrate_Tick5ms(void)
             break;
         }
         K230_Link_GetPosition(&position);
-        if (position.valid != 0U) {
+        if ((position.valid != 0U) &&
+            (Ball_Calibrate_Abs(position.x_mm) <=
+             BALL_CAL_START_MAX_X_MM)) {
             g_cal.lo_deg = BALL_CAL_SEARCH_MIN_DEG;
             g_cal.hi_deg = BALL_CAL_SEARCH_MAX_DEG;
             Ball_Calibrate_StartIteration();

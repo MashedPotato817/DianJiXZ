@@ -33,6 +33,7 @@ typedef struct {
     uint32_t last_timestamp_ms;
     uint32_t last_valid_control_ms;
     uint32_t control_now_ms;
+    uint32_t zero_last_apply_ms;
     uint32_t phase_start_ms;
     uint32_t edge_recovery_start_ms;
     uint8_t enabled;
@@ -47,15 +48,18 @@ typedef struct {
     Ball_ControlPhase phase_before_hold;
 } Ball_Control;
 
-#define BALL_CONTROL_ENABLE_DEFAULT   (1U)
+/* 与 K230 映射开关联动；当前 k230_link.h 已明确启用。 */
+#define BALL_CONTROL_ENABLE_DEFAULT   (K230_LINK_MAPPING_VALIDATED)
 #define BALL_CONTROL_KP_DEG_PER_MM          (0.24f)   //Kp
 #define BALL_CONTROL_KD_DEG_S_PER_MM        (0.040f)  //Kd
-/*
- * 题目位置误差允许 ±10 mm。2026-08-01 RESET 日志中小球已到 +6.3 mm，
- * 但旧 ±2 mm 判定继续触发 ACC，约 4 s 后进入 FAULT。改为 ±8 mm，
- * 保留 2 mm 验收裕量，并避免在已满足题目精度时继续强推。
- */
-#define BALL_CONTROL_TARGET_TOLERANCE_MM    (8.0f)
+#define BALL_CONTROL_TARGET_TOLERANCE_MM    (2.0f)
+/* Reset/零点优先稳定：绕开强 ACC，只使用小幅限幅 PD。 */
+#define BALL_CONTROL_ZERO_TARGET_EPS_MM      (0.1f)
+#define BALL_CONTROL_ZERO_KP_DEG_PER_MM      (0.45f)
+#define BALL_CONTROL_ZERO_KD_DEG_S_PER_MM    (0.035f)
+#define BALL_CONTROL_ZERO_MIN_DEG            (4.0f)
+#define BALL_CONTROL_ZERO_MAX_DEG           (16.0f)
+#define BALL_CONTROL_ZERO_UPDATE_MS        (200U)
 
 /*
  * 条件积分（把球"吸"在目标点，抗管子斜坡/静摩擦）：

@@ -10,7 +10,14 @@
  * ASCII 字节。x10 为毫米值乘 10，禁止使用无校验旧帧进入闭环。
  */
 #define K230_LINK_TIMEOUT_MS 100U
-#define K230_LINK_MAX_POSITION_X10 1500
+/*
+ * K230 当前三锚点映射：64px=-50mm、162px=0mm、256px=+50mm。
+ * 在完整 0~319px 横向范围内理论输出约为 -82.7~+83.5mm，留出取整
+ * 裕量后只接受 +/-85mm；超范围值按异常帧丢弃，不进入闭环。
+ */
+#define K230_LINK_MAX_POSITION_X10 850
+/* 当前启用三锚点映射闭环；输入仍受上面的 +/-85mm 边界保护。 */
+#define K230_LINK_MAPPING_VALIDATED 1U
 
 /* K230 输出的小球位置：摆杆中心为 0，右侧为正，单位 mm。 */
 typedef struct {

@@ -147,7 +147,6 @@ void TIMER_0_INST_IRQHandler(void)
     {
 			K230_Link_Tick5ms();
 			Ball_Calibrate_Tick5ms();
-			Ball_Task_Tick5ms();
 			/* 标定状态变化输出事件：长按后应看到 START→DONE→主循环 SAVED。 */
 			{
 				static Ball_CalibrateState last_cal_state = BALL_CAL_STATE_IDLE;
@@ -193,6 +192,8 @@ void TIMER_0_INST_IRQHandler(void)
 			if (Ball_Calibrate_IsActive() == 0U) {
 				Ball_Control_Step(&ball_position, 0.005f);
 			}
+			/* 任务验收使用本周期刚更新的位置速度，避免读取上一周期状态。 */
+			Ball_Task_Tick5ms();
 
 			Key();
 			/* 联调：慢闪=未发，2 Hz=已发无字节，0.5 Hz=收到原始字节，常亮=已解帧。 */
@@ -431,8 +432,12 @@ void Key(void)
 	tmp=key_scan(200);//click_N_Double(50);
 	if(tmp==1)
 	{
-		Ball_Task_StartPoint();	// START(PA18)单击：定点运动任务（0→+5→-5）
-		Debug_Telemetry_LogEvent("KEY,single");
+		if (Ball_Calibrate_IsActive() != 0U) {
+			Debug_Telemetry_LogEvent("KEY,SINGLE_IGN");
+		} else {
+			Ball_Task_StartPoint();	// START(PA18)单击：定点运动任务（0→+5→-5）
+			Debug_Telemetry_LogEvent("KEY,single");
+		}
 	}
 	else if(tmp==2)
 	{
@@ -442,8 +447,14 @@ void Key(void)
 	}
 	else if(tmp==3)
 	{
-		Ball_Calibrate_Start();	// START(PA18)长按：自动扫掠标定并保存
-		Debug_Telemetry_LogEvent("KEY,long");
+		Ball_TaskState task_state = Ball_Task_GetState();
+		if ((task_state == BALL_TASK_POINT_PLUS) ||
+		    (task_state == BALL_TASK_POINT_MINUS)) {
+			Debug_Telemetry_LogEvent("KEY,LONG_IGN");
+		} else {
+			Ball_Calibrate_Start();	// START(PA18)长按：自动扫掠标定并保存
+			Debug_Telemetry_LogEvent("KEY,long");
+		}
 	}
 }
 

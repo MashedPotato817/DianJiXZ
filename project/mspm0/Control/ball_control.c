@@ -292,6 +292,8 @@ void Ball_Control_Init(void)
     g_ball_control.last_command_angle_deg =
         BALL_CONTROL_TRIM_INITIAL_DEG;
     g_ball_control.control_now_ms = 0U;
+    g_ball_control.zero_last_apply_ms =
+        0U - BALL_CONTROL_ZERO_UPDATE_MS;
     g_ball_control.edge_recovery_start_ms = 0U;
     g_ball_control.edge_recovery_timed_out = 0U;
     g_ball_control.enabled = BALL_CONTROL_ENABLE_DEFAULT;
@@ -347,6 +349,9 @@ void Ball_Control_Reset(void)
                              BALL_CONTROL_PHASE_CAPTURE :
                              BALL_CONTROL_PHASE_OFF);
     g_ball_control.integral_deg = 0.0f;
+    /* 复位/切换回零点后允许下一周期立即下发第一条零点命令。 */
+    g_ball_control.zero_last_apply_ms =
+        g_ball_control.control_now_ms - BALL_CONTROL_ZERO_UPDATE_MS;
     Ball_Control_ApplyOutput(0.0f, BALL_CONTROL_NORMAL_MAX_DEG);
 }
 
@@ -475,6 +480,44 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
             error,
             g_ball_control.filtered_velocity_mm_s,
             new_sample_period_s);
+    }
+
+    /*
+     * 零点模式只每200ms更新一次舵机目标，避免K230每个约50ms的新样本都
+     * 触发几微秒正反修正。实测12°在+55mm附近不足以克服静摩擦，因此
+     * 使用略强的零点专用PD并限到16°，仍明显低于任务ACC的24~36°。
+     */
+    if (Ball_Control_Abs(g_ball_control.target_x_mm) <=
+        BALL_CONTROL_ZERO_TARGET_EPS_MM) {
+        if ((uint32_t)(g_ball_control.control_now_ms -
+                       g_ball_control.zero_last_apply_ms) <
+            BALL_CONTROL_ZERO_UPDATE_MS) {
+            return;
+        }
+        g_ball_control.zero_last_apply_ms = g_ball_control.control_now_ms;
+        if (error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) {
+            g_ball_control.phase = BALL_CONTROL_PHASE_CAPTURE;
+            g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_CAPTURE;
+        } else {
+            g_ball_control.phase = BALL_CONTROL_PHASE_RUN;
+            g_ball_control.phase_before_hold = BALL_CONTROL_PHASE_RUN;
+        }
+        output = BALL_CONTROL_ZERO_KP_DEG_PER_MM * error +
+                 BALL_CONTROL_ZERO_KD_DEG_S_PER_MM *
+                 g_ball_control.filtered_velocity_mm_s +
+                 g_ball_control.integral_deg;
+        if ((error_abs > BALL_CONTROL_TARGET_TOLERANCE_MM) &&
+            (Ball_Control_Abs(g_ball_control.filtered_velocity_mm_s) <=
+             BALL_CONTROL_VELOCITY_STALL_MM_S)) {
+            if ((error > 0.0f) && (output < BALL_CONTROL_ZERO_MIN_DEG)) {
+                output = BALL_CONTROL_ZERO_MIN_DEG;
+            } else if ((error < 0.0f) &&
+                       (output > -BALL_CONTROL_ZERO_MIN_DEG)) {
+                output = -BALL_CONTROL_ZERO_MIN_DEG;
+            }
+        }
+        Ball_Control_ApplyOutput(output, BALL_CONTROL_ZERO_MAX_DEG);
+        return;
     }
 
     if (error_abs <= BALL_CONTROL_TARGET_TOLERANCE_MM) {

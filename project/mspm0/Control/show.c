@@ -22,6 +22,8 @@ All rights reserved
 #include "k230_link.h"
 #include "servo.h"
 #include "ball_control.h"
+#include "ball_calibrate.h"
+#include "ball_task.h"
 /**************************************************************************
 Function: OLED display
 Input   : none
@@ -98,17 +100,13 @@ static void oled_show_legacy(void)
 		
 }
 
-/*
- * 当前联调页：UART1 已分配给 K230，因此 OLED 专门显示闭环关键量。
- * K230 无有效帧（包括超时）时，不显示上一帧位置，避免误判为有效数据。
- */
+/* OLED 只保留现场有用的舵机脉宽、小球位置和当前模式。 */
 #define OLED_REFRESH_PERIOD_MS 200U
 
 void oled_show(void)
 {
     K230_BallPosition position;
     uint16_t pulse_us;
-    uint16_t duty_x100;
     int x_tenths;
     const Ball_Control *ball_control;
     static uint32_t last_refresh_ms = 0U;
@@ -122,73 +120,47 @@ void oled_show(void)
     }
     last_refresh_ms = ball_control->control_now_ms;
     pulse_us = Servo_GetPulseUs();
-    /* 20 ms 周期：775 表示 7.75%。 */
-    duty_x100 = (uint16_t)(((uint32_t)pulse_us * 10000U + 10000U) / 20000U);
 
     memset(OLED_GRAM, 0, 128 * 8 * sizeof(u8));
     OLED_ShowString(0, 0, "PWM:");
     OLED_ShowNumber(28, 0, pulse_us, 4, 12);
     OLED_ShowString(54, 0, "us");
 
-    OLED_ShowString(0, 12, "DUTY:");
-    OLED_ShowNumber(34, 12, duty_x100 / 100U, 2, 12);
-    OLED_ShowString(46, 12, ".");
-    OLED_ShowNumber(52, 12, duty_x100 % 100U, 2, 12);
-    OLED_ShowString(64, 12, "%");
-
-    OLED_ShowString(0, 28, "K230:");
-    OLED_ShowString(36, 28, position.valid ? "OK" : "LS");
-
-    OLED_ShowString(0, 44, "X:");
+    OLED_ShowString(0, 20, "X:");
     if (position.valid == 0U) {
-        OLED_ShowString(18, 44, "--.-mm");
+        OLED_ShowString(18, 20, "--.-mm");
     } else {
         x_tenths = (int)(position.x_mm * 10.0f);
         if (x_tenths < 0) {
-            OLED_ShowString(18, 44, "-");
+            OLED_ShowString(18, 20, "-");
             x_tenths = -x_tenths;
         } else {
-            OLED_ShowString(18, 44, "+");
+            OLED_ShowString(18, 20, "+");
         }
-        OLED_ShowNumber(24, 44, (uint32_t)x_tenths / 10U, 3, 12);
-        OLED_ShowString(42, 44, ".");
-        OLED_ShowNumber(48, 44, (uint32_t)x_tenths % 10U, 1, 12);
-        OLED_ShowString(54, 44, "mm");
+        OLED_ShowNumber(24, 20, (uint32_t)x_tenths / 10U, 3, 12);
+        OLED_ShowString(42, 20, ".");
+        OLED_ShowNumber(48, 20, (uint32_t)x_tenths % 10U, 1, 12);
+        OLED_ShowString(54, 20, "mm");
     }
 
-    OLED_ShowString(0, 56, "CTRL:");
-    switch (ball_control->phase) {
-        case BALL_CONTROL_PHASE_CAPTURE:
-            OLED_ShowString(36, 56, "CAP ");
+    OLED_ShowString(0, 40, "MODE:");
+    if (Ball_Calibrate_IsActive() != 0U) {
+        OLED_ShowString(34, 40, "CAL ");
+    } else {
+        switch (Ball_Task_GetState()) {
+        case BALL_TASK_POINT_PLUS:
+            OLED_ShowString(34, 40, "+5  ");
             break;
-        case BALL_CONTROL_PHASE_ACCEL:
-            OLED_ShowString(36, 56, "ACC ");
+        case BALL_TASK_POINT_MINUS:
+        case BALL_TASK_POINT_DONE:
+            OLED_ShowString(34, 40, "-5  ");
             break;
-        case BALL_CONTROL_PHASE_RUN:
-            OLED_ShowString(36, 56, "RUN ");
-            break;
-        case BALL_CONTROL_PHASE_BRAKE:
-            OLED_ShowString(36, 56, "BRK ");
-            break;
-        case BALL_CONTROL_PHASE_EDGE:
-            OLED_ShowString(36, 56, "EDGE");
-            break;
-        case BALL_CONTROL_PHASE_FAULT:
-            OLED_ShowString(36, 56, "FLT ");
-            break;
-        case BALL_CONTROL_PHASE_HOLD:
-            OLED_ShowString(36, 56, "HOLD");
-            break;
-        case BALL_CONTROL_PHASE_LOST:
-            OLED_ShowString(36, 56, "LOST");
-            break;
-        case BALL_CONTROL_PHASE_PASS:
-            OLED_ShowString(36, 56, "PASS");
-            break;
-        case BALL_CONTROL_PHASE_OFF:
+        case BALL_TASK_IDLE:
+        case BALL_TASK_FAULT:
         default:
-            OLED_ShowString(36, 56, "OFF ");
+            OLED_ShowString(34, 40, "ZERO");
             break;
+        }
     }
 
     OLED_Refresh_Gram();

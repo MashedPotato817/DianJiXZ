@@ -27,9 +27,10 @@
 #define BALL_CAL_SAVE_ENABLE 1
 /* 上电优先加载已通过 magic 和角度范围校验的标定结果。 */
 #define BALL_CAL_LOAD_ENABLE 1
-#define BALL_CAL_SEARCH_MIN_DEG     (50.0f)
-#define BALL_CAL_SEARCH_MAX_DEG     (150.0f)
-#define BALL_CAL_CONVERGE_SPAN_DEG  (8.0f)
+/* 已知平衡基准为100.8°，只在附近小范围搜索，避免误校准到125°。 */
+#define BALL_CAL_SEARCH_MIN_DEG     (95.0f)
+#define BALL_CAL_SEARCH_MAX_DEG     (107.0f)
+#define BALL_CAL_CONVERGE_SPAN_DEG  (1.0f)
 #define BALL_CAL_MAX_ITERATIONS     (8U)
 #define BALL_CAL_SETTLE_MS          (400U)
 #define BALL_CAL_OBSERVE_MS         (500U)
@@ -38,6 +39,8 @@
 #define BALL_CAL_TREND_THRESHOLD_MM (2.0f)
 #define BALL_CAL_EDGE_X_MM          (55.0f)
 #define BALL_CAL_MAX_SAMPLES        (16U)
+#define BALL_CAL_MIN_SAMPLES        (6U)
+#define BALL_CAL_START_MAX_X_MM     (10.0f)
 
 typedef enum {
     BALL_CAL_STATE_IDLE = 0,

@@ -1,5 +1,6 @@
 #include "ball_task.h"
 #include "ball_control.h"
+#include "ball_calibrate.h"
 #include "k230_link.h"
 
 /* 题目要求3：+5 cm / -5 cm（K230 单位 mm），误差 ±1 cm=±10 mm。 */
@@ -13,6 +14,7 @@
 #define BALL_TASK_TOLERANCE_MM     (10.0f)
 #define BALL_TASK_MAX_VELOCITY_MM_S (10.0f)
 #define BALL_TASK_SETTLE_MS        (500U)
+#define BALL_TASK_SETTLE_MIN_SAMPLES (4U)
 #define BALL_TASK_PHASE_TIMEOUT_MS (8000U)
 
 typedef struct {
@@ -21,6 +23,8 @@ typedef struct {
     uint32_t task_start_ms;
     uint32_t phase_start_ms;
     uint32_t settle_ms;
+    uint32_t last_sample_ts;
+    uint8_t settle_samples;
     uint8_t target_armed;
     uint32_t total_ms;
     float max_error_plus_mm;
@@ -36,10 +40,15 @@ static float Ball_Task_Max(float a, float b)
 
 static void Ball_Task_ApplyTarget(float target_mm)
 {
+    K230_BallPosition position;
+
     Ball_Control_SetTarget(target_mm);
+    K230_Link_GetPosition(&position);
     g_task.target_armed = 1U;
     g_task.phase_start_ms = g_task.ms;
     g_task.settle_ms = 0U;
+    g_task.last_sample_ts = position.timestamp_ms;
+    g_task.settle_samples = 0U;
 }
 
 void Ball_Task_Init(void)
@@ -49,6 +58,8 @@ void Ball_Task_Init(void)
     g_task.task_start_ms = 0U;
     g_task.phase_start_ms = 0U;
     g_task.settle_ms = 0U;
+    g_task.last_sample_ts = 0U;
+    g_task.settle_samples = 0U;
     g_task.target_armed = 0U;
     g_task.total_ms = 0U;
     g_task.max_error_plus_mm = 0.0f;
@@ -59,6 +70,10 @@ void Ball_Task_Init(void)
 
 void Ball_Task_StartPoint(void)
 {
+    /* 校准期间忽略短按，禁止两个状态机同时接管舵机。 */
+    if (Ball_Calibrate_IsActive() != 0U) {
+        return;
+    }
     /* FAULT 后允许直接重启（避免 reset 清掉 RAM 中的标定 trim）。 */
     if ((g_task.state != BALL_TASK_IDLE) &&
         (g_task.state != BALL_TASK_POINT_DONE) &&
@@ -70,6 +85,8 @@ void Ball_Task_StartPoint(void)
     g_task.total_ms = 0U;
     g_task.target_armed = 0U;
     g_task.settle_ms = 0U;
+    g_task.last_sample_ts = 0U;
+    g_task.settle_samples = 0U;
     g_task.max_error_plus_mm = 0.0f;
     g_task.max_error_minus_mm = 0.0f;
 }
@@ -102,6 +119,8 @@ void Ball_Task_Tick5ms(void)
 
     if ((uint32_t)(g_task.ms - g_task.phase_start_ms) >
         BALL_TASK_PHASE_TIMEOUT_MS) {
+        /* 任一阶段超时都立即恢复零点目标。 */
+        Ball_Control_SetTarget(BALL_TASK_ZERO_MM);
         g_task.state = BALL_TASK_FAULT;
         return;
     }
@@ -110,6 +129,11 @@ void Ball_Task_Tick5ms(void)
     if (position.valid == 0U) {
         return;
     }
+    /* 同一视觉帧只参与一次任务验收，不能按 5ms 中断重复累计稳定时间。 */
+    if (position.timestamp_ms == g_task.last_sample_ts) {
+        return;
+    }
+    g_task.last_sample_ts = position.timestamp_ms;
 
     {
         float target = (g_task.state == BALL_TASK_POINT_PLUS) ?
@@ -129,31 +153,41 @@ void Ball_Task_Tick5ms(void)
                                                   error_abs);
     }
 
+    /*
+     * +5cm 只按位置判定，到达后立即折返；-5cm 才要求低速、多帧稳定。
+     */
+    if (g_task.state == BALL_TASK_POINT_PLUS) {
+        if (error_abs <= BALL_TASK_TOLERANCE_MM) {
+            g_task.state = BALL_TASK_POINT_MINUS;
+            g_task.target_armed = 0U;
+            g_task.settle_ms = 0U;
+            g_task.settle_samples = 0U;
+        }
+        return;
+    }
+
     control = Ball_Control_Get();
     velocity_abs = control->filtered_velocity_mm_s;
     if (velocity_abs < 0.0f) {
         velocity_abs = -velocity_abs;
     }
-
-    /*
-     * +5cm 段只需到达：位置与速度同时达标立即切往 -5cm，不在 +50 拘泥。
-     * -5cm 段必须稳定：位置与速度同时达标并持续 SETTLE_MS 才判完成。
-     */
     if ((error_abs <= BALL_TASK_TOLERANCE_MM) &&
         (velocity_abs <= BALL_TASK_MAX_VELOCITY_MM_S)) {
-        if (g_task.state == BALL_TASK_POINT_PLUS) {
-            g_task.state = BALL_TASK_POINT_MINUS;
-            g_task.target_armed = 0U;
-            g_task.settle_ms = 0U;
-        } else {
-            g_task.settle_ms += 5U;
-            if (g_task.settle_ms >= BALL_TASK_SETTLE_MS) {
-                g_task.total_ms = g_task.ms - g_task.task_start_ms;
-                g_task.state = BALL_TASK_POINT_DONE;
-            }
+        if (g_task.settle_samples == 0U) {
+            g_task.settle_ms = g_task.ms;
+        }
+        if (g_task.settle_samples < 255U) {
+            g_task.settle_samples++;
+        }
+        if (((uint32_t)(g_task.ms - g_task.settle_ms) >=
+             BALL_TASK_SETTLE_MS) &&
+            (g_task.settle_samples >= BALL_TASK_SETTLE_MIN_SAMPLES)) {
+            g_task.total_ms = g_task.ms - g_task.task_start_ms;
+            g_task.state = BALL_TASK_POINT_DONE;
         }
     } else {
         g_task.settle_ms = 0U;
+        g_task.settle_samples = 0U;
     }
 }
 

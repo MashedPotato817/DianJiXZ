@@ -15,7 +15,8 @@ uint8_t CalibStore_Load(float *balance_deg)
         return 0U;
     }
     (void)memcpy(&value, &words[1], sizeof(value));
-    if ((value < 5.0f) || (value > 175.0f)) {
+    /* 当前机构平衡点已确认在100.8°附近，拒绝旧的125°误标定记录。 */
+    if ((value < 90.0f) || (value > 112.0f)) {
         return 0U;
     }
     *balance_deg = value;
@@ -29,7 +30,7 @@ uint8_t CalibStore_Save(float balance_deg)
     bool erase_ok;
     bool program_ok;
 
-    if ((balance_deg < 5.0f) || (balance_deg > 175.0f)) {
+    if ((balance_deg < 90.0f) || (balance_deg > 112.0f)) {
         return 0U;
     }
     if (((CAL_STORE_ADDR % CAL_STORE_SECTOR_SIZE) != 0U) ||
