@@ -10,7 +10,7 @@
  * 存储位置：MSPM0G3507 128KB 主 Flash 的最后 1KB 扇区 0x0001FC00。
  * Keil scatter 文件把应用镜像限制到 0x00000000~0x0001FBFF，链接阶段即可
  * 防止程序覆盖标定扇区。此前固定 0x00007000 已落入当前程序镜像，不能擦写。
- * 数据格式：magic(4B) + 平衡角 float(4B)，8 字节，64-bit 对齐。
+ * 数据格式：magic(4B) + 平衡角 float(4B)，按 64 位对齐一次写入。
  */
 #define CAL_STORE_ADDR        (0x0001FC00UL)
 #define CAL_STORE_SECTOR_SIZE (0x00000400UL)

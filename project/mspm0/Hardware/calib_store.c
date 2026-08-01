@@ -1,4 +1,5 @@
 #include "calib_store.h"
+#include "servo.h"
 #include "ti_msp_dl_config.h"
 
 #include <string.h>
@@ -15,8 +16,9 @@ uint8_t CalibStore_Load(float *balance_deg)
         return 0U;
     }
     (void)memcpy(&value, &words[1], sizeof(value));
-    /* 当前机构平衡点已确认在100.8°附近，拒绝旧的125°误标定记录。 */
-    if ((value < 90.0f) || (value > 112.0f)) {
+    /* 宽范围自动标定允许机构重装后的任意有效舵机角度。 */
+    if (!((value >= SERVO_ANGLE_MIN_DEG) &&
+          (value <= SERVO_ANGLE_MAX_DEG))) {
         return 0U;
     }
     *balance_deg = value;
@@ -27,10 +29,12 @@ uint8_t CalibStore_Save(float balance_deg)
 {
     uint32_t primask;
     uint32_t words[2];
+    DL_FLASHCTL_COMMAND_STATUS command_status;
     bool erase_ok;
     bool program_ok;
 
-    if ((balance_deg < 90.0f) || (balance_deg > 112.0f)) {
+    if (!((balance_deg >= SERVO_ANGLE_MIN_DEG) &&
+          (balance_deg <= SERVO_ANGLE_MAX_DEG))) {
         return 0U;
     }
     if (((CAL_STORE_ADDR % CAL_STORE_SECTOR_SIZE) != 0U) ||
@@ -49,21 +53,22 @@ uint8_t CalibStore_Save(float balance_deg)
     primask = __get_PRIMASK();
     __disable_irq();
 
-    DL_FlashCTL_unprotectMainMemory(FLASHCTL);
-    (void)DL_FlashCTL_eraseMemoryFromRAM(
+    DL_FlashCTL_unprotectSector(
+        FLASHCTL, CAL_STORE_ADDR, DL_FLASHCTL_REGION_SELECT_MAIN);
+    command_status = DL_FlashCTL_eraseMemoryFromRAM(
         FLASHCTL, CAL_STORE_ADDR, DL_FLASHCTL_COMMAND_SIZE_SECTOR);
-    erase_ok = DL_FlashCTL_waitForCmdDone(FLASHCTL);
+    erase_ok = (command_status == DL_FLASHCTL_COMMAND_STATUS_PASSED);
 
     program_ok = erase_ok;
     if (erase_ok) {
-        (void)DL_FlashCTL_programMemoryFromRAM32(
+        /* 每条命令完成后硬件会重新保护 Flash，编程前必须再次解锁。 */
+        DL_FlashCTL_unprotectSector(
+            FLASHCTL, CAL_STORE_ADDR, DL_FLASHCTL_REGION_SELECT_MAIN);
+        /* 目标地址要求 64 位对齐，magic 与 float 一次写完。 */
+        command_status = DL_FlashCTL_programMemoryFromRAM64(
             FLASHCTL, CAL_STORE_ADDR, &words[0]);
-        program_ok = DL_FlashCTL_waitForCmdDone(FLASHCTL);
-    }
-    if (program_ok) {
-        (void)DL_FlashCTL_programMemoryFromRAM32(
-            FLASHCTL, CAL_STORE_ADDR + 4U, &words[1]);
-        program_ok = DL_FlashCTL_waitForCmdDone(FLASHCTL);
+        program_ok =
+            (command_status == DL_FLASHCTL_COMMAND_STATUS_PASSED);
     }
     DL_FlashCTL_protectMainMemory(FLASHCTL);
 
