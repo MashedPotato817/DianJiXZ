@@ -64,8 +64,8 @@ uint8_t CalibStore_Save(float balance_deg)
         /* 每条命令完成后硬件会重新保护 Flash，编程前必须再次解锁。 */
         DL_FlashCTL_unprotectSector(
             FLASHCTL, CAL_STORE_ADDR, DL_FLASHCTL_REGION_SELECT_MAIN);
-        /* 目标地址要求 64 位对齐，magic 与 float 一次写完。 */
-        command_status = DL_FlashCTL_programMemoryFromRAM64(
+        /* 目标地址要求 64 位对齐，magic、float 与硬件生成的 ECC 一次写完。 */
+        command_status = DL_FlashCTL_programMemoryFromRAM64WithECCGenerated(
             FLASHCTL, CAL_STORE_ADDR, &words[0]);
         program_ok =
             (command_status == DL_FLASHCTL_COMMAND_STATUS_PASSED);
