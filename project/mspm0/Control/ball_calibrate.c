@@ -177,7 +177,7 @@ static void Ball_Calibrate_Finish(float balance_deg)
     g_cal.result_deg = balance_deg;
     g_cal.state = BALL_CAL_STATE_DONE;
     Ball_Control_SetServoHold(0);
-    /* CENTER 已按候选 trim 建立闭环，完成时保留其积分和制动状态。 */
+    /* CENTER 已按候选 trim 建立闭环，完成时保留当前低频 PD 输出。 */
 #if BALL_CAL_SAVE_ENABLE
     /*
      * 持久化推迟到主循环（Ball_Calibrate_ProcessSave）：Flash 擦写毫秒级且

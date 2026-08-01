@@ -9,9 +9,7 @@
 #include <string.h>
 
 /*
- * ctrl:
- * 0=OFF, 1=CAP, 2=ACC, 3=RUN, 4=BRK, 5=EDGE, 6=FLT, 7=HOLD, 8=LOST,
- * 9=PASS.
+ * ctrl: 0=OFF, 1=TRACK, 2=EDGE, 3=HOLD, 4=LOST。
  */
 
 static volatile uint32_t g_telemetry_now_ms;
@@ -99,8 +97,8 @@ static uint8_t Debug_Telemetry_GetControlState(const Ball_Control *control)
 static void Debug_Telemetry_SendHeader(void)
 {
     Debug_Telemetry_SendString(
-        "#TELEM_V3,t_ms,dt_ms,rx_ms,rx_age_ms,seq,x10,valid,edge,"
-        "v10,toward_v10,stop10,trim10,servo_us,out10,"
+        "#TELEM_V4,t_ms,dt_ms,rx_ms,rx_age_ms,seq,x10,valid,edge,"
+        "v10,trim10,servo_us,out10,"
         "ctrl,parse_err,crc_err,seq_gap,target_x10,task#\r\n");
 }
 
@@ -226,12 +224,6 @@ void Debug_Telemetry_Process(void)
     Debug_Telemetry_FieldSigned(
         Debug_Telemetry_Scale10(
             control->filtered_velocity_mm_s));
-    Debug_Telemetry_FieldSigned(
-        Debug_Telemetry_Scale10(
-            control->toward_velocity_mm_s));
-    Debug_Telemetry_FieldSigned(
-        Debug_Telemetry_Scale10(
-            control->stopping_distance_mm));
     Debug_Telemetry_FieldSigned(
         Debug_Telemetry_Scale10(
             control->trim_angle_deg));
