@@ -375,12 +375,17 @@ void Ball_Control_Step(const K230_BallPosition *position, float period_s)
         return;
     }
 
+    /*
+     * 控制时钟必须持续推进，OLED 刷新也使用该时基；自动标定暂停闭环输出，
+     * 但不能冻结现场显示。标定结束会 Reset 控制状态，不会继承暂停期间的阶段时间。
+     */
+    g_ball_control.control_now_ms += Ball_Control_PeriodMs(period_s);
+
     /* 自动标定期间完全接管舵机，禁止 Reset/ApplyOutput 覆盖标定写入角度。 */
     if (g_ball_control.servo_hold != 0U) {
         return;
     }
 
-    g_ball_control.control_now_ms += Ball_Control_PeriodMs(period_s);
     if (g_ball_control.enabled == 0U) {
         if (g_ball_control.phase != BALL_CONTROL_PHASE_OFF) {
             Ball_Control_Reset();

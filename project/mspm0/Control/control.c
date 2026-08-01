@@ -188,10 +188,11 @@ void TIMER_0_INST_IRQHandler(void)
 				}
 			}
 			K230_Link_GetPosition(&ball_position);
-			/* 自动标定激活期间跳过正常闭环，舵机由标定状态机直接控制。 */
-			if (Ball_Calibrate_IsActive() == 0U) {
-				Ball_Control_Step(&ball_position, 0.005f);
-			}
+			/*
+			 * 始终推进控制时钟供 OLED 刷新；自动标定激活时 Step 内部会因
+			 * servo_hold 立即返回，不会覆盖标定状态机直接写入的舵机角度。
+			 */
+			Ball_Control_Step(&ball_position, 0.005f);
 			/* 任务验收使用本周期刚更新的位置速度，避免读取上一周期状态。 */
 			Ball_Task_Tick5ms();
 

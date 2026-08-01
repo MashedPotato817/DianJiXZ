@@ -109,6 +109,7 @@ void oled_show(void)
     uint16_t pulse_us;
     int x_tenths;
     const Ball_Control *ball_control;
+    Ball_CalibrateState cal_state;
     static uint32_t last_refresh_ms = 0U;
 
     K230_Link_GetPosition(&position);
@@ -144,8 +145,14 @@ void oled_show(void)
     }
 
     OLED_ShowString(0, 40, "MODE:");
-    if (Ball_Calibrate_IsActive() != 0U) {
-        OLED_ShowString(34, 40, "CAL ");
+    cal_state = Ball_Calibrate_GetState();
+    if (cal_state == BALL_CAL_STATE_WAIT_BALL) {
+        /* 已识别长按，等待小球进入零点附近后才开始扫掠。 */
+        OLED_ShowString(34, 40, "CAL WAIT");
+    } else if (cal_state == BALL_CAL_STATE_SETTLE) {
+        OLED_ShowString(34, 40, "CAL SET ");
+    } else if (cal_state == BALL_CAL_STATE_OBSERVE) {
+        OLED_ShowString(34, 40, "CAL READ");
     } else {
         switch (Ball_Task_GetState()) {
         case BALL_TASK_POINT_PLUS:
