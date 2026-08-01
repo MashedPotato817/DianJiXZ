@@ -7,20 +7,43 @@
 
 #if BALL_CAL_ENABLE
 
+typedef enum {
+    BALL_CAL_STAGE_BRACKET_LOW = 0,
+    BALL_CAL_STAGE_BRACKET_HIGH,
+    BALL_CAL_STAGE_BISECT,
+    BALL_CAL_STAGE_VERIFY_LOW,
+    BALL_CAL_STAGE_VERIFY_HIGH,
+    BALL_CAL_STAGE_VERIFY_CENTER
+} Ball_CalibrateStage;
+
 typedef struct {
     Ball_CalibrateState state;
+    Ball_CalibrateStage stage;
     float lo_deg;
     float hi_deg;
     float mid_deg;
+    float candidate_deg;
+    float probe_deg;
+    float pending_deg;
+    float last_valid_x_mm;
     float result_deg;
     uint32_t ms;
     uint32_t phase_ms;
+    uint32_t trial_start_ms;
+    uint32_t recovery_start_ms;
+    uint32_t recovery_step_ms;
     uint32_t wait_start_ms;
     uint32_t start_ms;
     uint8_t iterations;
     uint8_t save_pending;   /* 标定完成待写 Flash，主循环 ProcessSave 执行 */
     float sample_x[BALL_CAL_MAX_SAMPLES];
     uint8_t sample_count;
+    uint8_t edge_positive_count;
+    uint8_t edge_negative_count;
+    int8_t trial_start_side;
+    int8_t recovery_side;
+    uint16_t recovery_pulse_us;
+    uint16_t recovery_step_us;
     uint32_t last_sample_ts;
 } Ball_Calibrate;
 
@@ -31,13 +54,87 @@ static float Ball_Calibrate_Abs(float value)
     return (value < 0.0f) ? -value : value;
 }
 
-static void Ball_Calibrate_StartIteration(void)
+static float Ball_Calibrate_PulseToDeg(uint16_t pulse_us)
 {
-    g_cal.mid_deg = (g_cal.lo_deg + g_cal.hi_deg) * 0.5f;
-    Servo_SetTargetAngle(g_cal.mid_deg);
+    return ((float)pulse_us - (float)SERVO_PULSE_MIN_US) /
+           SERVO_US_PER_DEG;
+}
+
+static float Ball_Calibrate_PulseSpanToDeg(uint16_t pulse_us)
+{
+    return (float)pulse_us / SERVO_US_PER_DEG;
+}
+
+static int8_t Ball_Calibrate_PositionSide(const K230_BallPosition *position)
+{
+    if (position->valid != 0U) {
+        if (position->x_mm > BALL_CAL_EDGE_X_MM) {
+            return 1;
+        }
+        if (position->x_mm < -BALL_CAL_EDGE_X_MM) {
+            return -1;
+        }
+        return 0;
+    }
+    if (position->edge_direction > 0) {
+        return 1;
+    }
+    if (position->edge_direction < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static void Ball_Calibrate_ApplyTrial(float angle_deg,
+                                      const K230_BallPosition *position)
+{
+    g_cal.mid_deg = angle_deg;
+    g_cal.trial_start_side = Ball_Calibrate_PositionSide(position);
+    g_cal.trial_start_ms = g_cal.ms;
+    Servo_SetTargetAngle(angle_deg);
     Servo_ApplyHardware();
     g_cal.state = BALL_CAL_STATE_SETTLE;
     g_cal.phase_ms = g_cal.ms;
+}
+
+static void Ball_Calibrate_StartAt(float angle_deg)
+{
+    K230_BallPosition position;
+    int8_t lost_side;
+
+    K230_Link_GetPosition(&position);
+    if (position.valid != 0U) {
+        g_cal.last_valid_x_mm = position.x_mm;
+        Ball_Calibrate_ApplyTrial(angle_deg, &position);
+        return;
+    }
+
+    /* 优先按最后一次有效位置判断离开侧，edge 作为没有历史位置时的后备。 */
+    if (g_cal.last_valid_x_mm > 0.0f) {
+        lost_side = 1;
+    } else if (g_cal.last_valid_x_mm < 0.0f) {
+        lost_side = -1;
+    } else {
+        lost_side = Ball_Calibrate_PositionSide(&position);
+    }
+    if (lost_side == 0) {
+        /* 只是无侧别的瞬时丢帧，仍可下发原试探点，由观察窗口继续判断。 */
+        Ball_Calibrate_ApplyTrial(angle_deg, &position);
+        return;
+    }
+
+    g_cal.pending_deg = angle_deg;
+    g_cal.recovery_side = lost_side;
+    g_cal.recovery_pulse_us = Servo_GetPulseUs();
+    g_cal.recovery_step_us = BALL_CAL_RECOVER_START_US;
+    g_cal.recovery_start_ms = g_cal.ms;
+    g_cal.recovery_step_ms = g_cal.ms - BALL_CAL_RECOVER_STEP_MS;
+    g_cal.state = BALL_CAL_STATE_RECOVER;
+}
+
+static void Ball_Calibrate_StartIteration(void)
+{
+    Ball_Calibrate_StartAt((g_cal.lo_deg + g_cal.hi_deg) * 0.5f);
 }
 
 static void Ball_Calibrate_Finish(float balance_deg)
@@ -59,69 +156,264 @@ static void Ball_Calibrate_Finish(float balance_deg)
 
 static void Ball_Calibrate_Abort(void)
 {
-    g_cal.state = BALL_CAL_STATE_IDLE;
+    g_cal.state = BALL_CAL_STATE_FAILED;
     Ball_Control_SetServoHold(0);
     /* 中止时立即恢复原 trim，不能停留在最后一次试探角。 */
     Ball_Control_Reset();
 }
 
-static void Ball_Calibrate_Decide(void)
+static int8_t Ball_Calibrate_GetDirection(uint8_t allow_same_edge,
+                                          uint8_t *blocked_at_start_edge)
 {
     uint8_t n = g_cal.sample_count;
     uint8_t third;
     uint8_t i;
     float early = 0.0f;
     float late = 0.0f;
-    float trend;
+    float trend = 0.0f;
+    int8_t edge_side = 0;
 
+    *blocked_at_start_edge = 0U;
+    if (g_cal.edge_positive_count >= BALL_CAL_EDGE_CONFIRM_FRAMES) {
+        edge_side = 1;
+    } else if (g_cal.edge_negative_count >= BALL_CAL_EDGE_CONFIRM_FRAMES) {
+        edge_side = -1;
+    }
+
+    if (n >= BALL_CAL_MIN_SAMPLES) {
+        third = n / 3U;
+        for (i = 0U; i < third; i++) {
+            early += g_cal.sample_x[i];
+        }
+        for (i = n - third; i < n; i++) {
+            late += g_cal.sample_x[i];
+        }
+        early /= (float)third;
+        late /= (float)third;
+        trend = late - early;
+
+        if ((g_cal.sample_x[0] > BALL_CAL_EDGE_X_MM) &&
+            (g_cal.sample_x[n - 1U] > BALL_CAL_EDGE_X_MM) &&
+            (Ball_Calibrate_Abs(trend) < BALL_CAL_TREND_THRESHOLD_MM)) {
+            edge_side = 1;
+        } else if ((g_cal.sample_x[0] < -BALL_CAL_EDGE_X_MM) &&
+                   (g_cal.sample_x[n - 1U] < -BALL_CAL_EDGE_X_MM) &&
+                   (Ball_Calibrate_Abs(trend) <
+                    BALL_CAL_TREND_THRESHOLD_MM)) {
+            edge_side = -1;
+        }
+    }
+
+    if (edge_side != 0) {
+        if ((edge_side != g_cal.trial_start_side) ||
+            (allow_same_edge != 0U)) {
+            return edge_side;
+        }
+        *blocked_at_start_edge = 1U;
+        return 0;
+    }
     if (n < BALL_CAL_MIN_SAMPLES) {
-        /* 样本不足不能证明平衡：中止且不覆盖当前 trim/Flash。 */
-        Ball_Calibrate_Abort();
-        return;
+        return 0;
     }
+    if (trend > BALL_CAL_TREND_THRESHOLD_MM) {
+        return 1;
+    }
+    if (trend < -BALL_CAL_TREND_THRESHOLD_MM) {
+        return -1;
+    }
+    return 0;
+}
 
-    third = n / 3U;
-    for (i = 0U; i < third; i++) {
-        early += g_cal.sample_x[i];
-    }
-    for (i = n - third; i < n; i++) {
-        late += g_cal.sample_x[i];
-    }
-    early /= (float)third;
-    late /= (float)third;
-    trend = late - early;
+static void Ball_Calibrate_RetryObservation(void)
+{
+    /* 舵机命令保持不变，只重新收集一个窗口，等待视野外小球返回。 */
+    g_cal.state = BALL_CAL_STATE_OBSERVE;
+    g_cal.phase_ms = g_cal.ms;
+    g_cal.sample_count = 0U;
+    g_cal.edge_positive_count = 0U;
+    g_cal.edge_negative_count = 0U;
+    g_cal.last_sample_ts = 0U;
+}
 
-    if ((g_cal.sample_x[0] > BALL_CAL_EDGE_X_MM) &&
-        (g_cal.sample_x[n - 1U] > BALL_CAL_EDGE_X_MM) &&
-        (Ball_Calibrate_Abs(trend) < BALL_CAL_TREND_THRESHOLD_MM)) {
-        /* 球被卡在 +X 边缘：PWM 偏小、角度偏低（球想往右滚但到边），抬升下界。 */
-        g_cal.lo_deg = g_cal.mid_deg;
-    } else if ((g_cal.sample_x[0] < -BALL_CAL_EDGE_X_MM) &&
-               (g_cal.sample_x[n - 1U] < -BALL_CAL_EDGE_X_MM) &&
-               (Ball_Calibrate_Abs(trend) < BALL_CAL_TREND_THRESHOLD_MM)) {
-        /* 球被卡在 -X 边缘：PWM 偏大、角度偏高（球想往左滚但到边），压低上界。 */
-        g_cal.hi_deg = g_cal.mid_deg;
-    } else if (trend > BALL_CAL_TREND_THRESHOLD_MM) {
-        /* 球向 +X 滚：PWM 偏小、角度偏低，抬升下界。 */
-        g_cal.lo_deg = g_cal.mid_deg;
-    } else if (trend < -BALL_CAL_TREND_THRESHOLD_MM) {
-        /* 球向 -X 滚：PWM 偏大、角度偏高，压低上界。 */
-        g_cal.hi_deg = g_cal.mid_deg;
-    } else {
-        /* 球近乎静止：当前角度即为平衡角。 */
-        Ball_Calibrate_Finish(g_cal.mid_deg);
-        return;
-    }
-
-    g_cal.iterations++;
+static uint8_t Ball_Calibrate_CanContinue(void)
+{
     if ((g_cal.iterations >= BALL_CAL_MAX_ITERATIONS) ||
-        ((g_cal.hi_deg - g_cal.lo_deg) <= BALL_CAL_CONVERGE_SPAN_DEG) ||
-        ((uint32_t)(g_cal.ms - g_cal.start_ms) > BALL_CAL_TOTAL_TIMEOUT_MS)) {
-        Ball_Calibrate_Finish((g_cal.lo_deg + g_cal.hi_deg) * 0.5f);
+        ((uint32_t)(g_cal.ms - g_cal.start_ms) >
+         BALL_CAL_TOTAL_TIMEOUT_MS)) {
+        Ball_Calibrate_Abort();
+        return 0U;
+    }
+    return 1U;
+}
+
+static void Ball_Calibrate_StartCenterCheck(void)
+{
+    g_cal.candidate_deg = (g_cal.lo_deg + g_cal.hi_deg) * 0.5f;
+    g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
+    Ball_Calibrate_StartAt(g_cal.candidate_deg);
+}
+
+static void Ball_Calibrate_ContinueBisect(void)
+{
+    float converge_deg =
+        Ball_Calibrate_PulseSpanToDeg(BALL_CAL_CONVERGE_SPAN_US);
+
+    if (Ball_Calibrate_CanContinue() == 0U) {
         return;
     }
-
+    if ((g_cal.hi_deg - g_cal.lo_deg) <= converge_deg) {
+        Ball_Calibrate_StartCenterCheck();
+        return;
+    }
+    g_cal.stage = BALL_CAL_STAGE_BISECT;
     Ball_Calibrate_StartIteration();
+}
+
+static void Ball_Calibrate_StartVerify(void)
+{
+    float max_probe;
+
+    g_cal.candidate_deg = g_cal.mid_deg;
+    g_cal.probe_deg =
+        Ball_Calibrate_PulseSpanToDeg(BALL_CAL_VERIFY_PROBE_US);
+    max_probe = (g_cal.hi_deg - g_cal.lo_deg) * 0.5f;
+    if (g_cal.probe_deg > max_probe) {
+        g_cal.probe_deg = max_probe;
+    }
+    if (g_cal.probe_deg <=
+        Ball_Calibrate_PulseSpanToDeg(BALL_CAL_CONVERGE_SPAN_US) * 0.5f) {
+        Ball_Calibrate_StartCenterCheck();
+        return;
+    }
+    g_cal.stage = BALL_CAL_STAGE_VERIFY_LOW;
+    Ball_Calibrate_StartAt(g_cal.candidate_deg - g_cal.probe_deg);
+}
+
+static uint8_t Ball_Calibrate_ExpandProbe(uint8_t toward_high)
+{
+    float max_probe = (toward_high != 0U) ?
+                      (g_cal.hi_deg - g_cal.candidate_deg) :
+                      (g_cal.candidate_deg - g_cal.lo_deg);
+    float next_probe = g_cal.probe_deg * 2.0f;
+
+    if (next_probe > max_probe) {
+        next_probe = max_probe;
+    }
+    if (next_probe <= g_cal.probe_deg + 0.01f) {
+        return 0U;
+    }
+    g_cal.probe_deg = next_probe;
+    Ball_Calibrate_StartAt(g_cal.candidate_deg +
+                           ((toward_high != 0U) ? next_probe : -next_probe));
+    return 1U;
+}
+
+static void Ball_Calibrate_Decide(void)
+{
+    int8_t direction;
+    uint8_t blocked_at_start_edge;
+    uint8_t trial_expired =
+        ((uint32_t)(g_cal.ms - g_cal.trial_start_ms) >=
+         BALL_CAL_TRIAL_TIMEOUT_MS) ? 1U : 0U;
+
+    direction = Ball_Calibrate_GetDirection(
+        trial_expired, &blocked_at_start_edge);
+
+    if ((direction == 0) &&
+        ((g_cal.sample_count < BALL_CAL_MIN_SAMPLES) ||
+         (blocked_at_start_edge != 0U))) {
+        if (trial_expired == 0U) {
+            Ball_Calibrate_RetryObservation();
+        } else {
+            Ball_Calibrate_Abort();
+        }
+        return;
+    }
+    g_cal.iterations++;
+
+    switch (g_cal.stage) {
+    case BALL_CAL_STAGE_BRACKET_LOW:
+        /* 最低PWM必须证明球能向+X滚动，静止不能当作平衡。 */
+        if (direction != 1) {
+            if (trial_expired == 0U) {
+                Ball_Calibrate_RetryObservation();
+            } else {
+                Ball_Calibrate_Abort();
+            }
+            return;
+        }
+        g_cal.lo_deg = g_cal.mid_deg;
+        g_cal.stage = BALL_CAL_STAGE_BRACKET_HIGH;
+        Ball_Calibrate_StartAt(g_cal.hi_deg);
+        return;
+
+    case BALL_CAL_STAGE_BRACKET_HIGH:
+        /* 最高PWM必须证明球能向-X滚动，至此才建立有效夹逼区间。 */
+        if (direction != -1) {
+            if (trial_expired == 0U) {
+                Ball_Calibrate_RetryObservation();
+            } else {
+                Ball_Calibrate_Abort();
+            }
+            return;
+        }
+        g_cal.hi_deg = g_cal.mid_deg;
+        Ball_Calibrate_ContinueBisect();
+        return;
+
+    case BALL_CAL_STAGE_BISECT:
+        if (direction > 0) {
+            g_cal.lo_deg = g_cal.mid_deg;
+            Ball_Calibrate_ContinueBisect();
+        } else if (direction < 0) {
+            g_cal.hi_deg = g_cal.mid_deg;
+            Ball_Calibrate_ContinueBisect();
+        } else {
+            /* 单点不动可能是静摩擦，必须在候选点两侧验证相反滚动。 */
+            Ball_Calibrate_StartVerify();
+        }
+        return;
+
+    case BALL_CAL_STAGE_VERIFY_LOW:
+        if (direction > 0) {
+            g_cal.lo_deg = g_cal.mid_deg;
+            g_cal.stage = BALL_CAL_STAGE_VERIFY_HIGH;
+            Ball_Calibrate_StartAt(g_cal.candidate_deg + g_cal.probe_deg);
+        } else if (direction < 0) {
+            g_cal.hi_deg = g_cal.mid_deg;
+            Ball_Calibrate_ContinueBisect();
+        } else if (Ball_Calibrate_ExpandProbe(0U) == 0U) {
+            Ball_Calibrate_Abort();
+        }
+        return;
+
+    case BALL_CAL_STAGE_VERIFY_HIGH:
+        if (direction < 0) {
+            g_cal.hi_deg = g_cal.mid_deg;
+            g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
+            Ball_Calibrate_StartAt(g_cal.candidate_deg);
+        } else if (direction > 0) {
+            g_cal.lo_deg = g_cal.mid_deg;
+            Ball_Calibrate_ContinueBisect();
+        } else if (Ball_Calibrate_ExpandProbe(1U) == 0U) {
+            Ball_Calibrate_Abort();
+        }
+        return;
+
+    case BALL_CAL_STAGE_VERIFY_CENTER:
+        if (direction == 0) {
+            Ball_Calibrate_Finish(g_cal.candidate_deg);
+        } else {
+            /* 复核仍有系统漂移，继续按实测方向缩小夹逼区间。 */
+            if (direction > 0) {
+                g_cal.lo_deg = g_cal.candidate_deg;
+            } else {
+                g_cal.hi_deg = g_cal.candidate_deg;
+            }
+            Ball_Calibrate_ContinueBisect();
+        }
+        return;
+    }
 }
 
 void Ball_Calibrate_Init(void)
@@ -129,17 +421,31 @@ void Ball_Calibrate_Init(void)
     uint8_t i;
 
     g_cal.state = BALL_CAL_STATE_IDLE;
+    g_cal.stage = BALL_CAL_STAGE_BRACKET_LOW;
     g_cal.lo_deg = 0.0f;
     g_cal.hi_deg = 0.0f;
     g_cal.mid_deg = 0.0f;
+    g_cal.candidate_deg = 0.0f;
+    g_cal.probe_deg = 0.0f;
+    g_cal.pending_deg = 0.0f;
+    g_cal.last_valid_x_mm = 0.0f;
     g_cal.result_deg = 0.0f;
     g_cal.ms = 0U;
     g_cal.phase_ms = 0U;
+    g_cal.trial_start_ms = 0U;
+    g_cal.recovery_start_ms = 0U;
+    g_cal.recovery_step_ms = 0U;
     g_cal.wait_start_ms = 0U;
     g_cal.start_ms = 0U;
     g_cal.iterations = 0U;
     g_cal.save_pending = 0U;
     g_cal.sample_count = 0U;
+    g_cal.edge_positive_count = 0U;
+    g_cal.edge_negative_count = 0U;
+    g_cal.trial_start_side = 0;
+    g_cal.recovery_side = 0;
+    g_cal.recovery_pulse_us = SERVO_PULSE_NEUTRAL_US;
+    g_cal.recovery_step_us = BALL_CAL_RECOVER_START_US;
     g_cal.last_sample_ts = 0U;
     for (i = 0U; i < BALL_CAL_MAX_SAMPLES; i++) {
         g_cal.sample_x[i] = 0.0f;
@@ -157,10 +463,12 @@ uint8_t Ball_Calibrate_ProcessSave(void)
     }
     g_cal.save_pending = 0U;
     if (CalibStore_Save(g_cal.result_deg) == 0U) {
+        g_cal.state = BALL_CAL_STATE_SAVE_FAILED;
         return 2U;
     }
     if ((CalibStore_Load(&readback) == 0U) ||
         (readback != g_cal.result_deg)) {
+        g_cal.state = BALL_CAL_STATE_SAVE_FAILED;
         return 2U;
     }
     return 1U;
@@ -180,7 +488,9 @@ void Ball_Calibrate_Start(void)
         }
     }
     if ((g_cal.state != BALL_CAL_STATE_IDLE) &&
-        (g_cal.state != BALL_CAL_STATE_DONE)) {
+        (g_cal.state != BALL_CAL_STATE_DONE) &&
+        (g_cal.state != BALL_CAL_STATE_FAILED) &&
+        (g_cal.state != BALL_CAL_STATE_SAVE_FAILED)) {
         return;
     }
     Ball_Control_SetServoHold(1);
@@ -188,34 +498,101 @@ void Ball_Calibrate_Start(void)
     g_cal.wait_start_ms = g_cal.ms;
     g_cal.start_ms = g_cal.ms;
     g_cal.iterations = 0U;
+    g_cal.stage = BALL_CAL_STAGE_BRACKET_LOW;
+    g_cal.candidate_deg = 0.0f;
+    g_cal.probe_deg = 0.0f;
     g_cal.result_deg = 0.0f;
 }
 
 void Ball_Calibrate_Tick5ms(void)
 {
     K230_BallPosition position;
+    uint16_t next_pulse;
 
     g_cal.ms += 5U;
+    K230_Link_GetPosition(&position);
+    if (position.valid != 0U) {
+        g_cal.last_valid_x_mm = position.x_mm;
+    }
 
     switch (g_cal.state) {
     case BALL_CAL_STATE_IDLE:
     case BALL_CAL_STATE_DONE:
+    case BALL_CAL_STATE_FAILED:
+    case BALL_CAL_STATE_SAVE_FAILED:
         break;
 
     case BALL_CAL_STATE_WAIT_BALL:
         if ((uint32_t)(g_cal.ms - g_cal.wait_start_ms) >
             BALL_CAL_WAIT_BALL_TIMEOUT_MS) {
-            /* 球不在杆上：放弃标定，保持原 trim，闭环不受影响。 */
+            /* 完全没有有效位置或视野外侧别：保持原 trim，不盲目扫舵机。 */
             Ball_Calibrate_Abort();
             break;
         }
-        K230_Link_GetPosition(&position);
-        if ((position.valid != 0U) &&
-            (Ball_Calibrate_Abs(position.x_mm) <=
-             BALL_CAL_START_MAX_X_MM)) {
-            g_cal.lo_deg = BALL_CAL_SEARCH_MIN_DEG;
-            g_cal.hi_deg = BALL_CAL_SEARCH_MAX_DEG;
-            Ball_Calibrate_StartIteration();
+        /*
+         * 宽范围标定会先验证两个端点，并能利用 edge 等待视野外小球返回，
+         * 因此无需把球预先放进 ±10mm；否则 servo_hold 会冻结最后PWM，
+         * 形成“等它进中心、但又不给它运动”的入口死锁。
+         */
+        if ((position.valid != 0U) || (position.edge_direction != 0)) {
+            g_cal.lo_deg =
+                Ball_Calibrate_PulseToDeg(BALL_CAL_SEARCH_MIN_US);
+            g_cal.hi_deg =
+                Ball_Calibrate_PulseToDeg(BALL_CAL_SEARCH_MAX_US);
+            g_cal.stage = BALL_CAL_STAGE_BRACKET_LOW;
+            Ball_Calibrate_StartAt(g_cal.lo_deg);
+        }
+        break;
+
+    case BALL_CAL_STATE_RECOVER:
+        if (position.valid != 0U) {
+            /* 已重新进入视野，恢复此前尚未执行的校准试探点。 */
+            Ball_Calibrate_ApplyTrial(g_cal.pending_deg, &position);
+            break;
+        }
+        if ((uint32_t)(g_cal.ms - g_cal.recovery_start_ms) >=
+            BALL_CAL_RECOVER_TIMEOUT_MS) {
+            Ball_Calibrate_Abort();
+            break;
+        }
+        if ((uint32_t)(g_cal.ms - g_cal.recovery_step_ms) >=
+            BALL_CAL_RECOVER_STEP_MS) {
+            g_cal.recovery_step_ms = g_cal.ms;
+            next_pulse = g_cal.recovery_pulse_us;
+            if (g_cal.recovery_side > 0) {
+                /* 从+X离开：增大PWM，让球向-X返回。 */
+                if ((uint32_t)next_pulse + g_cal.recovery_step_us >=
+                    BALL_CAL_SEARCH_MAX_US) {
+                    next_pulse = BALL_CAL_SEARCH_MAX_US;
+                } else {
+                    next_pulse = (uint16_t)(next_pulse +
+                                           g_cal.recovery_step_us);
+                }
+            } else {
+                /* 从-X离开：减小PWM，让球向+X返回。 */
+                if (next_pulse <=
+                    (uint16_t)(BALL_CAL_SEARCH_MIN_US +
+                               g_cal.recovery_step_us)) {
+                    next_pulse = BALL_CAL_SEARCH_MIN_US;
+                } else {
+                    next_pulse = (uint16_t)(next_pulse -
+                                           g_cal.recovery_step_us);
+                }
+            }
+            g_cal.recovery_pulse_us = next_pulse;
+            Servo_SetTargetAngle(Ball_Calibrate_PulseToDeg(next_pulse));
+            Servo_ApplyHardware();
+            if (g_cal.recovery_step_us <
+                BALL_CAL_RECOVER_MAX_STEP_US) {
+                g_cal.recovery_step_us =
+                    (uint16_t)(g_cal.recovery_step_us +
+                               BALL_CAL_RECOVER_ADD_US);
+                if (g_cal.recovery_step_us >
+                    BALL_CAL_RECOVER_MAX_STEP_US) {
+                    g_cal.recovery_step_us =
+                        BALL_CAL_RECOVER_MAX_STEP_US;
+                }
+            }
         }
         break;
 
@@ -224,18 +601,27 @@ void Ball_Calibrate_Tick5ms(void)
             g_cal.state = BALL_CAL_STATE_OBSERVE;
             g_cal.phase_ms = g_cal.ms;
             g_cal.sample_count = 0U;
+            g_cal.edge_positive_count = 0U;
+            g_cal.edge_negative_count = 0U;
             g_cal.last_sample_ts = 0U;
         }
         break;
 
     case BALL_CAL_STATE_OBSERVE:
-        K230_Link_GetPosition(&position);
-        if ((position.valid != 0U) &&
-            (position.timestamp_ms != g_cal.last_sample_ts)) {
+        if (position.timestamp_ms != g_cal.last_sample_ts) {
             g_cal.last_sample_ts = position.timestamp_ms;
-            if (g_cal.sample_count < BALL_CAL_MAX_SAMPLES) {
+            if ((position.valid != 0U) &&
+                (g_cal.sample_count < BALL_CAL_MAX_SAMPLES)) {
                 g_cal.sample_x[g_cal.sample_count] = position.x_mm;
                 g_cal.sample_count++;
+            } else if (position.edge_direction > 0) {
+                if (g_cal.edge_positive_count < 255U) {
+                    g_cal.edge_positive_count++;
+                }
+            } else if (position.edge_direction < 0) {
+                if (g_cal.edge_negative_count < 255U) {
+                    g_cal.edge_negative_count++;
+                }
             }
         }
         if ((uint32_t)(g_cal.ms - g_cal.phase_ms) >= BALL_CAL_OBSERVE_MS) {
@@ -248,6 +634,7 @@ void Ball_Calibrate_Tick5ms(void)
 uint8_t Ball_Calibrate_IsActive(void)
 {
     return ((g_cal.state == BALL_CAL_STATE_WAIT_BALL) ||
+            (g_cal.state == BALL_CAL_STATE_RECOVER) ||
             (g_cal.state == BALL_CAL_STATE_SETTLE) ||
             (g_cal.state == BALL_CAL_STATE_OBSERVE)) ? 1U : 0U;
 }

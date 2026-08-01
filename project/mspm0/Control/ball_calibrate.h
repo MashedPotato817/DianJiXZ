@@ -11,7 +11,8 @@
  * 高于平衡角时滚向另一侧；观测 K230 的 x_mm 滚向哪侧即可缩小区间，
  * 最终收敛到球近乎静止的角度，即当前机构真实平衡角。
  *
- * 触发：按键长按。流程 IDLE→WAIT_BALL→SETTLE→OBSERVE→DONE。
+ * 触发：按键长按。流程先验证低/高PWM的相反滚动方向，再二分搜索并在
+ * 候选点两侧主动探测；只有双向证据和候选点复核均通过才进入 DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
  * 结果通过 Ball_Control_SetTrimAngle 写入本次上电期间使用的 trim。
  *
@@ -27,27 +28,40 @@
 #define BALL_CAL_SAVE_ENABLE 1
 /* 上电优先加载已通过 magic 和角度范围校验的标定结果。 */
 #define BALL_CAL_LOAD_ENABLE 1
-/* 已知平衡基准为100.8°，只在附近小范围搜索，避免误校准到125°。 */
-#define BALL_CAL_SEARCH_MIN_DEG     (95.0f)
-#define BALL_CAL_SEARCH_MAX_DEG     (107.0f)
-#define BALL_CAL_CONVERGE_SPAN_DEG  (1.0f)
-#define BALL_CAL_MAX_ITERATIONS     (8U)
+/*
+ * 不预设平衡角：先在舵机完整脉宽范围建立正、反滚动证据，再夹逼平衡点。
+ * 1400~1900us 的可能平衡位置被完整覆盖，同时允许机构重装后的更大漂移。
+ */
+#define BALL_CAL_SEARCH_MIN_US       (1100U)
+#define BALL_CAL_SEARCH_MAX_US       (2100U)
+#define BALL_CAL_CONVERGE_SPAN_US    (5U)
+#define BALL_CAL_VERIFY_PROBE_US     (30U)
+#define BALL_CAL_MAX_ITERATIONS      (20U)
 #define BALL_CAL_SETTLE_MS          (400U)
-#define BALL_CAL_OBSERVE_MS         (500U)
+#define BALL_CAL_OBSERVE_MS         (600U)
+#define BALL_CAL_TRIAL_TIMEOUT_MS   (4000U)
+#define BALL_CAL_RECOVER_TIMEOUT_MS (6000U)
+#define BALL_CAL_RECOVER_STEP_MS    (250U)
+#define BALL_CAL_RECOVER_START_US   (20U)
+#define BALL_CAL_RECOVER_ADD_US     (10U)
+#define BALL_CAL_RECOVER_MAX_STEP_US (100U)
 #define BALL_CAL_WAIT_BALL_TIMEOUT_MS (3000U)
-#define BALL_CAL_TOTAL_TIMEOUT_MS   (20000U)
+#define BALL_CAL_TOTAL_TIMEOUT_MS   (60000U)
 #define BALL_CAL_TREND_THRESHOLD_MM (2.0f)
 #define BALL_CAL_EDGE_X_MM          (55.0f)
+#define BALL_CAL_EDGE_CONFIRM_FRAMES (3U)
 #define BALL_CAL_MAX_SAMPLES        (16U)
 #define BALL_CAL_MIN_SAMPLES        (6U)
-#define BALL_CAL_START_MAX_X_MM     (10.0f)
 
 typedef enum {
     BALL_CAL_STATE_IDLE = 0,
     BALL_CAL_STATE_WAIT_BALL = 1,
-    BALL_CAL_STATE_SETTLE = 2,
-    BALL_CAL_STATE_OBSERVE = 3,
-    BALL_CAL_STATE_DONE = 4
+    BALL_CAL_STATE_RECOVER = 2,
+    BALL_CAL_STATE_SETTLE = 3,
+    BALL_CAL_STATE_OBSERVE = 4,
+    BALL_CAL_STATE_DONE = 5,
+    BALL_CAL_STATE_FAILED = 6,
+    BALL_CAL_STATE_SAVE_FAILED = 7
 } Ball_CalibrateState;
 
 void Ball_Calibrate_Init(void);

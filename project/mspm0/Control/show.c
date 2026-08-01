@@ -147,8 +147,10 @@ void oled_show(void)
     OLED_ShowString(0, 40, "MODE:");
     cal_state = Ball_Calibrate_GetState();
     if (cal_state == BALL_CAL_STATE_WAIT_BALL) {
-        /* 已识别长按，等待小球进入零点附近后才开始扫掠。 */
+        /* 已识别长按，等待有效位置或视野外侧别。 */
         OLED_ShowString(34, 40, "CAL WAIT");
+    } else if (cal_state == BALL_CAL_STATE_RECOVER) {
+        OLED_ShowString(34, 40, "CAL BACK");
     } else if (cal_state == BALL_CAL_STATE_SETTLE) {
         OLED_ShowString(34, 40, "CAL SET ");
     } else if (cal_state == BALL_CAL_STATE_OBSERVE) {
@@ -165,7 +167,15 @@ void oled_show(void)
         case BALL_TASK_IDLE:
         case BALL_TASK_FAULT:
         default:
-            OLED_ShowString(34, 40, "ZERO");
+            if (cal_state == BALL_CAL_STATE_DONE) {
+                OLED_ShowString(34, 40, "CAL OK  ");
+            } else if (cal_state == BALL_CAL_STATE_SAVE_FAILED) {
+                OLED_ShowString(34, 40, "SAVE ERR");
+            } else if (cal_state == BALL_CAL_STATE_FAILED) {
+                OLED_ShowString(34, 40, "CAL FAIL");
+            } else {
+                OLED_ShowString(34, 40, "ZERO    ");
+            }
             break;
         }
     }

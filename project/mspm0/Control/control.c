@@ -154,10 +154,11 @@ void TIMER_0_INST_IRQHandler(void)
 				if (now_cal_state != last_cal_state) {
 					if (now_cal_state == BALL_CAL_STATE_WAIT_BALL) {
 						Debug_Telemetry_LogEvent("CAL,START");
+					} else if (now_cal_state == BALL_CAL_STATE_RECOVER) {
+						Debug_Telemetry_LogEvent("CAL,BACK");
 					} else if (now_cal_state == BALL_CAL_STATE_DONE) {
 						Debug_Telemetry_LogEvent("CAL,DONE");
-					} else if ((now_cal_state == BALL_CAL_STATE_IDLE) &&
-						   (last_cal_state != BALL_CAL_STATE_IDLE)) {
+					} else if (now_cal_state == BALL_CAL_STATE_FAILED) {
 						Debug_Telemetry_LogEvent("CAL,ABORT");
 					}
 					last_cal_state = now_cal_state;

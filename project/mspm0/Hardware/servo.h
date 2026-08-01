@@ -12,11 +12,11 @@
  * 1100~2100 us 的本机实测关系。
  *
  * 2026-08-01 当前机构平衡基准确认为 PWM 1660 us，对应 100.8°。
- * 自动扫掠标定或 UART 调参可在本次上电期间修改控制 trim，但下次上电
- * 仍从该固定基准启动，避免旧 Flash 标定值覆盖当前机械基准。
+ * 100.8°/1660us 仅作为无有效 Flash 数据时的启动基准；宽范围自动标定
+ * 成功并写入 Flash 后，下次上电由上层加载实测平衡值。
  */
-#define SERVO_ANGLE_MIN_DEG      (5.0f)
-#define SERVO_ANGLE_MAX_DEG      (175.0f)
+#define SERVO_ANGLE_MIN_DEG      (0.0f)
+#define SERVO_ANGLE_MAX_DEG      (180.0f)
 #define SERVO_ANGLE_NEUTRAL_DEG  (100.8f)
 #define SERVO_PULSE_MIN_US       (1100U)
 #define SERVO_PULSE_NEUTRAL_US   (1660U)
