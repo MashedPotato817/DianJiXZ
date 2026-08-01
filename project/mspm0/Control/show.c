@@ -155,6 +155,8 @@ void oled_show(void)
         OLED_ShowString(34, 40, "CAL SET ");
     } else if (cal_state == BALL_CAL_STATE_OBSERVE) {
         OLED_ShowString(34, 40, "CAL READ");
+    } else if (cal_state == BALL_CAL_STATE_CENTER) {
+        OLED_ShowString(34, 40, "CAL ZERO");
     } else {
         switch (Ball_Task_GetState()) {
         case BALL_TASK_POINT_PLUS:

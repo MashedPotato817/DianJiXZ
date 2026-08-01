@@ -12,8 +12,8 @@
  * 最终收敛到球近乎静止的角度，即当前机构真实平衡角。
  *
  * 触发：按键长按。流程先验证低/高PWM的相反滚动方向，再按实测位移趋势
- * 加权搜索并在候选点两侧主动探测；只有双向证据和候选点复核均通过才
- * 进入 DONE。
+ * 加权搜索并在候选点两侧主动探测；得到无漂移候选值后交给零点闭环，
+ * 只有小球连续稳定在 0±7mm 才进入 DONE。
  * 标定期间通过 Ball_Control_SetServoHold 冻结正常闭环，直接命令舵机。
  * 结果通过 Ball_Control_SetTrimAngle 写入本次上电期间使用的 trim。
  *
@@ -56,6 +56,10 @@
 #define BALL_CAL_EDGE_CONFIRM_FRAMES (3U)
 #define BALL_CAL_MAX_SAMPLES        (16U)
 #define BALL_CAL_MIN_SAMPLES        (6U)
+#define BALL_CAL_CENTER_TOLERANCE_MM (7.0f)
+#define BALL_CAL_CENTER_VELOCITY_MM_S (8.0f)
+#define BALL_CAL_CENTER_STABLE_MS   (1500U)
+#define BALL_CAL_CENTER_TIMEOUT_MS (20000U)
 
 typedef enum {
     BALL_CAL_STATE_IDLE = 0,
@@ -63,9 +67,10 @@ typedef enum {
     BALL_CAL_STATE_RECOVER = 2,
     BALL_CAL_STATE_SETTLE = 3,
     BALL_CAL_STATE_OBSERVE = 4,
-    BALL_CAL_STATE_DONE = 5,
-    BALL_CAL_STATE_FAILED = 6,
-    BALL_CAL_STATE_SAVE_FAILED = 7
+    BALL_CAL_STATE_CENTER = 5,
+    BALL_CAL_STATE_DONE = 6,
+    BALL_CAL_STATE_FAILED = 7,
+    BALL_CAL_STATE_SAVE_FAILED = 8
 } Ball_CalibrateState;
 
 void Ball_Calibrate_Init(void);

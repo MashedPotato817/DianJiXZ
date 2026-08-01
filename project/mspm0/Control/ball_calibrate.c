@@ -29,6 +29,8 @@ typedef struct {
     float motion_score_mm;
     float lo_score_mm;
     float hi_score_mm;
+    float original_trim_deg;
+    float original_target_x_mm;
     float result_deg;
     uint32_t ms;
     uint32_t phase_ms;
@@ -37,7 +39,10 @@ typedef struct {
     uint32_t recovery_step_ms;
     uint32_t wait_start_ms;
     uint32_t start_ms;
+    uint32_t center_start_ms;
+    uint32_t center_stable_start_ms;
     uint8_t iterations;
+    uint8_t center_stable;
     uint8_t save_pending;   /* 标定完成待写 Flash，主循环 ProcessSave 执行 */
     float sample_x[BALL_CAL_MAX_SAMPLES];
     uint8_t sample_count;
@@ -172,8 +177,7 @@ static void Ball_Calibrate_Finish(float balance_deg)
     g_cal.result_deg = balance_deg;
     g_cal.state = BALL_CAL_STATE_DONE;
     Ball_Control_SetServoHold(0);
-    /* 把舵机命令到标定结果并复位运动状态，随后闭环按新 trim 继续。 */
-    Ball_Control_SetTrimAngle(balance_deg);
+    /* CENTER 已按候选 trim 建立闭环，完成时保留其积分和制动状态。 */
 #if BALL_CAL_SAVE_ENABLE
     /*
      * 持久化推迟到主循环（Ball_Calibrate_ProcessSave）：Flash 擦写毫秒级且
@@ -188,8 +192,9 @@ static void Ball_Calibrate_Abort(void)
 {
     g_cal.state = BALL_CAL_STATE_FAILED;
     Ball_Control_SetServoHold(0);
-    /* 中止时立即恢复原 trim，不能停留在最后一次试探角。 */
-    Ball_Control_Reset();
+    /* 中止时恢复进入标定前的 trim 和目标，不能停留在最后一次试探角。 */
+    Ball_Control_SetTrimAngle(g_cal.original_trim_deg);
+    Ball_Control_SetTarget(g_cal.original_target_x_mm);
 }
 
 static int8_t Ball_Calibrate_GetDirection(uint8_t allow_same_edge,
@@ -290,6 +295,21 @@ static void Ball_Calibrate_StartCenterCheck(void)
     g_cal.candidate_deg = (g_cal.lo_deg + g_cal.hi_deg) * 0.5f;
     g_cal.stage = BALL_CAL_STAGE_VERIFY_CENTER;
     Ball_Calibrate_StartAt(g_cal.candidate_deg);
+}
+
+static void Ball_Calibrate_StartCentering(void)
+{
+    /*
+     * 夹逼值只证明摆杆近似无坡度，不能证明球已在中点。释放舵机接管，
+     * 让低频零点闭环用该值作为 trim 把球送回 0±7mm，再决定是否保存。
+     */
+    g_cal.state = BALL_CAL_STATE_CENTER;
+    g_cal.center_start_ms = g_cal.ms;
+    g_cal.center_stable_start_ms = 0U;
+    g_cal.center_stable = 0U;
+    Ball_Control_SetTrimAngle(g_cal.candidate_deg);
+    Ball_Control_SetTarget(0.0f);
+    Ball_Control_SetServoHold(0);
 }
 
 static void Ball_Calibrate_ContinueBisect(void)
@@ -449,7 +469,7 @@ static void Ball_Calibrate_Decide(void)
 
     case BALL_CAL_STAGE_VERIFY_CENTER:
         if (direction == 0) {
-            Ball_Calibrate_Finish(g_cal.candidate_deg);
+            Ball_Calibrate_StartCentering();
         } else {
             /* 复核仍有系统漂移，继续按实测方向缩小夹逼区间。 */
             if (direction > 0) {
@@ -481,6 +501,8 @@ void Ball_Calibrate_Init(void)
     g_cal.motion_score_mm = 0.0f;
     g_cal.lo_score_mm = 0.0f;
     g_cal.hi_score_mm = 0.0f;
+    g_cal.original_trim_deg = BALL_CONTROL_TRIM_INITIAL_DEG;
+    g_cal.original_target_x_mm = 0.0f;
     g_cal.result_deg = 0.0f;
     g_cal.ms = 0U;
     g_cal.phase_ms = 0U;
@@ -489,7 +511,10 @@ void Ball_Calibrate_Init(void)
     g_cal.recovery_step_ms = 0U;
     g_cal.wait_start_ms = 0U;
     g_cal.start_ms = 0U;
+    g_cal.center_start_ms = 0U;
+    g_cal.center_stable_start_ms = 0U;
     g_cal.iterations = 0U;
+    g_cal.center_stable = 0U;
     g_cal.save_pending = 0U;
     g_cal.sample_count = 0U;
     g_cal.edge_positive_count = 0U;
@@ -528,6 +553,8 @@ uint8_t Ball_Calibrate_ProcessSave(void)
 
 void Ball_Calibrate_Start(void)
 {
+    const Ball_Control *control;
+
     /* 标定依赖位置方向和尺度；五点映射未验证时不得移动舵机或写 Flash。 */
     if (K230_LINK_MAPPING_VALIDATED == 0U) {
         return;
@@ -545,6 +572,9 @@ void Ball_Calibrate_Start(void)
         (g_cal.state != BALL_CAL_STATE_SAVE_FAILED)) {
         return;
     }
+    control = Ball_Control_Get();
+    g_cal.original_trim_deg = control->trim_angle_deg;
+    g_cal.original_target_x_mm = control->target_x_mm;
     Ball_Control_SetServoHold(1);
     g_cal.state = BALL_CAL_STATE_WAIT_BALL;
     g_cal.wait_start_ms = g_cal.ms;
@@ -557,6 +587,7 @@ void Ball_Calibrate_Start(void)
     g_cal.motion_score_mm = 0.0f;
     g_cal.lo_score_mm = 0.0f;
     g_cal.hi_score_mm = 0.0f;
+    g_cal.center_stable = 0U;
 }
 
 void Ball_Calibrate_Tick5ms(void)
@@ -683,6 +714,33 @@ void Ball_Calibrate_Tick5ms(void)
             Ball_Calibrate_Decide();
         }
         break;
+
+    case BALL_CAL_STATE_CENTER:
+        if (((uint32_t)(g_cal.ms - g_cal.center_start_ms) >=
+             BALL_CAL_CENTER_TIMEOUT_MS) ||
+            ((uint32_t)(g_cal.ms - g_cal.start_ms) >=
+             BALL_CAL_TOTAL_TIMEOUT_MS)) {
+            Ball_Calibrate_Abort();
+            break;
+        }
+        if ((position.valid != 0U) &&
+            (Ball_Calibrate_Abs(position.x_mm) <=
+             BALL_CAL_CENTER_TOLERANCE_MM) &&
+            (Ball_Calibrate_Abs(
+                Ball_Control_Get()->filtered_velocity_mm_s) <=
+             BALL_CAL_CENTER_VELOCITY_MM_S)) {
+            if (g_cal.center_stable == 0U) {
+                g_cal.center_stable = 1U;
+                g_cal.center_stable_start_ms = g_cal.ms;
+            } else if ((uint32_t)(g_cal.ms -
+                                  g_cal.center_stable_start_ms) >=
+                       BALL_CAL_CENTER_STABLE_MS) {
+                Ball_Calibrate_Finish(g_cal.candidate_deg);
+            }
+        } else {
+            g_cal.center_stable = 0U;
+        }
+        break;
     }
 }
 
@@ -691,7 +749,8 @@ uint8_t Ball_Calibrate_IsActive(void)
     return ((g_cal.state == BALL_CAL_STATE_WAIT_BALL) ||
             (g_cal.state == BALL_CAL_STATE_RECOVER) ||
             (g_cal.state == BALL_CAL_STATE_SETTLE) ||
-            (g_cal.state == BALL_CAL_STATE_OBSERVE)) ? 1U : 0U;
+            (g_cal.state == BALL_CAL_STATE_OBSERVE) ||
+            (g_cal.state == BALL_CAL_STATE_CENTER)) ? 1U : 0U;
 }
 
 float Ball_Calibrate_GetResultDeg(void)
