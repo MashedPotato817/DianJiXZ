@@ -78,12 +78,12 @@ int main(void)
     NVIC_SetPriority(TIMER_0_INST_INT_IRQN, 1);
     OLED_Init();  // 初始化OLED显示屏
     K230_Link_Init();  // UART1 轮询接收 K230 最小联调帧
-    Servo_Init();      // 上电先输出当前固定平衡基准 100.8 度（1660 us）
+    Servo_Init();      // 上电先输出最新实测平衡基准 108.1 度（1701 us）
     Ball_Control_Init(); /* 当前默认使能，进入混合小球闭环。 */
     Ball_Calibrate_Init(); /* 自动扫掠标定状态机，按键长按触发。 */
     Ball_Task_Init(); /* RESET 后目标为0；START(PA18)短按触发 0→+5→-5。 */
     {
-        /* 上电优先恢复长按自动标定保存的平衡角，无有效数据才用100.8度。 */
+        /* 上电优先恢复长按自动标定保存的平衡角，无有效数据才用108.1度。 */
         uint8_t trim_from_flash = 0U;
 #if BALL_CAL_LOAD_ENABLE
         float stored_balance_deg;

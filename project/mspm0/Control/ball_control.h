@@ -128,11 +128,11 @@ typedef struct {
 #define BALL_CONTROL_PASS_MIN_HOLD_MS       (150U)
 
 /*
- * PWM 1660 us（=100.8°）是 2026-08-01 确认的当前机构平衡基准。
+ * PWM 1701 us（=108.1°）是 2026-08-01 最新实测的无漂移平衡基准。
  * trim 在线学习已关闭（KI=0），避免运行中再次漂离基准；自动扫掠标定
  * 或 UART 调参仍可在本次上电期间更新 trim。Flash 旧值不在上电时加载。
  */
-#define BALL_CONTROL_TRIM_INITIAL_DEG        (100.8f)
+#define BALL_CONTROL_TRIM_INITIAL_DEG        (108.1f)
 #define BALL_CONTROL_TRIM_MIN_DEG            (15.0f)
 #define BALL_CONTROL_TRIM_MAX_DEG           (165.0f)
 #define BALL_CONTROL_TRIM_KI_DEG_PER_MM_S     (0.00f)
@@ -142,7 +142,7 @@ typedef struct {
 
 /* 链路自身100ms超时后再容忍到总计180ms，期间保持上一安全输出。 */
 #define BALL_CONTROL_LOST_HOLD_TOTAL_MS    (180U)
-/* 相对trim偏移；中位100.8°时可用上限为74.2°（175-100.8），取50°留余量 */
+/* 相对 trim 偏移取 50°，为两侧机械范围保留余量。 */
 #define BALL_CONTROL_EDGE_RECOVERY_OFFSET_DEG (50.0f)
 #define BALL_CONTROL_EDGE_RECOVERY_TIMEOUT_MS (1000U)
 

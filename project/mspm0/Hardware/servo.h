@@ -11,15 +11,15 @@
  * 机械允许范围已确认为 5~175 度；脉宽换算仍沿用 0~180 度对应
  * 1100~2100 us 的本机实测关系。
  *
- * 2026-08-01 当前机构平衡基准确认为 PWM 1660 us，对应 100.8°。
- * 100.8°/1660us 仅作为无有效 Flash 数据时的启动基准；宽范围自动标定
+ * 2026-08-01 最新实测无漂移平衡值为 PWM 1701 us，对应 108.1°。
+ * 108.1°/1701us 仅作为无有效 Flash 数据时的启动基准；宽范围自动标定
  * 成功并写入 Flash 后，下次上电由上层加载实测平衡值。
  */
 #define SERVO_ANGLE_MIN_DEG      (0.0f)
 #define SERVO_ANGLE_MAX_DEG      (180.0f)
-#define SERVO_ANGLE_NEUTRAL_DEG  (100.8f)
+#define SERVO_ANGLE_NEUTRAL_DEG  (108.1f)
 #define SERVO_PULSE_MIN_US       (1100U)
-#define SERVO_PULSE_NEUTRAL_US   (1660U)
+#define SERVO_PULSE_NEUTRAL_US   (1701U)
 #define SERVO_PULSE_MAX_US       (2100U)
 #define SERVO_US_PER_DEG         ((float)(SERVO_PULSE_MAX_US - SERVO_PULSE_MIN_US) / 180.0f)
 
